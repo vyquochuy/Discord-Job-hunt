@@ -1,0 +1,37 @@
+# ==============================================================================
+# Backend Dependencies - AI Job Hunter Agent
+# ==============================================================================
+
+# Core Framework
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.34.0,<1.0.0
+pydantic>=2.10.0,<3.0.0
+pydantic-settings>=2.7.0,<3.0.0
+
+# Database & ORM
+SQLAlchemy[asyncio]>=2.0.38,<3.0.0
+asyncpg>=0.30.0,<1.0.0
+psycopg2-binary>=2.9.10,<3.0.0
+alembic>=1.14.0,<2.0.0
+pgvector>=0.3.6,<1.0.0
+
+# Queue & Cache
+redis>=5.2.0,<6.0.0
+
+# AI & LLM Orchestration
+openai>=1.63.0,<2.0.0
+tiktoken>=0.8.0,<1.0.0
+
+# Networking & Utilities
+httpx>=0.28.0,<1.0.0
+python-dotenv>=1.0.1,<2.0.0
+pyyaml>=6.0.2,<7.0.0
+
+# Document Processing (cho Phase 4)
+python-docx>=1.1.2,<2.0.0
+
+# Testing & Quality
+pytest>=8.3.4,<9.0.0
+pytest-asyncio>=0.25.3,<1.0.0
+aiosqlite>=0.21.0,<1.0.0
+ruff>=0.9.6,<1.0.0

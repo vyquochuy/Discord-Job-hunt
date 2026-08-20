@@ -1,0 +1,133 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Database: PostgreSQL 16 tích hợp sẵn extension pgvector
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jobhunter_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobhunter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobhunter_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-jobhunter_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jobhunter} -d ${POSTGRES_DB:-jobhunter_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jobhunter_net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # 2. In-Memory Queue: Redis cho background workers và cache
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: jobhunter_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jobhunter_net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # 3. Core API: FastAPI Backend điều phối logic, database và AI
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobhunter_backend
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobhunter}:${POSTGRES_PASSWORD:-jobhunter_secure_password}@postgres:5432/${POSTGRES_DB:-jobhunter_db}
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./context:/context:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jobhunter_net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # 4. Background Workers: Xử lý tác vụ nặng (cào tin, AI extraction, render CV)
+  # ----------------------------------------------------------------------------
+  workers:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobhunter_workers
+    command: python -m app.worker
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobhunter}:${POSTGRES_PASSWORD:-jobhunter_secure_password}@postgres:5432/${POSTGRES_DB:-jobhunter_db}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - ./workers:/workers
+      - ./context:/context:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - jobhunter_net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # 5. Interface: Discord Bot (TypeScript / discord.js)
+  # ----------------------------------------------------------------------------
+  discord-bot:
+    build:
+      context: ./discord-bot
+      dockerfile: Dockerfile
+    container_name: jobhunter_discord_bot
+    env_file:
+      - .env
+    environment:
+      - BACKEND_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_started
+    volumes:
+      - ./discord-bot:/app
+      - /app/node_modules
+    networks:
+      - jobhunter_net
+    restart: unless-stopped
+
+# ------------------------------------------------------------------------------
+# Volumes & Networks
+# ------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  jobhunter_net:
+    driver: bridge
