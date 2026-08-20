@@ -31,7 +31,7 @@
 
 ## Phase 1 — Candidate Profile
 
-**Status:** NOT STARTED
+**Status:** COMPLETED
 
 **Goal:** Store and manage candidate data so the system can use it for matching and generation.
 
@@ -39,42 +39,43 @@
 - Candidate profile database model
 - Import `candidate-profile.yaml` into database
 - Profile CRUD API endpoints
-- Discord commands: `/profile`, `/profile update`
+- Discord commands: `/profile`, `/profile update`, `/profile sync`
 - Validation of profile data
 
 **Dependencies:** Phase 0.
 
 **Acceptance Criteria:**
-- [ ] Candidate profile stored in PostgreSQL
-- [ ] Profile viewable via `/profile` Discord command
-- [ ] Profile editable via Discord modal
-- [ ] Master resume accessible to backend services
+- [x] Candidate profile stored in PostgreSQL
+- [x] Profile viewable via `/profile` Discord command
+- [x] Profile editable via Discord modal
+- [x] Master resume accessible to backend services
 
 ---
 
 ## Phase 2 — Job Collection
 
-**Status:** NOT STARTED
+**Status:** COMPLETED
 
 **Goal:** Automatically discover and store normalized job postings from at least one source.
 
 **Scope:**
-- Job and Company database models
-- JobCollector abstract interface
-- First source implementation (TBD — likely an official API)
-- Job normalization to common schema
-- Deduplication logic (layers 1–3)
-- Scheduled collection via worker
-- Collection health tracking
+- Job, RawJob, Skill, SkillAlias and JobSkill database models
+- JobCollector abstract interface (`BaseJobCollector`)
+- Source implementations: `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `MockJobCollector`
+- Job & Skill normalization to canonical taxonomy & schema
+- Deduplication logic (layers 1–3: Exact Signature, RapidFuzz, pgvector)
+- Ingestion pipeline with SHA-256 content hashing for 0 LLM cost caching
+- Scheduled collection via worker (`worker.py` with `--run-once` and daemon mode)
+- REST API endpoints for job listing, filtering, inspection, and manual collection trigger
 
 **Dependencies:** Phase 0.
 
 **Acceptance Criteria:**
-- [ ] Jobs collected automatically on schedule
-- [ ] Jobs normalized to common format
-- [ ] Duplicate jobs detected and merged
-- [ ] Jobs stored in PostgreSQL
-- [ ] Collection failures logged and recoverable
+- [x] Jobs collected automatically on schedule
+- [x] Jobs normalized to common format
+- [x] Duplicate jobs detected and merged
+- [x] Jobs stored in PostgreSQL (with `raw_jobs` as source of truth)
+- [x] Collection failures logged and recoverable
 
 ---
 

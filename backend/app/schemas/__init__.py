@@ -24,8 +24,29 @@ from app.schemas.candidate import (
     EducationItem,
     PreferencesItem,
 )
+from app.schemas.job import (
+    RawJobBase,
+    RawJobCreate,
+    RawJobResponse,
+    SkillAliasBase,
+    SkillAliasCreate,
+    SkillAliasResponse,
+    SkillTaxonomyBase,
+    SkillTaxonomyCreate,
+    SkillTaxonomyResponse,
+    JobSkillBase,
+    JobSkillResponse,
+    JobExtractedData,
+    JobBase,
+    JobCreate,
+    JobUpdate,
+    JobResponse,
+    JobDetailResponse,
+    JobListResponse,
+)
 
 __all__ = [
+    # Candidate Schemas (Phase 1)
     "CandidateBase",
     "CandidateCreate",
     "CandidateUpdate",
@@ -49,4 +70,23 @@ __all__ = [
     "CertificationResponse",
     "EducationItem",
     "PreferencesItem",
+    # Job Collection Schemas (Phase 2)
+    "RawJobBase",
+    "RawJobCreate",
+    "RawJobResponse",
+    "SkillAliasBase",
+    "SkillAliasCreate",
+    "SkillAliasResponse",
+    "SkillTaxonomyBase",
+    "SkillTaxonomyCreate",
+    "SkillTaxonomyResponse",
+    "JobSkillBase",
+    "JobSkillResponse",
+    "JobExtractedData",
+    "JobBase",
+    "JobCreate",
+    "JobUpdate",
+    "JobResponse",
+    "JobDetailResponse",
+    "JobListResponse",
 ]

@@ -1,3 +1,4 @@
+import logging
 import uuid
 import pytest
 from app.models.candidate import (
@@ -16,9 +17,12 @@ from app.schemas.candidate import (
     CertificationCreate,
 )
 
+logger = logging.getLogger("test.candidate_models")
+
 
 def test_candidate_pydantic_schemas_validation():
     """Kiểm tra Pydantic schemas validate chính xác dữ liệu từ hồ sơ ứng viên."""
+    logger.info("=== [TEST] Candidate Profile Pydantic Schema Validation ===")
     candidate_data = {
         "full_name": "Vy Quoc Huy",
         "headline": "System Intern",
@@ -54,6 +58,7 @@ def test_candidate_pydantic_schemas_validation():
 
     # Validate qua CandidateCreate schema
     schema = CandidateCreate(**candidate_data)
+    logger.info(f"  Candidate Validated: Full Name='{schema.full_name}', Roles={schema.target_roles}")
     assert schema.full_name == "Vy Quoc Huy"
     assert schema.headline == "System Intern"
     assert len(schema.education) == 1
@@ -63,6 +68,7 @@ def test_candidate_pydantic_schemas_validation():
 
 def test_project_schema_with_evidence():
     """Kiểm tra schema Project chứa các evidence points đo lường định lượng."""
+    logger.info("=== [TEST] Candidate Project Schema with Evidence Points ===")
     project_data = {
         "name": "VYVYCHAT",
         "role": "Full-stack Developer",
@@ -91,6 +97,7 @@ def test_project_schema_with_evidence():
     }
 
     schema = ProjectCreate(**project_data)
+    logger.info(f"  Project Validated: Name='{schema.name}', Evidence Points={len(schema.evidence_points)}")
     assert schema.name == "VYVYCHAT"
     assert len(schema.evidence_points) == 2
     assert schema.evidence_points[0]["title"] == "Cryptography & E2EE"
@@ -98,6 +105,7 @@ def test_project_schema_with_evidence():
 
 def test_candidate_orm_model_instantiation():
     """Kiểm tra khởi tạo SQLAlchemy ORM model với quan hệ cascade."""
+    logger.info("=== [TEST] Candidate ORM Model Instantiation & Cascade Relationships ===")
     candidate_id = uuid.uuid4()
     candidate = Candidate(
         id=candidate_id,
@@ -124,6 +132,10 @@ def test_candidate_orm_model_instantiation():
 
     candidate.skills.append(skill)
     candidate.projects.append(project)
+
+    logger.info(f"  Candidate ORM Object Created: ID={candidate.id}, Name='{candidate.full_name}'")
+    logger.info(f"  Skills Associated: {candidate.skills[0].name} ({candidate.skills[0].proficiency})")
+    logger.info(f"  Projects Associated: {candidate.projects[0].name} ({candidate.projects[0].technologies})")
 
     assert candidate.full_name == "Vy Quoc Huy"
     assert len(candidate.skills) == 1

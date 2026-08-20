@@ -54,6 +54,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobhunter}:${POSTGRES_PASSWORD:-jobhunter_secure_password}@postgres:5432/${POSTGRES_DB:-jobhunter_db}
       - REDIS_URL=redis://redis:6379/0
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     volumes:

@@ -1,31 +1,25 @@
 # In Progress
 
 ## Goal
-Phase 1 — Candidate Profile: Quản lý hồ sơ ứng viên và nguồn bằng chứng xác thực (Source of Truth).
+Phase 2 — Job Collection: Thu thập tự động và chuẩn hóa tin tuyển dụng từ các nguồn (Job Collectors).
 
-## Current Status
-- **Bước 1.1: Tạo Data Models cho Hồ sơ Ứng viên** (Đã hoàn thành)
-- **Bước 1.2: Xây dựng Ingestion Parser & Repository Layer** (Đã hoàn thành)
-- **Bước 1.3: Xây dựng Service Layer & REST API Endpoints** (Kế tiếp)
+## Context
+Phase 1 (Candidate Profile) đã hoàn thành xuất sắc toàn bộ các bước từ Database Models, Parser, Repository, Service, REST APIs cho tới Discord Slash Command `/profile`. Dự án sẵn sàng bước sang Phase 2 để xây dựng cơ chế thu thập tin tuyển dụng.
 
 ## Relevant Files
-- `backend/app/services/parser.py` (CandidateProfileParser đọc YAML, TeX, MD)
-- `backend/app/repositories/candidate.py` (CandidateRepository async DB operations & sync)
-- `backend/app/models/candidate.py` (SQLAlchemy ORM Models)
-- `backend/app/schemas/candidate.py` (Pydantic validation schemas)
-- `backend/alembic/versions/002_candidate_profile_models.py` (Alembic migration)
-- `backend/tests/test_candidate_parser_and_repo.py` (Unit tests)
-- `context/candidate-profile.yaml` & `context/master-resume.tex` (Dữ liệu nguồn)
+- `docs/ROADMAP.MD`
+- `docs/ARCHITECTURE.MD`
+- `backend/app/models/`
+- `workers/`
 
 ## Acceptance Criteria
-- [x] Định nghĩa đầy đủ SQLAlchemy ORM models cho Candidate và các thực thể liên kết (Skills, Experiences, Projects, Certifications)
-- [x] Tạo Pydantic schemas xác thực dữ liệu đầu vào / đầu ra
-- [x] Tạo file migration Alembic `002_candidate_profile_models.py`
-- [x] Parser service đọc và trích xuất dữ liệu từ `candidate-profile.yaml`, `master-resume.tex`, `master-resume.md`
-- [x] Repository layer xử lý async CRUD và đồng bộ hóa context vào DB với eager loading
-- [x] Toàn bộ 7 unit test cases đều passed 100%
-- [ ] REST API endpoints `/api/v1/profile` (GET, PUT, POST sync)
-- [ ] Discord Bot Slash Commands (`/profile`, `/profile update`, `/profile sync`)
+- [ ] Xây dựng Job và Company database models
+- [ ] Thiết kế JobCollector abstract interface
+- [ ] Triển khai collector cho nguồn dữ liệu đầu tiên
+- [ ] Chuẩn hóa tin tuyển dụng về Common Schema
+- [ ] Xây dựng bộ lọc trùng lặp tin tuyển dụng (Deduplication Layer 1-3)
+- [ ] Thiết lập lịch thu thập tự động qua Worker
+- [ ] Theo dõi và ghi log sức khỏe của collector (Health Tracking)
 
 ## Next Step
-Triển khai **Bước 1.3: Xây dựng Service Layer & REST API Endpoints** (`CandidateService` và các API endpoints: `GET /api/v1/profile`, `PUT /api/v1/profile`, `POST /api/v1/profile/sync`).
+Bắt đầu **Phase 2: Bước 2.1 (Tạo Data Models cho Job & Company)**.

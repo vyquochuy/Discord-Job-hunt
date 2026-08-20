@@ -16,30 +16,32 @@
 
 ---
 
-## Phase 1 — Candidate Profile (Current Active)
-
-### Data Models & Storage (Completed)
-- [x] Implement SQLAlchemy ORM models:
-  - `Candidate`
-  - `CandidateSkill`
-  - `CandidateProject` (with evidence points array/json)
-  - `CandidateExperience`
-  - `CandidateCertification`
-- [x] Implement Pydantic validation schemas for candidate domain entities (`backend/app/schemas/candidate.py`)
+## Phase 1 — Candidate Profile (Completed)
+- [x] Implement SQLAlchemy ORM models (`Candidate`, `CandidateSkill`, `CandidateExperience`, `CandidateProject`, `CandidateCertification`)
+- [x] Implement Pydantic validation schemas (`CandidateDetailResponse`, `CandidateCreate`, `CandidateUpdate`, `CandidateSyncResponse`, etc.)
 - [x] Create Alembic migration script `002_candidate_profile_models.py`
-- [x] Unit test validation for models and schemas (`backend/tests/test_candidate_models.py`)
+- [x] Create parser service for `context/candidate-profile.yaml`, `context/master-resume.tex`, `context/master-resume.md`
+- [x] Implement `CandidateRepository` for database CRUD operations & context sync
+- [x] Implement `CandidateService` for profile management & sync orchestration
+- [x] Expose REST API endpoints with `X-Internal-Secret` security (`GET /api/v1/profile`, `PUT /api/v1/profile`, `POST /api/v1/profile/sync`)
+- [x] Unit and API integration tests (`backend/tests/test_profile_api.py`)
+- [x] Implement `/profile` slash command (`view`, `update`, `sync` with Rich Embed, Action Buttons, and interactive Modals)
 
-### Ingestion & Services (In Progress)
-- [x] Create parser service for `context/candidate-profile.yaml`, `context/master-resume.tex`, `context/master-resume.md` (`backend/app/services/parser.py`)
-- [x] Implement `CandidateRepository` for database CRUD operations & context sync (`backend/app/repositories/candidate.py`)
-- [x] Unit tests for parser and repository sync (`backend/tests/test_candidate_parser_and_repo.py`)
-- [ ] Implement `CandidateService` for profile management & sync orchestration (`backend/app/services/candidate.py`)
-- [ ] Expose REST API endpoints:
-  - `GET /api/v1/profile`: Retrieve candidate profile & evidence
-  - `PUT /api/v1/profile`: Update candidate profile
-  - `POST /api/v1/profile/sync`: Ingest/sync from `context/` files
+---
 
-### Discord Bot Integration (Next)
-- [ ] Implement `/profile` slash command (displays profile in rich Embed format)
-- [ ] Implement `/profile update` command (interactive Modal for field updates)
-- [ ] Add sync feedback via ephemeral responses
+## Phase 2 — Job Collection (Current Active)
+
+### Data Models & Schema
+- [ ] Implement Job and Company database models (SQLAlchemy ORM + Alembic migration)
+- [ ] Implement Pydantic schemas for normalized Job data
+
+### Collectors & Normalization
+- [ ] Define `JobCollector` abstract interface
+- [ ] Implement first job source collector
+- [ ] Build job normalization engine
+- [ ] Implement deduplication logic (Layers 1-3)
+
+### Worker & Scheduling
+- [ ] Configure scheduled collection tasks in worker
+- [ ] Implement collection run logging and error recovery
+- [ ] Add health tracking metrics for collectors

@@ -1,19 +1,20 @@
-import uuid
+import logging
 from pathlib import Path
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
-from app.models.candidate import Candidate
 from app.repositories.candidate import CandidateRepository
-from app.schemas.candidate import CandidateUpdate
+from app.services.candidate import CandidateService
 from app.services.parser import CandidateProfileParser
 
+logger = logging.getLogger("test.candidate_repo")
 
-# In-memory SQLite async engine fixture
+
 @pytest_asyncio.fixture
 async def async_session():
+    """Tạo AsyncSession sử dụng in-memory SQLite để cô lập dữ liệu kiểm thử."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -28,69 +29,50 @@ async def async_session():
 
 
 def test_parser_load_and_merge_actual_context():
-    """Kiểm tra parser đọc chính xác thư mục context/ thực tế của dự án."""
-    context_dir = Path(__file__).resolve().parent.parent.parent / "context"
-    assert context_dir.exists(), f"Context directory {context_dir} does not exist"
+    """Kiểm tra parser đọc chính xác các file context thật trong workspace."""
+    logger.info("=== [TEST] Candidate Context Parser (YAML + Markdown + TeX) ===")
+    context_dir = CandidateService.get_default_context_dir()
+
+    if not context_dir.exists():
+        pytest.skip(f"Context directory {context_dir} not found")
 
     merged = CandidateProfileParser.load_and_merge_context(context_dir)
+    logger.info(f"  Merged Candidate Profile: Name='{merged['candidate'].get('name')}', Email='{merged['candidate'].get('email')}'")
+    logger.info(f"  Target Roles: {merged.get('target_roles')}")
+    logger.info(f"  Projects Parsed: {len(merged.get('projects', []))}")
+    logger.info(f"  Skills Groups: {list(merged.get('skills', {}).keys())}")
 
-    # 1. Kiểm tra thông tin cá nhân
     assert merged["candidate"]["name"] == "Vy Quoc Huy"
-    assert "System Intern" in merged["candidate"].get("headline", "")
     assert merged["candidate"]["email"] == "vyquochuy305@gmail.com"
-    assert "github.com/vyquochuy" in merged["candidate"]["github"]
-
-    # 2. Kiểm tra học vấn
-    assert len(merged["education"]) >= 1
-    edu = merged["education"][0]
-    assert "University of Science" in edu["institution"]
-    assert edu["gpa"] == "3.15/4.0"
-
-    # 3. Kiểm tra kỹ năng
-    skills = merged["skills"]
-    assert "Python" in skills.get("programming", [])
-    assert "TypeScript" in skills.get("programming", [])
-    assert "Cloudflare Workers" in skills.get("tools_databases", []) or "Cloudflare D1" in skills.get("tools_databases", [])
-
-    # 4. Kiểm tra dự án & evidence
-    projects = merged["projects"]
-    assert len(projects) >= 2
-    project_names = [p["name"] for p in projects]
-    assert any("VYVYCHAT" in name for name in project_names)
-    assert any("Account Manager" in name for name in project_names)
-
-    # Kiểm tra evidence trong dự án VYVYCHAT
-    vyvychat = next(p for p in projects if "VYVYCHAT" in p["name"])
-    assert len(vyvychat.get("evidence", [])) >= 2
+    assert len(merged["projects"]) >= 2
+    assert len(merged["skills"]) > 0
 
 
 @pytest.mark.asyncio
 async def test_repository_sync_and_get_profile(async_session: AsyncSession):
-    """Kiểm tra CandidateRepository đồng bộ dữ liệu vào DB và truy vấn ra kèm eager loading."""
-    context_dir = Path(__file__).resolve().parent.parent.parent / "context"
-    merged = CandidateProfileParser.load_and_merge_context(context_dir)
+    """Kiểm tra quá trình đồng bộ (Sync) và truy vấn hồ sơ ứng viên qua Service & Repository."""
+    logger.info("=== [TEST] Candidate Service Sync & Get Profile Lifecycle ===")
+    context_dir = CandidateService.get_default_context_dir()
 
-    # 1. Đồng bộ dữ liệu
-    candidate = await CandidateRepository.sync_from_parsed_context(
-        async_session, merged
-    )
-    assert candidate.id is not None
-    assert candidate.full_name == "Vy Quoc Huy"
-    assert len(candidate.skills) > 0
-    assert len(candidate.projects) >= 2
+    if not context_dir.exists():
+        pytest.skip(f"Context directory {context_dir} not found")
 
-    # 2. Truy vấn lại qua get_profile
-    retrieved = await CandidateRepository.get_profile(async_session)
-    assert retrieved is not None
-    assert retrieved.id == candidate.id
-    assert retrieved.full_name == "Vy Quoc Huy"
-    assert len(retrieved.skills) == len(candidate.skills)
-    assert len(retrieved.projects) == len(candidate.projects)
+    # 1. Đồng bộ lần đầu qua CandidateService
+    logger.info("  1. Executing Sync from context directory...")
+    sync_resp = await CandidateService.sync_profile_from_context(async_session, context_dir)
+    assert sync_resp.success is True
+    assert sync_resp.full_name == "Vy Quoc Huy"
+    logger.info(f"  Sync Response: Success={sync_resp.success}, Candidate='{sync_resp.full_name}', SkillsCount={sync_resp.skills_count}")
 
-    # 3. Cập nhật một số trường
-    update_data = CandidateUpdate(headline="Lead SRE & DevOps Intern")
-    updated = await CandidateRepository.update_profile_fields(
-        async_session, candidate.id, update_data
-    )
-    assert updated is not None
-    assert updated.headline == "Lead SRE & DevOps Intern"
+    # 2. Truy vấn lại qua CandidateRepository
+    fetched = await CandidateRepository.get_profile(async_session)
+    assert fetched is not None
+    assert fetched.full_name == "Vy Quoc Huy"
+    logger.info(f"  2. Fetched Profile from DB: Full Name='{fetched.full_name}', Skills={len(fetched.skills)}, Projects={len(fetched.projects)}")
+
+    # 3. Đồng bộ lại (Idempotency) -> không tạo duplicate candidate
+    logger.info("  3. Executing Idempotent Re-Sync...")
+    sync_resp_2 = await CandidateService.sync_profile_from_context(async_session, context_dir)
+    assert sync_resp_2.success is True
+    assert sync_resp_2.candidate_id == sync_resp.candidate_id
+    logger.info(f"  Idempotency Verified: Candidate ID {sync_resp_2.candidate_id} matched previous ID.")

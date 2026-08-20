@@ -1,6 +1,7 @@
 import {
   Client,
   Collection,
+  EmbedBuilder,
   Events,
   GatewayIntentBits,
   REST,
@@ -8,6 +9,14 @@ import {
 } from 'discord.js';
 import { config, validateConfig } from './config';
 import { pingCommand } from './commands/ping';
+import {
+  profileCommand,
+  buildProfileOverviewEmbed,
+  buildProfileSkillsEmbed,
+  buildProfileProjectsEmbed,
+  buildProfileButtons,
+} from './commands/profile';
+import { apiClient } from './services/api-client';
 
 // 1. Kiểm tra cấu hình môi trường
 validateConfig();
@@ -24,6 +33,7 @@ const client = new Client({
 // 3. Đăng ký danh sách Slash Commands
 const commands = new Collection<string, any>();
 commands.set(pingCommand.data.name, pingCommand);
+commands.set(profileCommand.data.name, profileCommand);
 
 // 4. Sự kiện khi Bot sẵn sàng (Ready)
 client.once(Events.ClientReady, async (readyClient) => {
@@ -36,7 +46,10 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
 
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
-  const commandData = [pingCommand.data.toJSON()];
+  const commandData = [
+    pingCommand.data.toJSON(),
+    profileCommand.data.toJSON(),
+  ];
 
   try {
     console.log('🔄 Đang đồng bộ Slash Commands lên Discord...');
@@ -62,23 +75,145 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 // 5. Sự kiện tiếp nhận tương tác từ người dùng (InteractionCreate)
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+  // A. Xử lý Slash Commands
+  if (interaction.isChatInputCommand()) {
+    const command = commands.get(interaction.commandName);
+    if (!command) {
+      console.error(`Không tìm thấy lệnh: ${interaction.commandName}`);
+      return;
+    }
 
-  const command = commands.get(interaction.commandName);
-  if (!command) {
-    console.error(`Không tìm thấy lệnh: ${interaction.commandName}`);
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      console.error(`Lỗi khi thực thi lệnh /${interaction.commandName}:`, error);
+      const errorMessage = '⚠️ Đã xảy ra lỗi nội bộ khi xử lý lệnh của bạn.';
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: errorMessage, ephemeral: true });
+      } else {
+        await interaction.reply({ content: errorMessage, ephemeral: true });
+      }
+    }
     return;
   }
 
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(`Lỗi khi thực thi lệnh /${interaction.commandName}:`, error);
-    const errorMessage = '⚠️ Đã xảy ra lỗi nội bộ khi xử lý lệnh của bạn.';
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: errorMessage, ephemeral: true });
-    } else {
-      await interaction.reply({ content: errorMessage, ephemeral: true });
+  // B. Xử lý Modal Submits (Chỉnh sửa hồ sơ nhanh)
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'modal_profile_update') {
+      if (config.allowedUserId && interaction.user.id !== config.allowedUserId) {
+        await interaction.reply({
+          content: '⛔ Bạn không có quyền chỉnh sửa hồ sơ này.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: false });
+
+      const headline = interaction.fields.getTextInputValue('input_headline').trim();
+      const location = interaction.fields.getTextInputValue('input_location').trim();
+      const targetRolesRaw = interaction.fields.getTextInputValue('input_target_roles').trim();
+      const summary = interaction.fields.getTextInputValue('input_summary').trim();
+
+      const updatePayload: Record<string, any> = {};
+      if (headline) updatePayload.headline = headline;
+      if (location) updatePayload.location = location;
+      if (summary) updatePayload.summary = summary;
+      if (targetRolesRaw) {
+        updatePayload.target_roles = targetRolesRaw
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean);
+      }
+
+      const updateResult = await apiClient.updateProfile(updatePayload);
+      if (!updateResult.success || !updateResult.data) {
+        await interaction.editReply({
+          content: `❌ **Cập nhật thất bại:** ${updateResult.error}`,
+        });
+        return;
+      }
+
+      const updatedEmbed = buildProfileOverviewEmbed(updateResult.data);
+      await interaction.editReply({
+        content: '✨ **Đã cập nhật hồ sơ ứng viên thành công!**',
+        embeds: [updatedEmbed],
+        components: [buildProfileButtons()],
+      });
+    }
+    return;
+  }
+
+  // C. Xử lý Button Clicks (Chuyển đổi view Profile và Đồng bộ)
+  if (interaction.isButton()) {
+    if (config.allowedUserId && interaction.user.id !== config.allowedUserId) {
+      await interaction.reply({
+        content: '⛔ Bạn không có quyền tương tác với bảng điều khiển này.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const buttonId = interaction.customId;
+
+    if (buttonId.startsWith('btn_profile_')) {
+      await interaction.deferUpdate();
+
+      if (buttonId === 'btn_profile_sync') {
+        const syncResult = await apiClient.syncProfile();
+        if (!syncResult.success || !syncResult.data) {
+          await interaction.followUp({
+            content: `❌ **Đồng bộ thất bại:** ${syncResult.error}`,
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const syncData = syncResult.data;
+        const syncEmbed = new EmbedBuilder()
+          .setTitle('✅ Đồng Bộ Hồ Sơ Thành Công!')
+          .setDescription(`Dữ liệu từ thư mục \`context/\` đã được nạp mới:`)
+          .setColor(0x2ecc71)
+          .addFields(
+            { name: '👤 Ứng viên', value: `\`${syncData.full_name}\``, inline: true },
+            { name: '🛠️ Kỹ năng', value: `\`${syncData.skills_count}\``, inline: true },
+            { name: '🚀 Dự án', value: `\`${syncData.projects_count}\``, inline: true },
+            { name: '💼 Kinh nghiệm', value: `\`${syncData.experiences_count}\``, inline: true },
+            { name: '📜 Chứng chỉ', value: `\`${syncData.certifications_count}\``, inline: true }
+          )
+          .setFooter({ text: 'AI Job Hunter • Candidate Sync Service' })
+          .setTimestamp();
+
+        await interaction.editReply({
+          embeds: [syncEmbed],
+          components: [buildProfileButtons()],
+        });
+        return;
+      }
+
+      // Lấy profile data cho các view buttons
+      const profileResult = await apiClient.getProfile();
+      if (!profileResult.success || !profileResult.data) {
+        await interaction.followUp({
+          content: `❌ **Không thể lấy hồ sơ:** ${profileResult.error}`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      let embed: EmbedBuilder;
+      if (buttonId === 'btn_profile_skills') {
+        embed = buildProfileSkillsEmbed(profileResult.data);
+      } else if (buttonId === 'btn_profile_projects') {
+        embed = buildProfileProjectsEmbed(profileResult.data);
+      } else {
+        embed = buildProfileOverviewEmbed(profileResult.data);
+      }
+
+      await interaction.editReply({
+        embeds: [embed],
+        components: [buildProfileButtons()],
+      });
     }
   }
 });

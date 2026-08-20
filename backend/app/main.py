@@ -1,7 +1,8 @@
 import time
 import logging
+import traceback
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import redis.asyncio as aioredis
@@ -44,6 +45,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Bắt và ghi log toàn bộ lỗi không mong muốn, trả về JSON chi tiết thay vì lỗi 500 ẩn."""
+    error_trace = traceback.format_exc()
+    logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}\n{error_trace}")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
 
 
 @app.get("/", tags=["system"])
