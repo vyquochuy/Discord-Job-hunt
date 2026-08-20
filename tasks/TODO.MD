@@ -29,19 +29,36 @@
 
 ---
 
-## Phase 2 — Job Collection (Current Active)
+## Phase 2 — Job Collection (Completed)
+- [x] Implement database models: `raw_jobs`, `jobs`, `skills`, `skill_aliases`, `job_skills`
+- [x] Create Alembic migration `003_job_collection_models.py`
+- [x] Implement `BaseJobCollector` abstract interface
+- [x] Implement Source Adapters: `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `MockJobCollector`
+- [x] Implement Normalization Engine (`SkillNormalizer` + `JobNormalizer`)
+- [x] Implement 3-Tier Deduplication Engine (Exact Hash -> RapidFuzz -> pgvector)
+- [x] Ingestion Pipeline with SHA-256 Content Hash caching (0 LLM cost hit)
+- [x] Integrate background worker loop in `backend/app/worker.py`
+- [x] Expose REST APIs (`/api/v1/jobs`, `/api/v1/jobs/{id}`, `/api/v1/jobs/collect`, `/api/v1/jobs/taxonomy/skills`)
+- [x] 28/28 automated unit and integration tests passing with live logs
 
-### Data Models & Schema
-- [ ] Implement Job and Company database models (SQLAlchemy ORM + Alembic migration)
-- [ ] Implement Pydantic schemas for normalized Job data
+---
 
-### Collectors & Normalization
-- [ ] Define `JobCollector` abstract interface
-- [ ] Implement first job source collector
-- [ ] Build job normalization engine
-- [ ] Implement deduplication logic (Layers 1-3)
+## Phase 3 — Job Intelligence (Next Target)
 
-### Worker & Scheduling
-- [ ] Configure scheduled collection tasks in worker
-- [ ] Implement collection run logging and error recovery
-- [ ] Add health tracking metrics for collectors
+### Data Models & Schemas
+- [ ] Match models & MatchScore schemas (hard filters, match signals, weights, explanations)
+- [ ] Alembic migration for Phase 3 models
+
+### Hard Filtering & Match Engine
+- [ ] Hard filter validation (Location, Work Mode, Target Roles, Minimum Salary)
+- [ ] Exact Skill Set Overlap calculation via Canonical Taxonomy
+- [ ] Semantic Similarity calculation using pgvector embeddings
+
+### Scoring & Explanation
+- [ ] Deterministic weighted scoring algorithm (0 - 100)
+- [ ] Match explanation generator (highlights strengths, missing requirements, caveats)
+- [ ] Job ranking & recommendation engine
+
+### Discord Commands & APIs
+- [ ] REST API endpoints for matching (`GET /api/v1/matches`, `POST /api/v1/matches/calculate/{job_id}`)
+- [ ] Discord Slash Commands: `/jobs`, `/job <id>`, `/match <id>`

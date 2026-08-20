@@ -10,17 +10,18 @@ Backend handles business logic and AI orchestration. Workers handle background j
 
 ## 2. Current State
 
-**Nothing is implemented.** Directory skeleton and documentation only.
+**Phases 0, 1, and 2 are fully COMPLETED and production-verified.**
 
-All source code files are empty (0 bytes):
+- **Phase 0 (Foundation)**: Docker Compose (PostgreSQL with pgvector, Redis, Backend, Workers, Discord Bot), FastAPI skeleton, Alembic migrations, Discord bot skeleton.
+- **Phase 1 (Candidate Profile)**: SQLAlchemy models, Candidate Profile Ingestion (`candidate-profile.yaml`, `master-resume.md`), CRUD/Sync REST APIs (`/api/v1/profile`), Discord `/profile` command with modals and embeds.
+- **Phase 2 (Job Collection)**:
+  - Database models: `raw_jobs` (Source of Truth), `jobs` (Standardized), `skills` & `skill_aliases` (Canonical Taxonomy), `job_skills` (Association with confidence & metadata).
+  - Source Adapters: `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `MockJobCollector`.
+  - Ingestion Pipeline: Content Hash SHA-256 caching (0 LLM cost hit), Deterministic parsing + LLM Structured Extraction, 3-Tier Deduplication (Exact -> RapidFuzz -> pgvector).
+  - Worker & APIs: Background scheduler loop in `worker.py`, REST APIs (`/api/v1/jobs`, `/jobs/{id}`, `/jobs/collect`, `/jobs/taxonomy/skills`).
+  - Testing: 28/28 unit and integration tests passing with live logs.
 
-- `backend/app/main.py` — empty
-- `discord-bot/src/index.ts` — empty
-- `discord-bot/package.json` — empty
-- `backend/requirements.txt` — empty
-- `docker-compose.yml` — empty
-
-No runnable code exists. The project is at Phase 0 (Foundation).
+**Next Target:** Phase 3 (Job Intelligence — Matching CV ↔ JD, Hard Filtering & Scoring Engine).
 
 ---
 
