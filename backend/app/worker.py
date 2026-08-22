@@ -55,9 +55,17 @@ async def run_collection_cycle(limit: int = 15):
     logger.info("Job Collection Cycle Completed successfully.")
 
 
-async def main(run_once: bool = False, interval_seconds: int = 3600):
+from app.services.daily_runner import daily_batch_runner
+
+
+async def main(run_once: bool = False, daily_batch: bool = False, interval_seconds: int = 3600):
     logger.info(f"Starting Job Hunter Background Worker in {settings.ENVIRONMENT} mode...")
-    logger.info(f"Connecting to Redis at: {settings.REDIS_URL}")
+    
+    if daily_batch:
+        logger.info("Executing Autonomous Daily Batch Run (--daily-batch)...")
+        summary = await daily_batch_runner.run_daily_batch(limit_per_source=15)
+        logger.info(f"Daily batch run completed with status: {summary.status}. Exiting.")
+        return
 
     try:
         r = aioredis.from_url(settings.REDIS_URL)
@@ -65,7 +73,7 @@ async def main(run_once: bool = False, interval_seconds: int = 3600):
         logger.info(f"Redis connection successful: {pong}")
         await r.aclose()
     except Exception as e:
-        logger.warning(f"Could not connect to Redis during startup check (running in standalone loop mode): {e}")
+        logger.warning(f"Could not connect to Redis during startup check (running in standalone mode): {e}")
 
     if run_once:
         logger.info("Executing single collection run (--run-once)...")
@@ -89,6 +97,11 @@ async def main(run_once: bool = False, interval_seconds: int = 3600):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Job Hunter Background Worker")
     parser.add_argument(
+        "--daily-batch",
+        action="store_true",
+        help="Run full autonomous daily batch (Sync Context -> Ingest Jobs -> Match & Rank -> Summary Report) and exit",
+    )
+    parser.add_argument(
         "--run-once",
         action="store_true",
         help="Run one job collection cycle immediately and exit",
@@ -102,6 +115,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        asyncio.run(main(run_once=args.run_once, interval_seconds=args.interval))
+        asyncio.run(main(run_once=args.run_once, daily_batch=args.daily_batch, interval_seconds=args.interval))
     except (KeyboardInterrupt, SystemExit):
         logger.info("Worker stopped gracefully.")

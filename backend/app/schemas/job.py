@@ -118,6 +118,9 @@ class JobExtractedData(BaseModel):
     max_salary: Optional[float] = None
     salary_currency: Optional[str] = None
     is_salary_negotiable: bool = False
+
+    contact_email: Optional[str] = None
+    apply_url: Optional[str] = None
     
     description: str
     requirements_summary: Optional[str] = None
@@ -145,6 +148,9 @@ class JobBase(BaseModel):
     max_salary: Optional[float] = Field(None, examples=[3000.0])
     salary_currency: Optional[str] = Field(None, examples=["USD", "VND"])
     is_salary_negotiable: bool = Field(default=False)
+
+    contact_email: Optional[str] = Field(None, examples=["hr@company.com"])
+    apply_url: Optional[str] = Field(None, examples=["https://company.com/careers/apply/123"])
     
     description: str = Field(..., description="Văn bản JD đầy đủ")
     requirements_summary: Optional[str] = None
@@ -171,6 +177,8 @@ class JobUpdate(BaseModel):
     min_salary: Optional[float] = None
     max_salary: Optional[float] = None
     salary_currency: Optional[str] = None
+    contact_email: Optional[str] = None
+    apply_url: Optional[str] = None
     description: Optional[str] = None
     status: Optional[JobStatusEnum] = None
 
@@ -192,6 +200,8 @@ class JobResponse(BaseModel):
     max_salary: Optional[float] = None
     salary_currency: Optional[str] = None
     is_salary_negotiable: bool
+    contact_email: Optional[str] = None
+    apply_url: Optional[str] = None
     status: JobStatusEnum
     source: Optional[str] = None
     source_url: Optional[str] = None

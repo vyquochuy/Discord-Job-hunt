@@ -46,9 +46,10 @@ class JobIngestionPipeline:
         collector: BaseJobCollector,
         db: AsyncSession,
         limit: int = 20,
+        use_llm: bool = False,
     ) -> IngestionStats:
         stats = IngestionStats(source=collector.source_name)
-        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit})...")
+        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit}, use_llm={use_llm})...")
 
         # 1. Thu thập dữ liệu thô từ Collector
         raw_items: List[RawJobData] = await collector.fetch_jobs(limit=limit)
@@ -98,13 +99,28 @@ class JobIngestionPipeline:
 
                 await db.flush()
 
-                # BƯỚC 3: Deterministic Parsing
+                # BƯỚC 3: Deterministic Parsing từ Collector Adapter
                 extracted = await collector.parse_raw(raw_data)
 
-                # BƯỚC 4: LLM Extraction (Bóc tách skills/requirements chi tiết)
-                extracted = await llm_extractor.extract_job_details(
-                    extracted.description, extracted
+                # BƯỚC 4: Deterministic Skill Extraction bổ sung (0 LLM cost)
+                # Tự động quét thêm các canonical skills trong JD nếu parser adapter chưa bắt hết
+                auto_skills = skill_normalizer.extract_skills_from_text(extracted.description)
+                for s in auto_skills:
+                    if s not in extracted.skills_required and s not in extracted.skills_nice_to_have:
+                        extracted.skills_required.append(s)
+
+                # Bóc tách contact info (Email HR / Apply URL)
+                contact_email, apply_url = job_normalizer.extract_contact_info(
+                    extracted.description, raw_data.raw_payload, raw_data.source_url
                 )
+                extracted.contact_email = contact_email
+                extracted.apply_url = apply_url
+
+                # Tùy chọn: Chỉ gọi LLM nếu được bật tường minh
+                if use_llm:
+                    extracted = await llm_extractor.extract_job_details(
+                        extracted.description, extracted
+                    )
 
                 # BƯỚC 5: Normalization
                 norm_title = job_normalizer.normalize_title(extracted.title)
@@ -140,7 +156,6 @@ class JobIngestionPipeline:
                 embedding_vec = await embedding_service.generate_embedding(emb_text)
 
                 # BƯỚC 8: Lưu Standardized Job
-                # Kiểm tra nếu job đã tồn tại với raw_job_id (trường hợp re-parse)
                 stmt_job = select(Job).where(Job.raw_job_id == raw_job.id)
                 res_job = await db.execute(stmt_job)
                 job = res_job.scalars().first()
@@ -160,6 +175,8 @@ class JobIngestionPipeline:
                         max_salary=max_sal,
                         salary_currency=curr,
                         is_salary_negotiable=is_neg,
+                        contact_email=extracted.contact_email,
+                        apply_url=extracted.apply_url,
                         description=extracted.description,
                         requirements_summary=extracted.requirements_summary,
                         benefits_summary=extracted.benefits_summary,
@@ -184,6 +201,8 @@ class JobIngestionPipeline:
                     job.max_salary = max_sal
                     job.salary_currency = curr
                     job.is_salary_negotiable = is_neg
+                    job.contact_email = extracted.contact_email
+                    job.apply_url = extracted.apply_url
                     job.description = extracted.description
                     job.requirements_summary = extracted.requirements_summary
                     job.benefits_summary = extracted.benefits_summary
@@ -199,7 +218,7 @@ class JobIngestionPipeline:
                     db, job.id, norm_required_skills, is_required=True, confidence=1.0, source="explicit"
                 )
                 await self._save_job_skills(
-                    db, job.id, norm_nice_skills, is_required=False, confidence=0.85, source="llm"
+                    db, job.id, norm_nice_skills, is_required=False, confidence=0.85, source="inferred"
                 )
 
                 raw_job.fetch_status = RawJobStatusEnum.PARSED.value

@@ -148,6 +148,47 @@ class JobNormalizer:
         return min_salary, max_salary, curr, is_negotiable
 
     @classmethod
+    def extract_contact_info(
+        cls,
+        text: str,
+        raw_payload: Optional[dict] = None,
+        source_url: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Trích xuất email tuyển dụng (contact_email) và đường dẫn apply (apply_url).
+        """
+        email: Optional[str] = None
+        apply_url: Optional[str] = None
+
+        # 1. Kiểm tra trong raw_payload nếu adapter đã trích xuất sẵn
+        if raw_payload and isinstance(raw_payload, dict):
+            for k in ["contact_email", "email", "hr_email", "recruiter_email"]:
+                if raw_payload.get(k) and isinstance(raw_payload[k], str) and "@" in raw_payload[k]:
+                    email = raw_payload[k].strip()
+                    break
+
+            for k in ["apply_url", "application_url", "direct_apply_url", "apply_link"]:
+                if raw_payload.get(k) and isinstance(raw_payload[k], str) and raw_payload[k].startswith("http"):
+                    apply_url = raw_payload[k].strip()
+                    break
+
+        # 2. Regex tìm email trong text nếu chưa có
+        if not email and text:
+            email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
+            if email_match:
+                candidate_email = email_match.group(0).strip()
+                # Lọc bỏ các email rác / placeholder
+                blocked_domains = ["example.com", "domain.com", "sentry.io", "w3.org", "schema.org"]
+                if not any(d in candidate_email.lower() for d in blocked_domains):
+                    email = candidate_email
+
+        # 3. Fallback apply_url sang source_url nếu không có link riêng
+        if not apply_url:
+            apply_url = source_url
+
+        return email, apply_url
+
+    @classmethod
     def compute_dedup_signature(
         cls,
         normalized_company: str,

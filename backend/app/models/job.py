@@ -151,6 +151,9 @@ class Job(Base):
     salary_currency: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     is_salary_negotiable: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    contact_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    apply_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+
     description: Mapped[str] = mapped_column(Text, nullable=False)
     requirements_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     benefits_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

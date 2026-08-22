@@ -262,6 +262,35 @@ class SkillNormalizer:
 
         return result
 
+    def extract_skills_from_text(self, text: str) -> List[str]:
+        """
+        Trích xuất kỹ năng từ văn bản tự do hoàn toàn deterministic (0 LLM cost).
+        Quét các alias đã biết trong từ điển chuẩn bằng regex.
+        """
+        if not text:
+            return []
+
+        found_canonical: Set[str] = set()
+        cleaned_text = f" {text.lower()} "
+
+        # Sắp xếp alias theo độ dài giảm dần để ưu tiên cụm từ dài (vd 'spring boot' trước 'spring')
+        sorted_aliases = sorted(self._alias_to_canonical.keys(), key=len, reverse=True)
+
+        for alias in sorted_aliases:
+            # Bỏ qua alias quá ngắn (<2 ký tự) nếu không phải C / R
+            if len(alias) < 2:
+                continue
+
+            # Sử dụng regex word boundary hoặc escape ký tự đặc biệt như c++, c#
+            escaped_alias = re.escape(alias)
+            # Kiểm tra boundary: nếu kết thúc bằng +, # thì không dùng \b ở cuối
+            pattern = rf"(?<!\w){escaped_alias}(?!\w)"
+            if re.search(pattern, cleaned_text, re.IGNORECASE):
+                canonical = self._alias_to_canonical[alias]
+                found_canonical.add(canonical)
+
+        return list(found_canonical)
+
     async def seed_or_sync_db(self, db: AsyncSession):
         """Đồng bộ từ điển chuẩn vào Database (bảng skills và skill_aliases)."""
         for canonical, data in DEFAULT_SKILL_TAXONOMY.items():

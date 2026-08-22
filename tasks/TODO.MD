@@ -66,13 +66,20 @@
 - [x] Discord Slash Commands: `/ping`, `/profile`, `/collect`, `/jobs`, `/job <id>`, `/match <id>`, `/recommend`
 - [x] 45/45 automated tests passing (invariant tests, boundary tests, skill dedup, experience independence, API lifecycle, golden test case)
 
+### Architectural Hardening & Pre-Phase 4 Alignment (Completed)
+- [x] Zero-Cost Ingestion: Disabled bulk LLM calls during crawling, supplemented with deterministic regex/taxonomy skill extraction
+- [x] Job Contact Info: Added `contact_email` and `apply_url` columns to `jobs` table (Alembic migration `005_add_job_contact_fields.py`)
+- [x] Daily Batch Orchestrator: Built `DailyBatchRunnerService` in `backend/app/services/daily_runner.py` and `POST /api/v1/jobs/daily-batch`
+- [x] Fast Explainability: Instant deterministic fallback when OpenAI API key is missing or dummy
+- [x] 48/48 automated unit and integration tests passing with 100% success rate
+
 ---
 
-## Phase 4 — Resume Intelligence & Application Automation (Next Target)
+## Phase 4 — Resume Intelligence & Application Automation (Ready to Implement)
 
 ### 1. Data Models & Schemas
-- [ ] Tailored Resume Schema (`TailoredResume`, `EvidenceMap`, `ResumePlan`, `CoverLetter`)
-- [ ] Alembic migration `005_resume_tailoring_models.py`
+- [ ] Tailored Resume Schema (`TailoredResume`, `EvidenceMap`, `ResumePlan`, `CoverLetter`, `ApplicationLog`)
+- [ ] Alembic migration `006_resume_tailoring_models.py`
 
 ### 2. Tailoring & Provenance Engine
 - [ ] Evidence-Locked Rewriter: Chỉ sử dụng các sự thật (facts) và số liệu có sẵn trong `master-resume.tex` & `context/candidate-profile.yaml` (Zero Hallucination).

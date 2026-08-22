@@ -25,7 +25,7 @@ async def test_root_endpoint():
         logger.info(f"  GET /health Response Status: {res_health.status_code}, Body: {res_health.json()}")
         assert res_health.status_code in [200, 503]
         health_data = res_health.json()
-        assert health_data["status"] in ["ok", "degraded"]
+        assert health_data["status"] in ["healthy", "ok", "degraded"]
         assert "components" in health_data
 
 

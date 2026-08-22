@@ -123,10 +123,10 @@ class MatchExplanationService:
         score_result: MatchScoreResult,
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        Sinh nhận xét bằng LLM (nếu có API Key) hoặc Fallback về Template Deterministic.
+        Sinh nhận xét bằng LLM (nếu có API Key hợp lệ) hoặc Fallback về Template Deterministic (0 LLM Cost).
         """
-        # Nếu không có OpenAI Key -> dùng template
-        if not self.client:
+        # Nếu không có OpenAI Key hợp lệ -> dùng ngay template deterministic 0 cost
+        if not self.client or not self.api_key or "your_open" in self.api_key.lower() or "change_me" in self.api_key.lower():
             return self.generate_deterministic_explanation(candidate, job, score_result)
 
         input_hash = self._compute_input_hash(score_result)

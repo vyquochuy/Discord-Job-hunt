@@ -155,6 +155,21 @@ async def trigger_collection(
     }
 
 
+@router.post("/daily-batch")
+async def trigger_daily_batch(
+    limit_per_source: int = Query(15, ge=1, le=50, description="Số lượng tin tối đa mỗi nguồn"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Kích hoạt toàn bộ chu kỳ Daily Autonomous Job Scan & Intelligence:
+    Sync Context -> Sync Taxonomy -> Ingest Jobs (0 LLM Cost) -> Match & Score -> Rank Top Recommendations.
+    """
+    from app.services.daily_runner import daily_batch_runner
+
+    summary = await daily_batch_runner.run_daily_batch(session=db, limit_per_source=limit_per_source)
+    return summary
+
+
 @router.get("/taxonomy/skills", response_model=List[SkillTaxonomyResponse])
 async def list_canonical_skills(
     db: AsyncSession = Depends(get_db),
