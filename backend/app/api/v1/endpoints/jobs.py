@@ -45,7 +45,8 @@ async def list_jobs(
     """
     Lấy danh sách các tin tuyển dụng đã chuẩn hóa (có hỗ trợ tìm kiếm và lọc).
     """
-    query = select(Job).where(Job.status == JobStatusEnum.ACTIVE)
+    query = select(Job).options(selectinload(Job.raw_job)).where(Job.status == JobStatusEnum.ACTIVE)
+
 
     if keyword:
         pattern = f"%{keyword.strip()}%"

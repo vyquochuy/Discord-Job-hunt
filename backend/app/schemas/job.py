@@ -193,9 +193,12 @@ class JobResponse(BaseModel):
     salary_currency: Optional[str] = None
     is_salary_negotiable: bool
     status: JobStatusEnum
+    source: Optional[str] = None
+    source_url: Optional[str] = None
     posted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
 
 
 class JobDetailResponse(JobResponse):

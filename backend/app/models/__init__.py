@@ -19,6 +19,8 @@ from app.models.job import (
     JobSkill,
 )
 
+from app.models.match import JobMatch
+
 __all__ = [
     # Candidate Models (Phase 1)
     "Candidate",
@@ -37,4 +39,7 @@ __all__ = [
     "Skill",
     "SkillAlias",
     "JobSkill",
+    # Match Models (Phase 3)
+    "JobMatch",
 ]
+

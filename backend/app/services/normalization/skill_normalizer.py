@@ -239,8 +239,16 @@ class SkillNormalizer:
 
         return canonical, SkillCategoryEnum.OTHER
 
+    def is_known_skill(self, name: str) -> bool:
+        """Kiểm tra skill có thuộc Canonical Taxonomy chính thức hay không."""
+        if not name:
+            return False
+        cleaned = self.clean_alias(name)
+        return cleaned in self._alias_to_canonical
+
     def normalize_skills(self, raw_skills: List[str]) -> List[Tuple[str, SkillCategoryEnum]]:
         """Chuẩn hóa một danh sách skills, loại bỏ trùng lặp."""
+
         seen_canonical: Set[str] = set()
         result: List[Tuple[str, SkillCategoryEnum]] = []
 

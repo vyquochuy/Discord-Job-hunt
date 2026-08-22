@@ -16,6 +16,11 @@ import {
   buildProfileProjectsEmbed,
   buildProfileButtons,
 } from './commands/profile';
+import { jobsCommand } from './commands/jobs';
+import { jobCommand } from './commands/job';
+import { matchCommand } from './commands/match';
+import { recommendCommand } from './commands/recommend';
+import { collectCommand } from './commands/collect';
 import { apiClient } from './services/api-client';
 
 // 1. Kiểm tra cấu hình môi trường
@@ -34,6 +39,11 @@ const client = new Client({
 const commands = new Collection<string, any>();
 commands.set(pingCommand.data.name, pingCommand);
 commands.set(profileCommand.data.name, profileCommand);
+commands.set(jobsCommand.data.name, jobsCommand);
+commands.set(jobCommand.data.name, jobCommand);
+commands.set(matchCommand.data.name, matchCommand);
+commands.set(recommendCommand.data.name, recommendCommand);
+commands.set(collectCommand.data.name, collectCommand);
 
 // 4. Sự kiện khi Bot sẵn sàng (Ready)
 client.once(Events.ClientReady, async (readyClient) => {
@@ -49,7 +59,14 @@ client.once(Events.ClientReady, async (readyClient) => {
   const commandData = [
     pingCommand.data.toJSON(),
     profileCommand.data.toJSON(),
+    jobsCommand.data.toJSON(),
+    jobCommand.data.toJSON(),
+    matchCommand.data.toJSON(),
+    recommendCommand.data.toJSON(),
+    collectCommand.data.toJSON(),
   ];
+
+
 
   try {
     console.log('🔄 Đang đồng bộ Slash Commands lên Discord...');

@@ -184,9 +184,18 @@ class Job(Base):
         "JobSkill", back_populates="job", cascade="all, delete-orphan"
     )
 
+    @property
+    def source(self) -> Optional[str]:
+        return self.raw_job.source if self.raw_job else None
+
+    @property
+    def source_url(self) -> Optional[str]:
+        return self.raw_job.source_url if self.raw_job else None
+
     __table_args__ = (
         Index("ix_jobs_company_title", "normalized_company", "normalized_title"),
     )
+
 
 
 class Skill(Base):

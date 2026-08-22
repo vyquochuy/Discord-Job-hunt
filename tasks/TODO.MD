@@ -43,22 +43,48 @@
 
 ---
 
-## Phase 3 — Job Intelligence (Next Target)
+## Phase 3 — Job Intelligence (Completed)
 
 ### Data Models & Schemas
-- [ ] Match models & MatchScore schemas (hard filters, match signals, weights, explanations)
-- [ ] Alembic migration for Phase 3 models
+- [x] Match models & MatchScore schemas (tri-state hard filters, 7 match signals, weights, snapshots, versioning)
+- [x] Alembic migration `004_job_match_models.py`
 
 ### Hard Filtering & Match Engine
-- [ ] Hard filter validation (Location, Work Mode, Target Roles, Minimum Salary)
-- [ ] Exact Skill Set Overlap calculation via Canonical Taxonomy
-- [ ] Semantic Similarity calculation using pgvector embeddings
+- [x] Tri-state hard filter validation (Location, Work Mode, Target Roles, Minimum Salary) with explicit UNKNOWN semantics
+- [x] Exact Skill Set Overlap calculation via Canonical Taxonomy & Aliases (zero embedding hallucination)
+- [x] Per-project Semantic Similarity calculation (Cosine similarity normalized to [0.0, 1.0] with keyword fallback)
 
 ### Scoring & Explanation
-- [ ] Deterministic weighted scoring algorithm (0 - 100)
-- [ ] Match explanation generator (highlights strengths, missing requirements, caveats)
-- [ ] Job ranking & recommendation engine
+- [x] Deterministic 7-signal weighted scoring algorithm (0 - 100) with weight sum invariant assertion
+- [x] Score cap rule (< 30% required skill coverage -> score <= 50.0)
+- [x] Clear separation between Eligibility (ELIGIBLE / BLOCKED / UNCERTAIN) and Match Score
+- [x] Match explanation generator (structured strengths, missing requirements, caveats, LLM + deterministic template)
+- [x] Job ranking & recommendation engine (`/recommend`, `GET /api/v1/matches/recommendations/top`)
 
 ### Discord Commands & APIs
-- [ ] REST API endpoints for matching (`GET /api/v1/matches`, `POST /api/v1/matches/calculate/{job_id}`)
-- [ ] Discord Slash Commands: `/jobs`, `/job <id>`, `/match <id>`
+- [x] REST API endpoints for matching (`GET /api/v1/matches`, `POST /api/v1/matches/calculate/{job_id}`, `POST /api/v1/matches/calculate-all`, `GET /api/v1/matches/recommendations/top`)
+- [x] Discord Slash Commands: `/ping`, `/profile`, `/collect`, `/jobs`, `/job <id>`, `/match <id>`, `/recommend`
+- [x] 45/45 automated tests passing (invariant tests, boundary tests, skill dedup, experience independence, API lifecycle, golden test case)
+
+---
+
+## Phase 4 — Resume Intelligence & Application Automation (Next Target)
+
+### 1. Data Models & Schemas
+- [ ] Tailored Resume Schema (`TailoredResume`, `EvidenceMap`, `ResumePlan`, `CoverLetter`)
+- [ ] Alembic migration `005_resume_tailoring_models.py`
+
+### 2. Tailoring & Provenance Engine
+- [ ] Evidence-Locked Rewriter: Chỉ sử dụng các sự thật (facts) và số liệu có sẵn trong `master-resume.tex` & `context/candidate-profile.yaml` (Zero Hallucination).
+- [ ] Dynamic LaTeX Generator: Tái cấu trúc file `.tex` theo thứ tự ưu tiên của JD (skills nổi bật, highlight metric liên quan).
+- [ ] Provenance Verification: Kiểm tra từng bullet point trước khi xuất file PDF.
+
+### 3. LaTeX Compilation & PDF Pipeline
+- [ ] Containerized / Local LaTeX Compiler (`pdflatex` / `xelatex` wrapper).
+- [ ] Export Artifacts: Sinh đồng thời file `.tex`, `.pdf` và `cover_letter.md`.
+
+### 4. REST APIs & Discord Commands
+- [ ] API endpoints: `POST /api/v1/resumes/tailor/{job_id}`, `GET /api/v1/resumes/{id}/pdf`, `POST /api/v1/resumes/apply/{job_id}`.
+- [ ] Discord Slash Commands: `/resume <job_id>`, `/apply <job_id>` (gửi file PDF trực tiếp vào Discord channel và gửi email ứng tuyển).
+
+

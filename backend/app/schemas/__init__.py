@@ -45,6 +45,17 @@ from app.schemas.job import (
     JobListResponse,
 )
 
+from app.schemas.match import (
+    JobMatchResponse,
+    JobMatchDetailResponse,
+    MatchListResponse,
+    TopRecommendationItem,
+    MatchCalculateRequest,
+    BatchCalculateResponse,
+    MatchSignalResponse,
+    HardFilterResponse,
+)
+
 __all__ = [
     # Candidate Schemas (Phase 1)
     "CandidateBase",
@@ -89,4 +100,14 @@ __all__ = [
     "JobResponse",
     "JobDetailResponse",
     "JobListResponse",
+    # Match Schemas (Phase 3)
+    "JobMatchResponse",
+    "JobMatchDetailResponse",
+    "MatchListResponse",
+    "TopRecommendationItem",
+    "MatchCalculateRequest",
+    "BatchCalculateResponse",
+    "MatchSignalResponse",
+    "HardFilterResponse",
 ]
+
