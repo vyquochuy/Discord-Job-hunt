@@ -12,8 +12,8 @@ async def test_root_endpoint():
     logger.info("=== [TEST] Root and Health Endpoints ===")
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. GET /
-        res_root = await client.get("/")
+        # 1. GET / với Accept: application/json
+        res_root = await client.get("/", headers={"Accept": "application/json"})
         logger.info(f"  GET / Response Status: {res_root.status_code}, Body: {res_root.json()}")
         assert res_root.status_code == 200
         root_data = res_root.json()

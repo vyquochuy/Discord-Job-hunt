@@ -23,6 +23,9 @@ class Candidate(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID_TYPE, primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID_TYPE, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=True, index=True
+    )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     headline: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -68,6 +71,9 @@ class Candidate(Base):
     )
 
     # Relationships
+    user: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="candidate"
+    )
     skills: Mapped[List["CandidateSkill"]] = relationship(
         "CandidateSkill",
         back_populates="candidate",

@@ -7,6 +7,7 @@ export interface BotConfig {
   guildId?: string;
   allowedUserId?: string;
   backendApiUrl: string;
+  webAppUrl: string;
   internalApiSecret: string;
 }
 
@@ -16,6 +17,7 @@ export const config: BotConfig = {
   guildId: (process.env.DISCORD_GUILD_ID || '').trim(),
   allowedUserId: (process.env.ALLOWED_USER_ID || '').trim(),
   backendApiUrl: (process.env.BACKEND_API_URL || 'http://localhost:8000').trim(),
+  webAppUrl: (process.env.WEB_APP_URL || 'http://localhost:8000').trim(),
   internalApiSecret: (process.env.INTERNAL_API_SECRET || 'change_me_to_a_secure_random_string_32_chars').trim(),
 };
 

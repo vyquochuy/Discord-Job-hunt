@@ -249,20 +249,255 @@ export interface JobCollectResult {
   };
 }
 
+// ============================================================================
+// Phase 4: Resume Tailoring & Application Automation Interfaces
+// ============================================================================
+
+export interface EvidenceMapItem {
+  id?: string;
+  section: string;
+  bullet_index: number;
+  claim_text: string;
+  source_entity_type: string;
+  source_entity_id?: string | null;
+  original_fact: string;
+  is_verified: boolean;
+  similarity_score: number;
+  notes?: string | null;
+}
+
+export interface CoverLetterDetail {
+  id: string;
+  tailored_resume_id: string;
+  candidate_id: string;
+  job_id: string;
+  recipient_name?: string | null;
+  company_name: string;
+  salutation: string;
+  hook_statement?: string | null;
+  content_markdown: string;
+  key_alignments: string[];
+  created_at: string;
+}
+
+export interface TailoredResumeDetail {
+  id: string;
+  candidate_id: string;
+  job_id: string;
+  version: number;
+  target_title: string;
+  summary_objective?: string | null;
+  latex_source: string;
+  pdf_path?: string | null;
+  provenance_score: number;
+  is_provenance_verified: boolean;
+  matched_skills: string[];
+  highlighted_projects: string[];
+  status: 'DRAFT' | 'COMPILED' | 'APPLIED' | 'FAILED';
+  compilation_error?: string | null;
+  created_at: string;
+  updated_at: string;
+  evidence_items: EvidenceMapItem[];
+  cover_letter?: CoverLetterDetail | null;
+}
+
+export interface ApplicationLogDetail {
+  id: string;
+  job_id: string;
+  tailored_resume_id: string;
+  cover_letter_id?: string | null;
+  channel: 'EMAIL' | 'PORTAL' | 'MANUAL';
+  status: 'DRAFT' | 'READY' | 'SENT' | 'FAILED' | 'REJECTED' | 'INTERVIEW';
+  recipient_email?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  sent_at?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
 class BackendApiClient {
-
-
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
       baseURL: config.backendApiUrl,
-      timeout: 15000,
+      timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
         'X-Internal-Secret': config.internalApiSecret,
       },
     });
+  }
+
+  // ==========================================================================
+  // Phase 4: Resume Tailoring & Application Methods
+  // ==========================================================================
+
+  /**
+   * Kích hoạt tinh chỉnh CV và sinh PDF + Cover Letter cho 1 job
+   */
+  public async tailorResume(
+    jobId: string,
+    options?: {
+      forceRegenerate?: boolean;
+      customTone?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    data?: TailoredResumeDetail;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.post<TailoredResumeDetail>(
+        `/api/v1/resumes/tailor/${jobId}`,
+        {
+          force_regenerate: options?.forceRegenerate ?? false,
+          custom_tone: options?.customTone ?? 'professional_and_humble',
+        }
+      );
+      return {
+        success: response.status === 200,
+        data: response.data,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        `Lỗi khi tinh chỉnh CV cho công việc ${jobId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Lấy chi tiết bản CV đã được tinh chỉnh
+   */
+  public async getResume(resumeId: string): Promise<{
+    success: boolean;
+    data?: TailoredResumeDetail;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.get<TailoredResumeDetail>(
+        `/api/v1/resumes/${resumeId}`
+      );
+      return {
+        success: response.status === 200,
+        data: response.data,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        `Lỗi khi lấy thông tin CV ${resumeId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Lấy bản CV đã sinh theo Job ID
+   */
+  public async getResumeByJob(jobId: string): Promise<{
+    success: boolean;
+    data?: TailoredResumeDetail;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.get<TailoredResumeDetail>(
+        `/api/v1/resumes/job/${jobId}`
+      );
+      return {
+        success: response.status === 200,
+        data: response.data,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        `Chưa có CV nào được sinh cho công việc ${jobId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Tải tệp tin PDF dạng Buffer để đính kèm trực tiếp vào Discord Channel
+   */
+  public async downloadResumePdf(resumeId: string): Promise<{
+    success: boolean;
+    data?: Buffer;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.get(`/api/v1/resumes/${resumeId}/pdf`, {
+        responseType: 'arraybuffer',
+      });
+      return {
+        success: response.status === 200,
+        data: Buffer.from(response.data),
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        `Lỗi khi tải tệp tin PDF của CV ${resumeId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Nộp hồ sơ ứng tuyển (hoặc mô phỏng gửi)
+   */
+  public async submitApplication(
+    jobId: string,
+    options?: {
+      channel?: string;
+      recipientEmail?: string;
+      subject?: string;
+      body?: string;
+      simulateOnly?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    data?: ApplicationLogDetail;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.post<ApplicationLogDetail>(
+        `/api/v1/applications/apply/${jobId}`,
+        {
+          channel: options?.channel || 'EMAIL',
+          recipient_email: options?.recipientEmail,
+          subject: options?.subject,
+          body: options?.body,
+          simulate_only: options?.simulateOnly ?? false,
+        }
+      );
+      return {
+        success: response.status === 200,
+        data: response.data,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        `Lỗi khi nộp đơn ứng tuyển cho job ${jobId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
   }
 
   /**

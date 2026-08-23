@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, status
+import secrets
+from typing import Optional, Any
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import verify_internal_secret
+from app.core.security import get_current_user_optional
 from app.schemas.candidate import (
     CandidateDetailResponse,
     CandidateSyncResponse,
@@ -11,6 +14,26 @@ from app.schemas.candidate import (
 from app.services.candidate import CandidateService
 
 router = APIRouter()
+
+
+async def verify_profile_access(
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    user: Optional[Any] = Depends(get_current_user_optional),
+) -> bool:
+    """
+    Cho phép truy cập profile từ Web App hoặc Discord Bot có X-Internal-Secret.
+    """
+    if x_internal_secret:
+        is_valid = secrets.compare_digest(
+            x_internal_secret.encode("utf-8"),
+            settings.INTERNAL_API_SECRET.encode("utf-8")
+        )
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid internal API secret",
+            )
+    return True
 
 
 @router.get(
@@ -22,7 +45,7 @@ router = APIRouter()
 )
 async def get_profile(
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_internal_secret),
+    _authorized: bool = Depends(verify_profile_access),
 ) -> CandidateDetailResponse:
     return await CandidateService.get_profile(db)
 
@@ -37,7 +60,7 @@ async def get_profile(
 async def update_profile(
     update_data: CandidateUpdate,
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_internal_secret),
+    _authorized: bool = Depends(verify_profile_access),
 ) -> CandidateDetailResponse:
     return await CandidateService.update_profile(db, update_data)
 
@@ -51,6 +74,6 @@ async def update_profile(
 )
 async def sync_profile(
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_internal_secret),
+    _authorized: bool = Depends(verify_profile_access),
 ) -> CandidateSyncResponse:
     return await CandidateService.sync_profile_from_context(db)

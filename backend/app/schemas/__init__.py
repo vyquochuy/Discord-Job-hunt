@@ -56,7 +56,36 @@ from app.schemas.match import (
     HardFilterResponse,
 )
 
+from app.schemas.auth import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    TokenResponse,
+)
+from app.schemas.saved_job import (
+    SavedJobCreate,
+    SavedJobResponse,
+)
+from app.schemas.resume import (
+    EvidenceMapItem,
+    CoverLetterResponse,
+    TailoredResumeResponse,
+    TailoredResumeSummaryResponse,
+    TailorResumeRequest,
+    ApplicationLogResponse,
+    ApplicationSubmitRequest,
+    ApplicationStatusUpdateRequest,
+)
+
 __all__ = [
+    # Auth Schemas
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "TokenResponse",
+    # Saved Job Schemas
+    "SavedJobCreate",
+    "SavedJobResponse",
     # Candidate Schemas (Phase 1)
     "CandidateBase",
     "CandidateCreate",
@@ -109,5 +138,15 @@ __all__ = [
     "BatchCalculateResponse",
     "MatchSignalResponse",
     "HardFilterResponse",
+    # Resume & Application Schemas (Phase 4)
+    "EvidenceMapItem",
+    "CoverLetterResponse",
+    "TailoredResumeResponse",
+    "TailoredResumeSummaryResponse",
+    "TailorResumeRequest",
+    "ApplicationLogResponse",
+    "ApplicationSubmitRequest",
+    "ApplicationStatusUpdateRequest",
 ]
+
 

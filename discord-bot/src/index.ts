@@ -21,6 +21,8 @@ import { jobCommand } from './commands/job';
 import { matchCommand } from './commands/match';
 import { recommendCommand } from './commands/recommend';
 import { collectCommand } from './commands/collect';
+import { resumeCommand } from './commands/resume';
+import { applyCommand } from './commands/apply';
 import { apiClient } from './services/api-client';
 
 // 1. Kiểm tra cấu hình môi trường
@@ -44,6 +46,8 @@ commands.set(jobCommand.data.name, jobCommand);
 commands.set(matchCommand.data.name, matchCommand);
 commands.set(recommendCommand.data.name, recommendCommand);
 commands.set(collectCommand.data.name, collectCommand);
+commands.set(resumeCommand.data.name, resumeCommand);
+commands.set(applyCommand.data.name, applyCommand);
 
 // 4. Sự kiện khi Bot sẵn sàng (Ready)
 client.once(Events.ClientReady, async (readyClient) => {
@@ -64,6 +68,8 @@ client.once(Events.ClientReady, async (readyClient) => {
     matchCommand.data.toJSON(),
     recommendCommand.data.toJSON(),
     collectCommand.data.toJSON(),
+    resumeCommand.data.toJSON(),
+    applyCommand.data.toJSON(),
   ];
 
 
@@ -104,11 +110,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await command.execute(interaction);
     } catch (error) {
       console.error(`Lỗi khi thực thi lệnh /${interaction.commandName}:`, error);
-      const errorMessage = '⚠️ Đã xảy ra lỗi nội bộ khi xử lý lệnh của bạn.';
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, ephemeral: true });
-      } else {
-        await interaction.reply({ content: errorMessage, ephemeral: true });
+      const errorMessage = '⚠️ Đã xảy ra lỗi nội bộ khi xử lý lệnh của bạn. Vui lòng thử lại sau giây lát.';
+      try {
+        if (interaction.deferred && !interaction.replied) {
+          await interaction.editReply({ content: errorMessage });
+        } else if (interaction.replied) {
+          await interaction.followUp({ content: errorMessage, flags: [64] });
+        } else {
+          await interaction.reply({ content: errorMessage, flags: [64] });
+        }
+      } catch (err: any) {
+        console.warn(`Không thể gửi phản hồi lỗi interaction (${interaction.commandName}):`, err.message);
       }
     }
     return;

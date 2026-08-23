@@ -186,6 +186,9 @@ class Job(Base):
     skills: Mapped[List["JobSkill"]] = relationship(
         "JobSkill", back_populates="job", cascade="all, delete-orphan"
     )
+    saved_jobs: Mapped[List["SavedJob"]] = relationship(
+        "SavedJob", back_populates="job", cascade="all, delete-orphan"
+    )
 
     @property
     def source(self) -> Optional[str]:

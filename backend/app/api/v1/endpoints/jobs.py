@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.security import get_current_user_optional
+from app.models.user import User
 from app.models.job import (
     Job,
     JobLevelEnum,
@@ -22,6 +24,7 @@ from app.schemas.job import (
     JobResponse,
     SkillTaxonomyResponse,
 )
+from app.schemas.saved_job import SavedJobCreate, SavedJobResponse
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.mock_adapter import MockJobCollector
@@ -38,6 +41,7 @@ async def list_jobs(
     work_mode: Optional[WorkModeEnum] = Query(None, description="Hình thức làm việc: ONSITE, HYBRID, REMOTE"),
     level: Optional[JobLevelEnum] = Query(None, description="Cấp bậc: INTERN, FRESHER, JUNIOR, MID, SENIOR, LEAD"),
     location: Optional[str] = Query(None, description="Địa điểm (ví dụ: 'Ho Chi Minh City', 'Hanoi')"),
+    source: Optional[str] = Query(None, description="Nguồn tin tuyển dụng: topcv, itviec, careerlink, remotive, mock"),
     page: int = Query(1, ge=1, description="Số trang (bắt đầu từ 1)"),
     page_size: int = Query(20, ge=1, le=100, description="Số lượng job mỗi trang"),
     db: AsyncSession = Depends(get_db),
@@ -46,6 +50,9 @@ async def list_jobs(
     Lấy danh sách các tin tuyển dụng đã chuẩn hóa (có hỗ trợ tìm kiếm và lọc).
     """
     query = select(Job).options(selectinload(Job.raw_job)).where(Job.status == JobStatusEnum.ACTIVE)
+
+    if source:
+        query = query.join(Job.raw_job).where(RawJob.source == source.strip().lower())
 
 
     if keyword:
@@ -86,6 +93,148 @@ async def list_jobs(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/saved", response_model=List[dict])
+async def list_saved_jobs(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Lấy danh sách các tin tuyển dụng đã lưu (Saved / Bookmarked) của người dùng.
+    """
+    from app.models.saved_job import SavedJob
+
+    query = select(SavedJob).options(
+        selectinload(SavedJob.job).selectinload(Job.raw_job)
+    )
+
+    if current_user:
+        query = query.where(SavedJob.user_id == current_user.id)
+
+    query = query.order_by(SavedJob.created_at.desc())
+    result = await db.execute(query)
+    saved_list = result.scalars().all()
+
+    items = []
+    for s in saved_list:
+        job_data = JobResponse.model_validate(s.job).model_dump() if s.job else None
+        items.append({
+            "id": s.id,
+            "user_id": s.user_id,
+            "job_id": s.job_id,
+            "notes": s.notes,
+            "created_at": s.created_at,
+            "job": job_data,
+        })
+    return items
+
+
+@router.post("/{job_id}/save")
+async def save_job(
+    job_id: uuid.UUID,
+    payload: Optional[SavedJobCreate] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Lưu / Bookmark một tin tuyển dụng vào danh sách theo dõi.
+    """
+    from app.models.saved_job import SavedJob
+
+    # Kiểm tra job có tồn tại không
+    job_stmt = select(Job).where(Job.id == job_id)
+    job_res = await db.execute(job_stmt)
+    job = job_res.scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job with ID {job_id} not found",
+        )
+
+    # Lấy user_id
+    if current_user:
+        user_id = current_user.id
+    else:
+        # Fallback lấy user đầu tiên
+        u_stmt = select(User).order_by(User.created_at.asc()).limit(1)
+        u_res = await db.execute(u_stmt)
+        u = u_res.scalar_one_or_none()
+        if not u:
+            # Tạo user mặc định nếu chưa có
+            u = User(
+                id=uuid.uuid4(),
+                email="candidate@example.com",
+                hashed_password="default_hash",
+                full_name="Default Candidate",
+            )
+            db.add(u)
+            await db.flush()
+        user_id = u.id
+
+    # Kiểm tra xem đã lưu chưa
+    saved_stmt = select(SavedJob).where(
+        SavedJob.user_id == user_id,
+        SavedJob.job_id == job_id,
+    )
+    saved_res = await db.execute(saved_stmt)
+    existing_saved = saved_res.scalar_one_or_none()
+
+    if existing_saved:
+        if payload and payload.notes is not None:
+            existing_saved.notes = payload.notes
+            await db.commit()
+        return {"status": "already_saved", "saved_job_id": existing_saved.id}
+
+    notes = payload.notes if payload else None
+    saved_item = SavedJob(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        job_id=job_id,
+        notes=notes,
+    )
+    db.add(saved_item)
+    await db.commit()
+
+    return {"status": "saved", "saved_job_id": saved_item.id}
+
+
+@router.delete("/{job_id}/save")
+async def unsave_job(
+    job_id: uuid.UUID,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Hủy lưu (Unsave / Remove Bookmark) một tin tuyển dụng.
+    """
+    from app.models.saved_job import SavedJob
+
+    if current_user:
+        user_id = current_user.id
+    else:
+        u_stmt = select(User).order_by(User.created_at.asc()).limit(1)
+        u_res = await db.execute(u_stmt)
+        u = u_res.scalar_one_or_none()
+        user_id = u.id if u else None
+
+    if not user_id:
+        return {"status": "not_found"}
+
+    saved_stmt = select(SavedJob).where(
+        SavedJob.user_id == user_id,
+        SavedJob.job_id == job_id,
+    )
+    saved_res = await db.execute(saved_stmt)
+    saved_item = saved_res.scalar_one_or_none()
+
+    if not saved_item:
+        return {"status": "not_found"}
+
+    await db.delete(saved_item)
+    await db.commit()
+
+    return {"status": "unsaved"}
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)

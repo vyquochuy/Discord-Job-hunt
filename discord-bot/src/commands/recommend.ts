@@ -73,6 +73,7 @@ export const recommendCommand = {
     const embed = new EmbedBuilder()
       .setTitle(`🌟 Top ${items.length} Việc Làm Phù Hợp Nhất`)
       .setDescription(
+        `🌐 **[Mở trên Web Application Dashboard](${config.webAppUrl}/recommendations)**\n` +
         `Danh sách được tính toán tự động dựa trên hồ sơ của bạn (Điểm số $\\ge ${minScore}$ và đủ điều kiện ứng tuyển):`
       )
       .setColor(0x2ecc71);

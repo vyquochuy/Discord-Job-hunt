@@ -92,3 +92,135 @@
 | **BUG-06** | `NameError: name 'EvidenceStatus' is not defined` | Thiếu import `EvidenceStatus` trong `explanation_service.py` khi sinh template giải thích. | Đã import `EvidenceStatus` và bổ sung unit test `test_explanation_generation_with_evidence`. | ✅ **FIXED** |
 | **BUG-07** | Lẫn chuỗi rác HTML tag vào `job.skills` | TopCV cào nhầm cụm text `Không yêu cầu kinh nghiệm soft...+3` thành required skill. | Thêm bộ lọc `noise_patterns` và hàm `is_known_skill` trong `SkillNormalizer` & `job_to_dto`. | ✅ **FIXED** |
 | **BUG-08** | Discord `CombinedPropertyError: length <= 1024` | Toàn bộ 7 tín hiệu và lý do dồn vào 1 embed field vượt quá 1024 ký tự. | Chia 7 tín hiệu thành 2 trường embed chuyên môn & bối cảnh, đồng thời áp dụng hàm bảo vệ `safeFieldVal` $\le 1000$ ký tự. | ✅ **FIXED** |
+
+---
+
+## Phase 4 — Resume Intelligence & Application Automation (Completed)
+
+- [x] **Data Models & Alembic Migration**:
+  - `TailoredResume`: Quản lý phiên bản CV LaTeX đã tinh chỉnh, đường dẫn PDF, điểm Provenance, danh sách kỹ năng nổi bật.
+  - `EvidenceMap`: Bản đồ kiểm chứng sự thật từng bullet point/claim đối soát với profile.
+  - `CoverLetter`: Model lưu trữ thư ứng tuyển Markdown chân thực, khiêm tốn.
+  - `ApplicationLog`: Ghi nhận nhật ký nộp đơn, kênh gửi, trạng thái (`DRAFT`, `READY`, `SENT`, `FAILED`, `REJECTED`, `INTERVIEW`).
+  - Migration: `006_resume_tailoring_models.py` áp dụng thành công lên PostgreSQL.
+- [x] **Zero-Hallucination Provenance Engine (`provenance_verifier.py`)**:
+  - Đối soát 100% claim, metric, số liệu định lượng (ví dụ: `45ms`, `200 req/min`, `Argon2id`, `Shamir`) với các sự thật có sẵn từ `master-resume.tex` & `context/candidate-profile.yaml`.
+  - Kết hợp `partial_ratio` và `token_set_ratio` để phân tích chính xác câu trích dẫn và câu diễn giải lại.
+  - Tự động phát hiện và cảnh báo các con số/thành tích bịa đặt (Hallucinated Metrics).
+- [x] **Dynamic LaTeX Generator (`latex_generator.py`)**:
+  - Tuân thủ mẫu LaTeX chuẩn mực từ `context/master-resume.tex`.
+  - Escape an toàn các ký tự điều khiển TeX (`&`, `%`, `$`, `#`, `_`, `~`, `^`, `{`, `}`).
+  - Tái cấu trúc, sắp xếp ưu tiên các kỹ năng và dự án phù hợp nhất với JD lên đầu.
+- [x] **LaTeX Compiler (`latex_compiler.py`)**:
+  - Quản lý sandbox biên dịch `.tex` sang `.pdf` (`pdflatex` / `xelatex`), tự động dọn dẹp các tệp tin phụ trợ (`.aux`, `.log`, `.out`).
+  - Cung cấp cơ chế Fallback an toàn khi chạy trên môi trường chưa cài đặt TeXLive.
+- [x] **Cover Letter Generator (`cover_letter_generator.py`)**:
+  - Tự động sinh Cover Letter Markdown ngắn gọn, chân thực, khiêm tốn, tập trung vào điểm mạnh thực tế.
+  - Lưu trữ đồng thời bản ghi trong Database và tệp tin `cover_letter.md` trên đĩa.
+- [x] **Orchestrator Services (`resume_service.py` & `application_service.py`)**:
+  - Tự động hóa toàn bộ quy trình: Phân tích so khớp $\rightarrow$ Tinh chỉnh LaTeX $\rightarrow$ Kiểm chứng Provenance $\rightarrow$ Biên dịch PDF $\rightarrow$ Tạo Cover Letter $\rightarrow$ Lưu trữ & Nộp hồ sơ.
+  - Cơ chế Idempotent Application: Ngăn chặn gửi email hoặc nộp trùng lặp cho cùng một công việc.
+- [x] **REST API Endpoints**:
+  - `POST /api/v1/resumes/tailor/{job_id}`: Tinh chỉnh CV và sinh PDF + Cover Letter.
+  - `GET /api/v1/resumes/{id}`: Lấy chi tiết bản CV kèm bằng chứng xác thực.
+  - `GET /api/v1/resumes/{id}/pdf`: Tải tệp tin PDF đã biên dịch.
+  - `GET /api/v1/resumes/{id}/tex`: Lấy mã nguồn LaTeX thô.
+  - `GET /api/v1/resumes/job/{job_id}`: Lấy CV đã tạo cho 1 job.
+  - `POST /api/v1/applications/apply/{job_id}`: Nộp hồ sơ ứng tuyển.
+  - `GET /api/v1/applications`: Xem lịch sử ứng tuyển.
+  - `GET /api/v1/applications/{id}`: Xem chi tiết đơn ứng tuyển.
+- [x] **Discord Slash Commands & UI**:
+  - `/resume <job_id>`: Hiển thị Embed tóm tắt độ tương thích, điểm tin cậy Provenance, trích đoạn Cover Letter, và **đính kèm trực tiếp file PDF CV và file `cover_letter.md` vào tin nhắn Discord**.
+  - `/apply <job_id>`: Hỗ trợ nộp hồ sơ hoặc tạo bản nháp (Draft) với đầy đủ thông tin người nhận và nhật ký kiểm toán.
+- [x] **Kiểm thử tự động**:
+  - **54/54 automated tests PASS 100%** (toàn bộ các test suite từ Phase 0 đến Phase 4).
+  - TypeScript build của Discord Bot biên dịch thành công (`0 errors`).
+
+---
+
+## Phase 4.5 — Resume Intelligence Layer (Completed)
+
+### 1. Kiến trúc Resume Intelligence Mới (`backend/app/services/tailoring/resume_intelligence.py`)
+- [x] **`RoleClassifier` (Phân loại Role Family tất định)**:
+  - Phân loại tự động JD thành các nhóm mục tiêu: `backend`, `system`, `security`, `general` dựa trên Title và Responsibilities.
+- [x] **`EvidenceScorer` (Multi-Tier Evidence Scoring)**:
+  - Chấm điểm liên quan của từng bullet point trong dự án theo 4 thành phần:
+    - 35% Responsibility Match (Rapidfuzz tương đồng ngữ nghĩa với JD)
+    - 30% Skill & Capability Match (Exact Tech match + Capability Domain match, không mutate công nghệ)
+    - 20% Role Domain Affinity (Trọng số tương thích vai trò)
+    - 15% Evidence Strength (Định lượng số liệu & metrics thực tế)
+- [x] **`DiverseEvidenceSelector` (Tuyển chọn bằng chứng đa dạng)**:
+  - Áp dụng thuật toán lọc đa dạng nhóm năng lực (MMR-style) để Cover Letter và CV phản ánh toàn diện các thế mạnh (vd: 1 API + 1 Database + 1 Crypto/Infrastructure), loại bỏ sự lặp lại đơn điệu.
+- [x] **`AdaptiveSummaryBuilder` (Mục tiêu nghề nghiệp thích ứng)**:
+  - Xây dựng Career Objective / Summary có định vị phân hóa rõ rệt cho từng domain (Backend vs System vs Security) dựa hoàn toàn trên 100% sự thật và dự án thực tế của ứng viên.
+- [x] **`ResumeStrategy` Data Contract**:
+  - Cung cấp nguồn sự thật chiến lược duy nhất (Single Source of Strategic Truth) cho cả Resume Generator và Cover Letter Generator.
+
+### 2. Refactoring Generators thành Pure Renderers
+- [x] **`latex_generator.py`**:
+  - Chuyển thành Pure Renderer: nhận `ResumeStrategy` để render mã LaTeX hoàn chỉnh.
+  - Tự động sắp xếp thứ tự các dự án (`ranked_projects`) và thứ tự các bullet points (`ranked_evidence`) theo điểm tương thích cao nhất với JD.
+  - Phân nhóm và ưu tiên kỹ năng linh hoạt từ hồ sơ ứng viên (xóa bỏ hoàn toàn hardcoded skills list).
+  - Giữ nguyên 100% backward compatibility cho các lệnh gọi cũ.
+- [x] **`cover_letter_generator.py`**:
+  - Xóa bỏ hoàn toàn hardcoded tên dự án `"VYVYCHAT"` và `"Account Manager"`.
+  - Render động đoạn minh chứng dự án từ `strategy.selected_evidence`.
+  - Tự động điều chỉnh các gạch đầu dòng Key Technical Alignment theo `role_family`.
+
+### 3. Verification & Zero-Hallucination
+- [x] **Kiểm thử kiểm chứng đa vai trò (`backend/tests/test_resume_intelligence.py`)**:
+  - Test Relative Evidence Scoring:
+    - Backend JD: `db_evidence.score > crypto_evidence.score`
+    - System JD: `infra_evidence.score > crypto_evidence.score`
+    - Security JD: `pki_evidence.score > db_evidence.score` và dự án EAP-TLS được xếp hạng cao nhất.
+  - Test Diverse Evidence Selection: Selected evidence đại diện từ $\ge 2$ nhóm năng lực khác nhau.
+  - Test Cross-Role Differentiation: 3 bản CV và 3 bản Cover Letter phân hóa hoàn toàn về câu chữ, thứ tự dự án và bullet point đầu tiên.
+  - Test Zero-Hallucination: Provenance Score $\ge 90\%$ trên toàn bộ các bản CV sinh ra.
+- [x] **Hồi quy hệ thống**: Toàn bộ test suite Phase 4 (`test_resume_tailoring.py`) và Phase 4.5 (`test_resume_intelligence.py`) đều **PASS 100%**.
+
+---
+
+## Phase 5 — API Contract & Domain Boundary Layer (Completed)
+
+- [x] **Data Models & Database Migration**:
+  - `User`: Model xác thực người dùng, thiết lập quan hệ 1–1 với `Candidate`.
+  - `SavedJob`: Model quản lý danh sách tin tuyển dụng được người dùng Bookmark / Lưu lại.
+  - Migration `007_user_and_saved_jobs_models.py` được tạo và kiểm thử thành công.
+- [x] **Authentication & Security Engine (`backend/app/core/security.py`)**:
+  - Hash mật khẩu PBKDF2-HMAC-SHA256 với salt ngẫu nhiên 16 bytes.
+  - Tạo và giải mã Bearer Token linh hoạt (HMAC-SHA256 Signed Payload).
+  - Dependency `get_current_user` và `get_current_user_optional`.
+- [x] **REST API Contracts (`backend/app/schemas/` & `endpoints/`)**:
+  - Auth: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`.
+  - Saved Jobs: `GET /api/v1/jobs/saved`, `POST /api/v1/jobs/{id}/save`, `DELETE /api/v1/jobs/{id}/save`.
+  - Applications: `PATCH /api/v1/applications/{id}/status`.
+- [x] **Pluggable Notification Abstraction (`notification_service.py`)**:
+  - Tách rời hoàn toàn nghiệp vụ khỏi Discord, tạo `NotificationService` điều phối đa kênh (`DiscordNotificationProvider`, `ConsoleNotificationProvider`).
+- [x] **Test Suite**:
+  - Tạo `backend/tests/test_auth_and_saved_jobs.py` kiểm thử toàn bộ luồng Auth, Bookmarks, và Notification Dispatch (**5/5 PASS**).
+
+---
+
+## Phase 6 — Web Application Frontend (Simple Blue) & Discord Deprecation (Completed)
+
+- [x] **Simple Blue Design System (`frontend/css/index.css`)**:
+  - Thiết kế bảng màu Simple Blue (`--primary-600: #2563eb`), typography Plus Jakarta Sans / Inter, glassmorphism, responsive grid, modal animation.
+  - Hỗ trợ đầy đủ tương thích trình duyệt (thêm `-webkit-backdrop-filter`), loại bỏ hoàn toàn inline styles và cảnh báo linter.
+- [x] **REST API Client (`frontend/js/api.js`)**:
+  - Tự động quản lý access token, tích hợp toàn bộ các endpoint v1.
+- [x] **SPA View Controllers (`frontend/js/app.js`)**:
+  - **Dashboard**: Thống kê số lượng, Top đề xuất, One-click Run Daily Batch.
+  - **Job Explorer**: Bộ lọc đa tiêu chí (keyword, work mode, level, location), Job Cards, và Modal chi tiết hiển thị đầy đủ JD & biểu đồ 7-Signal Matching Score.
+  - **AI Top Matches**: Bảng xếp hạng các vị trí phù hợp nhất kèm lập luận bằng chứng.
+  - **Resume Workspace**: May đo CV tức thì, xem trước file PDF trực tiếp, xem Cover Letter, và kiểm tra Provenance Evidence Map.
+  - **Applications Tracker**: Quản lý vòng đời đơn ứng tuyển (`DRAFT` $\rightarrow$ `READY` $\rightarrow$ `SENT` $\rightarrow$ `INTERVIEW` $\rightarrow$ `OFFER` $\rightarrow$ `REJECTED`).
+  - **Candidate Profile**: Chỉnh sửa thông tin ứng viên trực tiếp lưu vào PostgreSQL và đồng bộ từ context file.
+- [x] **FastAPI Mount & Production Serving**:
+  - Mount `/static` và trả về `index.html` trực tiếp tại root `/`.
+- [x] **Discord Bot Deprecation**:
+  - Thêm `webAppUrl` vào `config.ts` và bổ sung thông báo chuyển hướng kèm link về Web App trong các slash commands.
+  - TypeScript build `discord-bot` thành công (0 errors).
+- [x] **Kiểm thử hồi quy toàn diện**:
+  - **63/63 tests PASS 100%** trên toàn bộ test suite backend.
+
+

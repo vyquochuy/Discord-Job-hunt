@@ -6,11 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
-# Cài đặt các gói hệ thống cần thiết cho việc build C extensions (nếu có) và curl kiểm tra healthcheck
+# Cài đặt các gói hệ thống cần thiết cho việc build C extensions, curl kiểm tra healthcheck và TeXLive để biên dịch CV PDF
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     curl \
+    texlive-latex-base \
+    texlive-latex-recommended \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Tạo thư mục làm việc

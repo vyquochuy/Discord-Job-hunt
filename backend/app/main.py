@@ -1,10 +1,13 @@
+import os
 import time
 import logging
 import traceback
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import redis.asyncio as aioredis
 
 from app.core.config import settings
@@ -46,6 +49,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Tìm thư mục frontend
+frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+if frontend_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -59,14 +67,33 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/", tags=["system"])
-async def root():
-    """Endpoint gốc chào mừng."""
+async def root(request: Request):
+    """Serve Web Application chính hoặc JSON info nếu request header là application/json thuần túy."""
+    index_file = frontend_dir / "index.html"
+    accept_header = request.headers.get("accept", "")
+    
+    # Nếu request client chỉ định yêu cầu JSON (API client / curl)
+    if "application/json" in accept_header and "text/html" not in accept_header:
+        return {
+            "project": settings.PROJECT_NAME,
+            "version": settings.VERSION,
+            "environment": settings.ENVIRONMENT,
+            "docs": "/docs",
+            "health": "/health",
+            "web_app": "/static/index.html" if index_file.exists() else None,
+        }
+    
+    # Trình duyệt (Accept: text/html,...) hoặc truy cập mặc định -> Trả về Web App UI
+    if index_file.exists():
+        return FileResponse(str(index_file))
+        
     return {
         "project": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "web_app": None,
     }
 
 
@@ -109,3 +136,4 @@ async def health_check():
 
 # Gắn router API v1
 app.include_router(api_router, prefix="/api/v1")
+

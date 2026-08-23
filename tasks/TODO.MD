@@ -75,23 +75,54 @@
 
 ---
 
-## Phase 4 — Resume Intelligence & Application Automation (Ready to Implement)
+## Phase 4 — Resume Intelligence & Application Automation (Completed)
 
 ### 1. Data Models & Schemas
-- [ ] Tailored Resume Schema (`TailoredResume`, `EvidenceMap`, `ResumePlan`, `CoverLetter`, `ApplicationLog`)
-- [ ] Alembic migration `006_resume_tailoring_models.py`
+- [x] Tailored Resume Schema (`TailoredResume`, `EvidenceMap`, `CoverLetter`, `ApplicationLog`)
+- [x] Alembic migration `006_resume_tailoring_models.py`
 
 ### 2. Tailoring & Provenance Engine
-- [ ] Evidence-Locked Rewriter: Chỉ sử dụng các sự thật (facts) và số liệu có sẵn trong `master-resume.tex` & `context/candidate-profile.yaml` (Zero Hallucination).
-- [ ] Dynamic LaTeX Generator: Tái cấu trúc file `.tex` theo thứ tự ưu tiên của JD (skills nổi bật, highlight metric liên quan).
-- [ ] Provenance Verification: Kiểm tra từng bullet point trước khi xuất file PDF.
+- [x] Evidence-Locked Rewriter: Chỉ sử dụng các sự thật (facts) và số liệu có sẵn trong `master-resume.tex` & `context/candidate-profile.yaml` (Zero Hallucination).
+- [x] Dynamic LaTeX Generator: Tái cấu trúc file `.tex` theo thứ tự ưu tiên của JD (skills nổi bật, highlight metric liên quan).
+- [x] Provenance Verification: Kiểm tra từng bullet point trước khi xuất file PDF (`ProvenanceVerifier` with partial + token set fuzzy ratio).
 
 ### 3. LaTeX Compilation & PDF Pipeline
-- [ ] Containerized / Local LaTeX Compiler (`pdflatex` / `xelatex` wrapper).
-- [ ] Export Artifacts: Sinh đồng thời file `.tex`, `.pdf` và `cover_letter.md`.
+- [x] Containerized / Local LaTeX Compiler (`pdflatex` / `xelatex` sandbox wrapper with safe fallback).
+- [x] Export Artifacts: Sinh đồng thời file `.tex`, `.pdf` và `cover_letter.md`.
 
 ### 4. REST APIs & Discord Commands
-- [ ] API endpoints: `POST /api/v1/resumes/tailor/{job_id}`, `GET /api/v1/resumes/{id}/pdf`, `POST /api/v1/resumes/apply/{job_id}`.
-- [ ] Discord Slash Commands: `/resume <job_id>`, `/apply <job_id>` (gửi file PDF trực tiếp vào Discord channel và gửi email ứng tuyển).
+- [x] API endpoints: `POST /api/v1/resumes/tailor/{job_id}`, `GET /api/v1/resumes/{id}`, `GET /api/v1/resumes/{id}/pdf`, `GET /api/v1/resumes/{id}/tex`, `POST /api/v1/applications/apply/{job_id}`, `GET /api/v1/applications`.
+- [x] Discord Slash Commands: `/resume <job_id>`, `/apply <job_id>` (gửi file PDF trực tiếp vào Discord channel và gửi email/draft ứng tuyển).
+- [x] 54/54 automated tests passing with 100% success rate.
+
+---
+
+## Phase 5 — API Contract & Domain Boundary Layer (Completed)
+- [x] Data Models: `User` (1-1 với `Candidate`), `SavedJob`
+- [x] Alembic migration `007_user_and_saved_jobs_models.py`
+- [x] Authentication & Security Engine (`PBKDF2-HMAC-SHA256`, Bearer Token, `get_current_user`)
+- [x] REST API Endpoints: Auth (`/api/v1/auth/*`), Saved Jobs (`/api/v1/jobs/saved`, `POST/DELETE /api/v1/jobs/{id}/save`), Applications status update (`PATCH /api/v1/applications/{id}/status`)
+- [x] Notification Service Abstraction (`NotificationService`, `DiscordNotificationProvider`, `ConsoleNotificationProvider`)
+- [x] Automated Test Suite (`test_auth_and_saved_jobs.py`) - 5/5 PASS
+
+---
+
+## Phase 6 — Web Application Frontend (Simple Blue) & Discord Deprecation (Completed)
+- [x] Simple Blue Design System in `frontend/css/index.css` (No Tailwind, CSS variables, -webkit-backdrop-filter, zero linter warnings)
+- [x] Single Page Application in `frontend/index.html` (Accessible, no inline styles, modern layout)
+- [x] REST API Client in `frontend/js/api.js`
+- [x] SPA View Controllers in `frontend/js/app.js` (Dashboard, Job Search, Job Details Modal with 7-Signal Score breakdown, Recommendations, Resume Workspace, Applications Tracker, Candidate Profile)
+- [x] FastAPI static mounting and serving at root `/`
+- [x] Discord Bot command deprecation notices and web redirect links
+- [x] 63/63 backend automated tests passing + Discord bot TypeScript build passing
+
+---
+
+## Phase 7 — Personalization & Advanced Outcome Tracking (Planned)
+- [ ] Application outcome tracking (interview, rejection, offer)
+- [ ] Feedback loop to adjust matching score weights based on outcomes
+- [ ] User preference learning based on save/apply patterns
+
+
 
 

@@ -1,16 +1,15 @@
-# Job Hunter Agent — Project Definition
+# Job Hunter Platform — Project Definition
 
 ## Vision
 
-A personal AI-powered job hunting assistant that:
+A personal AI-powered job hunting intelligence platform that:
 
-- Discovers relevant jobs from permitted sources
-- Evaluates them against the candidate's profile
-- Generates tailored application materials
-- Assists with application preparation
-- Tracks outcomes and reports via Discord
-
-Discord is the primary interface.
+- Discovers relevant jobs from permitted sources autonomously
+- Evaluates them against the candidate's profile with deterministic scoring
+- Generates tailored, Zero-Hallucination application materials (LaTeX PDF + Cover Letter)
+- Tracks outcomes and application lifecycle stages
+- Serves as a full-featured **Web Application** as primary user interface
+- Delivers optional summary notifications via **Discord**
 
 ---
 
@@ -24,18 +23,16 @@ A candidate currently must manually:
 - Customize resume for each application
 - Write cover letters
 - Answer application questions
-- Track application status
+- Track application status across multiple spreadsheets/notes
 - Follow up on submitted applications
 
-This system automates the repetitive parts while keeping the candidate in control of final decisions.
+This system automates repetitive aggregation and tailoring while keeping the candidate in complete control of decisions through an accessible, information-dense Web Application.
 
 ---
 
 ## Target User
 
-Single candidate. MVP is not multi-tenant.
-
-Multi-tenancy is not planned for the initial release.
+Single candidate with User 1–1 CandidateProfile identity mapping.
 
 ---
 
@@ -43,8 +40,9 @@ Multi-tenancy is not planned for the initial release.
 
 ```
 Job Discovery → Normalize → Deduplicate → Extract Requirements
-  → Match Candidate → Rank → Tailor Resume → Prepare Application
-  → Human Approval → Submit → Track → Daily Report
+  → Match Candidate → Rank → Web Dashboard Presentation
+  → Tailor Resume (LaTeX + PDF) → Human Review on Web → Prepare Application
+  → Track Lifecycle (Saved / Applied / Interview / Offer) → Optional Discord Notification
 ```
 
 ---
@@ -52,66 +50,60 @@ Job Discovery → Normalize → Deduplicate → Extract Requirements
 ## Key Term Definitions
 
 ### Job Recommendation
-
-A job that has been collected, normalized, analyzed, scored against the candidate profile, and presented to the user with a match score and explanation. The system recommends jobs above a configurable score threshold.
+A job that has been collected, normalized, analyzed, scored against the candidate profile, and presented on the Web Dashboard with a match score, signal breakdown, and explanation.
 
 ### Good Match
-
 A job where:
-
-- No hard filter disqualifies the candidate (location, work authorization, seniority)
-- The candidate's skills cover a significant portion of required skills
-- The candidate has relevant project or work experience
-- The resulting deterministic score exceeds the recommendation threshold
+- No hard filter blocks the candidate (location, work mode, level, seniority)
+- The candidate's skills cover required and preferred skills
+- The candidate has relevant project or work experience evidence
+- The resulting deterministic score exceeds recommendation thresholds ($\ge 60$ for Good Match, $\ge 80$ for Strong Match)
 
 ### Tailored Resume
-
-A resume generated from the master resume (`context/master-resume.md`) that:
-
+A resume generated dynamically from verified candidate facts that:
 - Selects the most relevant evidence for this specific job
-- Reorders and emphasizes skills matching the JD requirements
-- Rewrites bullet points to align with the role's language
-- Omits irrelevant content
-- **Never invents** experience, metrics, employment, or certifications
+- Prioritizes matching skills and projects
+- Rewrites bullet points to align with the role's language without altering factual truth
+- **Never invents** experience, metrics, employment, or certifications (Zero-Hallucination guarantee)
 
 ### Application Preparation
-
 The process of assembling all materials needed to apply:
-
-- Tailored resume (DOCX/PDF)
-- Cover letter (if required)
-- Answers to application-specific questions
-- All grounded in verified candidate evidence
-- Presented to the user for review before submission
+- Tailored resume compiled into PDF and LaTeX source
+- Authentic Markdown cover letter
+- Full fact-checked provenance evidence map
 
 ---
 
-## MVP Scope
+## Product Scope
 
-- Discord bot as primary interface
-- Job collection from at least one permitted source
-- Job normalization and deduplication
-- JD requirement extraction (AI)
-- Candidate matching and deterministic scoring
-- Job ranking and recommendation via Discord
-- Candidate profile management
-- Resume tailoring per job
-- Application tracking with status lifecycle
-- Daily digest via Discord
+### Web Application (Primary Product Interface)
+- **Dashboard**: "What is worth applying today?" (Discoveries count, Strong matches, Top recommendations, Applications summary).
+- **Job Explorer**: Search, filter by work mode, level, and location; detailed JD analysis and match reasoning.
+- **Recommendations View**: Ranked list of highest-affinity roles.
+- **Candidate Profile**: Direct profile management, skills, projects, and baseline context sync.
+- **Resume Workspace**: Tailored resume inspection, PDF viewer, LaTeX code, Cover Letter, and Provenance fact-checker.
+- **Application Tracking**: Lifecycle management (`SAVED` $\rightarrow$ `PREPARING` $\rightarrow$ `APPLIED` $\rightarrow$ `INTERVIEW` $\rightarrow$ `OFFER`/`REJECTED`).
+
+### Background Automation & Pipeline
+- Multi-source job collectors (ITViec, Remotive, CareerLink, TopCV, Mock).
+- Ingestion pipeline with SHA-256 caching for 0 LLM cost hit.
+- 3-tier deduplication (Exact Hash, RapidFuzz, pgvector Cosine).
+- Daily autonomous batch runner.
+
+### Discord Notification Adapter
+- Pluggable notification channel for daily digest and high-match alerts.
+- Deprecated slash commands providing brief highlights with links back to the Web App.
 
 ---
 
 ## Out of Scope (MVP)
 
-- Mass automatic applications
+- Mass automatic spam applications
 - CAPTCHA / anti-bot bypass
 - Unauthorized scraping
 - Fake experience generation
-- Automatic application submission (without human approval)
-- Multi-user SaaS
-- Billing
-- Mobile application
-- Web UI
+- Autonomous application submission without human review
+- Multi-tenant billing / SaaS subscriptions
 
 ---
 
@@ -122,17 +114,15 @@ DISCOVERED          → Job found by collector
   ↓
 ANALYZED            → JD extracted, match scored
   ↓
-RECOMMENDED         → Score above threshold, presented to user
+RECOMMENDED         → Score above threshold, presented on Web Dashboard
   ↓
-SAVED               → User bookmarks for later
+SAVED               → User bookmarks on Web App
   ↓
-PREPARING           → Resume/cover letter being generated
+PREPARING           → Tailored resume / cover letter generated
   ↓
-READY_FOR_REVIEW    → Materials ready, awaiting user review
+READY_FOR_REVIEW    → Materials ready, awaiting user review on Web
   ↓
-APPROVED            → User approves submission
-  ↓
-SUBMITTED           → Application submitted
+APPLIED             → Application submitted / sent
   ↓
   ├── OA            → Online assessment received
   ├── INTERVIEW     → Interview scheduled/completed
@@ -141,58 +131,17 @@ SUBMITTED           → Application submitted
   └── WITHDRAWN     → Candidate withdrew
 ```
 
-### Transition Rules
-
-| Transition                    | Triggered By             | Requires User Confirmation |
-| ----------------------------- | ------------------------ | -------------------------- |
-| DISCOVERED → ANALYZED         | System (automatic)       | No                         |
-| ANALYZED → RECOMMENDED        | System (score threshold) | No                         |
-| RECOMMENDED → SAVED           | User                     | No                         |
-| SAVED/RECOMMENDED → PREPARING | User or system           | No                         |
-| PREPARING → READY_FOR_REVIEW  | System                   | No                         |
-| READY_FOR_REVIEW → APPROVED   | **User only**            | **Yes**                    |
-| APPROVED → SUBMITTED          | **User only**            | **Yes**                    |
-| SUBMITTED → OA/INTERVIEW      | User                     | No                         |
-| Any → REJECTED                | User                     | No                         |
-| Any → WITHDRAWN               | User                     | No                         |
-
-**Invalid transitions:**
-
-- Cannot go from DISCOVERED directly to SUBMITTED
-- Cannot skip APPROVED before SUBMITTED
-- Cannot reverse from SUBMITTED to PREPARING
-
----
-
-## Human-in-the-Loop
-
-The user must be able to:
-
-```
-View recommended jobs
-  ↓
-Review match explanation
-  ↓
-Request resume generation
-  ↓
-Review generated resume
-  ↓
-Review complete application package
-  ↓
-Confirm submission
-```
-
-**Application submission must never happen because an LLM decided it was appropriate.**
-
 ---
 
 ## Design Principles
 
-| #   | Principle               | Description                                 |
-| --- | ----------------------- | ------------------------------------------- |
-| 1   | Human-in-the-loop       | User approves all application submissions   |
-| 2   | Evidence-grounded       | AI uses only verified candidate information |
-| 3   | Untrusted external data | JDs and websites are untrusted inputs       |
-| 4   | Modular architecture    | Discord UI independent from business logic  |
-| 5   | Observable automation   | All actions traceable through logs and DB   |
-| 6   | Deterministic scoring   | Code computes scores, not LLM               |
+| # | Principle | Description |
+|---|-----------|-------------|
+| 1 | **Web-First Interface** | Web Application is the primary tool for user interaction |
+| 2 | **Human-in-the-loop** | User reviews and approves all application materials |
+| 3 | **Evidence-grounded** | AI uses only verified candidate facts (Zero Hallucination) |
+| 4 | **Database as Source of Truth** | Runtime state lives in PostgreSQL, not Discord or loose files |
+| 5 | **Untrusted external data** | JDs and websites are untrusted inputs, sanitized before use |
+| 6 | **Deterministic scoring** | Code computes scores from 7 signals, not unpredictable LLM numbers |
+| 7 | **Pluggable Notifications** | Notification services are isolated behind clean provider interfaces |
+

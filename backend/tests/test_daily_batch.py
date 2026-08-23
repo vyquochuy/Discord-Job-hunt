@@ -79,14 +79,16 @@ async def test_daily_batch_runner_execution(test_client):
     Kiểm tra toàn bộ chu trình Daily Batch Runner.
     """
     logger.info("=== [TEST] Daily Batch Runner Execution ===")
-    summary = await daily_batch_runner.run_daily_batch(limit_per_source=2)
+    _, session_factory = test_client
+    async with session_factory() as session:
+        summary = await daily_batch_runner.run_daily_batch(session=session, limit_per_source=2)
 
-    assert summary.status == "COMPLETED"
-    assert summary.candidate_name == "Vy Quoc Huy"
-    assert summary.total_matches_evaluated >= 0
-    assert summary.duration_seconds > 0
-    logger.info(f"Daily Batch finished successfully in {summary.duration_seconds}s!")
-    logger.info(f"Summary: Fetched={summary.total_fetched}, Created={summary.new_jobs_created}, Matches={summary.total_matches_evaluated}")
+        assert summary.status == "COMPLETED"
+        assert summary.candidate_name == "Vy Quoc Huy"
+        assert summary.total_matches_evaluated >= 0
+        assert summary.duration_seconds > 0
+        logger.info(f"Daily Batch finished successfully in {summary.duration_seconds}s!")
+        logger.info(f"Summary: Fetched={summary.total_fetched}, Created={summary.new_jobs_created}, Matches={summary.total_matches_evaluated}")
 
 
 @pytest.mark.asyncio

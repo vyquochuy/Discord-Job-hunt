@@ -36,7 +36,7 @@
 
 % Objective
 \section*{Objective}
-Final-year Computer Science ( Cyber Security ) student with interest in Linux systems, cloud infrastructure, automation, and distributed systems. Passionate about learning DevOps and Site Reliability Engineering through hands-on experience operating cloud platforms, automating infrastructure, and improving system reliability.
+Final-year Computer Science student specializing in Cyber Security with strong foundations in C++, object-oriented programming, algorithms, computer networks, and software engineering. Experienced in developing system-level applications, implementing security protocols, and designing scalable software architectures through academic and personal projects. Seeking a Software Engineer Internship where I can contribute to real-world software development while strengthening expertise in C++, system design, and software engineering practices.
 
 % Education
 \section*{Education}
@@ -49,15 +49,46 @@ Final-year Computer Science ( Cyber Security ) student with interest in Linux sy
 % Skills
 \section*{Skills}
 \begin{itemize}[leftmargin=0.15in, label={}, itemsep=0pt]
-    \item \textbf{Programming Languages:} Python, JavaScript, TypeScript, C++
-    \item \textbf{Frameworks \& Libraries:} React, Tailwind CSS, NextJS, Hono, Flutter/Dart
-    \item \textbf{Tools \& Databases:} SQL, PostgreSQL, SQLite, Git, Linux, Docker, Wireshark
+    \item \textbf{Programming Languages:} C++, Python, JavaScript, TypeScript, Dart
+    \item \textbf{Frameworks \& Libraries:} React, Tailwind CSS, NextJS, Hono, Flutter/Dart, FastAPI
+    \item \textbf{Tools \& Databases:} SQL, PostgreSQL, SQLite, Git, Linux, Docker, OpenSSL, Wireshark, Visual Studio 2022
+    \item \textbf{Security \& Systems:} X.509 PKI, RSA-2048, SHA-256, Zero-Knowledge Architecture, Argon2id, AES-256-GCM, ECDH P-256
     \item \textbf{Soft Skills:} Problem-solving, system design thinking, technical documentation, teamwork
     \item \textbf{Languages:} Vietnamese (Native), English (level B1)
 \end{itemize}
 
 % Projects
 \section*{Projects}
+
+\noindent \textbf{AI Job Hunter: Autonomous Agent \& Resume Intelligence System} $|$ \href{https://github.com/vyquochuy/Discord-Job-hunt}{repository} \hfill Jul 2026 -- Present\\
+\textit{Asynchronous microservices platform for job ingestion, 7-signal deterministic scoring, and provenance-verified resume tailoring}\\
+\begin{itemize}[leftmargin=0.25in, nosep]
+    \item \textbf{Asynchronous Microservices \& Ingestion Engine:} Architected an asynchronous backend engine using FastAPI, SQLAlchemy 2.0 async, Redis, and PostgreSQL with pgvector; engineered a multi-source job ingestion pipeline across 5 collectors (ITViec, Remotive, TopCV, CareerLink, Mock) utilizing SHA-256 content hashing for zero-token redundant caching.
+
+    \item \textbf{3-Tier Deduplication \& 7-Signal Matching:} Designed a 3-tier deduplication pipeline (Exact Hash $\rightarrow$ RapidFuzz $\rightarrow$ Cosine pgvector) and a deterministic 7-signal job scoring engine with strict tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN) and invariant weight normalization, evaluating batches in under 6 seconds.
+
+    \item \textbf{Zero-Hallucination Resume Tailoring \& LaTeX Sandbox:} Engineered an evidence-grounded resume tailoring engine with RoleClassifier, MMR-style diverse evidence selection, and ProvenanceVerifier (partial and token set fuzzy checks), paired with automated LaTeX compilation sandbox (pdflatex) generating verifiable PDF resumes and markdown cover letters with $\ge$ 90\% provenance confidence.
+
+    \item \textbf{Discord Bot Automation \& Full Observability:} Built an interactive Discord bot (TypeScript, discord.js v14) with rich embeds, action buttons, modals, and direct PDF streaming, orchestrating end-to-end autonomous daily batch runs across 58 automated unit and integration tests.
+
+    \item \textbf{Technologies:} Python, FastAPI, PostgreSQL, pgvector, Redis, SQLAlchemy 2.0, Alembic, Docker, TypeScript, discord.js, LaTeX, RapidFuzz.
+\end{itemize}
+\vspace{10pt}
+
+\noindent \textbf{EAP-TLS Authentication Protocol Demo} $|$ \href{https://github.com/vyquochuy/EAP-TLS-DEMO}{repository} \hfill Feb 2025 -- May 2025\\
+\textit{Simulation of the IEEE 802.1X EAP-TLS authentication workflow using modern C++}\\
+\begin{itemize}[leftmargin=0.25in, nosep]
+    \item \textbf{Protocol Simulation \& Architecture:} Designed and implemented a complete simulation of the IEEE 802.1X EAP-TLS authentication protocol in C++17; developed a three-party architecture consisting of EAP Peer, Authenticator, and Authentication Server to emulate enterprise network authentication workflows.
+
+    \item \textbf{PKI \& Certificate Infrastructure:} Implemented Public Key Infrastructure (PKI) components including Certificate Authority creation, X.509 certificate generation, certificate signing, and chain validation using OpenSSL.
+
+    \item \textbf{Mutual Authentication \& Cryptography:} Built mutual authentication mechanisms through certificate verification and secure session establishment using RSA-OAEP encrypted key exchange and SHA-256 based key derivation.
+
+    \item \textbf{Object-Oriented System Modeling:} Applied object-oriented design principles to model authentication entities, certificate management, and protocol message flows.
+
+    \item \textbf{Technologies:} C++17, OpenSSL, X.509 PKI, RSA-2048, SHA-256, Visual Studio 2022.
+\end{itemize}
+\vspace{10pt}
 
 \noindent \textbf{VYVYCHAT} $|$ \href{https://github.com/vyquochuy/vyvychat}{repository} $|$ \href{https://vyvychat.myvault-service.workers.dev/}{live demo} \hfill May 2026 -- Jun 2026\\ \textit{Full-stack real-time messaging platform built on Cloudflare's serverless infrastructure}\\
 \begin{itemize}[leftmargin=0.25in, nosep]

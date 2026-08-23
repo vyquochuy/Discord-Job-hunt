@@ -101,6 +101,7 @@ export const jobsCommand = {
     const embed = new EmbedBuilder()
       .setTitle(`💼 Danh Sách Tin Tuyển Dụng (${total} việc làm)`)
       .setDescription(
+        `🌐 **[Mở trên Web Application để xem & phân tích trực quan](${config.webAppUrl}/jobs)**\n` +
         `Trang **${page}/${totalPages}** • Dùng lệnh \`/job <id>\` để xem chi tiết hoặc \`/match <id>\` để phân tích độ phù hợp.`
       )
       .setColor(0x3498db);

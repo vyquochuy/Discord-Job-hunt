@@ -42,16 +42,15 @@ async def test_client():
 
 @pytest.mark.asyncio
 async def test_profile_api_authentication(test_client: AsyncClient):
-    """Kiểm tra lớp bảo mật X-Internal-Secret từ chối truy cập trái phép."""
+    """Kiểm tra lớp bảo mật Web và X-Internal-Secret từ chối secret sai."""
     logger.info("=== [TEST] Profile API Authentication & Security Gate ===")
     
-    # 1. Thiếu header X-Internal-Secret -> 401
+    # 1. Web Request thông thường (không có X-Internal-Secret) -> 200 OK (Single User Web Mode)
     res_no_auth = await test_client.get("/api/v1/profile")
-    logger.info(f"  No Auth Request: Status = {res_no_auth.status_code}, Detail = {res_no_auth.json()['detail']}")
-    assert res_no_auth.status_code == 401
-    assert "Missing 'X-Internal-Secret'" in res_no_auth.json()["detail"]
+    logger.info(f"  Web Request Status = {res_no_auth.status_code}")
+    assert res_no_auth.status_code == 200
 
-    # 2. Sai secret key -> 403
+    # 2. Sai secret key -> 403 Forbidden
     res_wrong_auth = await test_client.get(
         "/api/v1/profile", headers={"X-Internal-Secret": "wrong_secret_key"}
     )

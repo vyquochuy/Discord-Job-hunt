@@ -1,553 +1,198 @@
-# Architecture
+# Architecture Specification
 
-> **Implementation Status:** NOT IMPLEMENTED — directory structure only.
-> This document describes the planned architecture.
-
----
-
-## High-Level Overview
+## 1. High-Level Overview
 
 ```mermaid
 graph TD
-    subgraph Interface
-        DISCORD[Discord Bot<br/>TypeScript / discord.js]
+    subgraph Presentation ["Presentation Layer"]
+        WEB["Web Application<br/>Simple Blue Theme"]
+        DISCORD["Discord Bot (Adapter)<br/>Deprecated Commands & Notifications"]
     end
 
-    subgraph Core
-        API[FastAPI Backend]
-        SVC[Application Services]
-        REPO[Repositories]
+    subgraph API ["API & Domain Boundary"]
+        REST["FastAPI REST API (/api/v1)"]
+        AUTH["Auth & Identity Layer (User 1–1 Candidate)"]
+        CONTRACTS["API Contracts & DTOs (Pydantic)"]
     end
 
-    subgraph Data
-        DB[(PostgreSQL + pgvector)]
-        REDIS[(Redis)]
+    subgraph DomainCore ["Domain & Application Core"]
+        CANDIDATE_SVC["Candidate Profile Service"]
+        MATCH_SVC["Job Intelligence & Matching Engine"]
+        RESUME_SVC["Resume Intelligence & Tailoring"]
+        APP_SVC["Application Lifecycle Service"]
+        INGEST_PIPE["Ingestion & Normalization Pipeline"]
     end
 
-    subgraph Background
-        SCHEDULER[Scheduler]
-        QUEUE[Task Queue]
-        WORKERS[Workers]
+    subgraph NotificationLayer ["Notification Abstraction Layer"]
+        NOTIF_SVC["Notification Service"]
+        DISCORD_PROV["Discord Notification Provider"]
+        EMAIL_PROV["Email Provider (Future)"]
     end
 
-    DISCORD -->|HTTP/REST| API
-    API --> SVC
-    SVC --> REPO
-    REPO --> DB
+    subgraph Storage ["Persistence Layer (Source of Truth)"]
+        DB[("PostgreSQL 16 + pgvector<br/>(Single Source of Truth)")]
+        REDIS[("Redis (Queue / Cache)")]
+    end
 
-    SCHEDULER -->|enqueue| QUEUE
-    QUEUE -->|dequeue| WORKERS
-    WORKERS --> SVC
-    REDIS --- QUEUE
+    subgraph Pipeline ["Autonomous Background Workers"]
+        WORKER["Worker Process / Daily Batch Runner"]
+        SCHEDULER["Scheduler"]
+    end
+
+    WEB -->|HTTPS / REST| REST
+    DISCORD -->|HTTP / REST (Adapter)| REST
+
+    REST --> AUTH
+    REST --> CONTRACTS
+    CONTRACTS --> CANDIDATE_SVC
+    CONTRACTS --> MATCH_SVC
+    CONTRACTS --> RESUME_SVC
+    CONTRACTS --> APP_SVC
+
+    SCHEDULER --> WORKER
+    WORKER --> INGEST_PIPE
+    WORKER --> MATCH_SVC
+
+    CANDIDATE_SVC --> DB
+    MATCH_SVC --> DB
+    RESUME_SVC --> DB
+    APP_SVC --> DB
+    INGEST_PIPE --> DB
+
+    WORKER --> NOTIF_SVC
+    APP_SVC --> NOTIF_SVC
+    NOTIF_SVC --> DISCORD_PROV
+    NOTIF_SVC --> EMAIL_PROV
+    DISCORD_PROV -.->|Webhooks / DMs| DISCORD
 ```
 
 ---
 
-## Services and Responsibilities
+## 2. Core Architectural Principles
 
-### Discord Bot (`discord-bot/`)
-
-**Responsibility:** Interface layer only.
-
-- Slash commands, buttons, modals, embeds, ephemeral responses
-- Notifications and daily digest delivery (DM)
-- Calls backend API for all operations
-
-**Does NOT contain:** business logic, direct DB access, direct LLM calls.
-
-**Synchronous:** Responds to user interactions. Defers long-running work to backend/workers.
-
-### Backend (`backend/`)
-
-**Responsibility:** API, business logic, AI orchestration.
-
-- REST API (FastAPI) — receives requests from Discord bot
-- Service layer — matching, scoring, resume orchestration, application state
-- Repository layer — all database access
-- AI orchestration — calls LLM APIs, processes structured output
-
-**Owns:** business logic, database access, AI orchestration.
-
-**Synchronous:** API request/response. Enqueues async work to Redis.
-
-### Workers (`workers/`)
-
-**Responsibility:** Asynchronous and scheduled processing.
-
-- Job collection from sources (collectors)
-- AI processing jobs (JD extraction, matching, resume generation)
-- Scheduled tasks (daily digest, periodic collection)
-- Retry handling with backoff
-
-**Asynchronous:** Pulls tasks from Redis queue. Calls service layer for business logic.
-
-### Database (`database/`)
-
-Schema definitions and migrations. Accessed only through repository layer.
+1. **Web Application is the Primary Interface**: All product interactions (Dashboard, Job Search, Match Details, Profile Management, Resume Tailoring, Application Tracking) are served through the Web Application.
+2. **Business Logic MUST NOT Depend on Discord**: Discord is decoupled into an optional notification adapter. No domain rules, matching algorithms, or application state reside in the Discord bot.
+3. **PostgreSQL is the Single Source of Truth at Runtime**: All runtime state (User, Candidate Profile, Jobs, Matches, Resumes, Applications) is persisted in PostgreSQL. File templates in `context/` serve solely as initial baseline seed and import/export targets.
+4. **User 1–1 CandidateProfile Identity**: Every user account maps directly to one candidate profile, ensuring clean domain modeling without premature multi-tenant complexity.
+5. **Strict API Contracts & Domain Boundaries**: Domain services are encapsulated behind explicit DTO interfaces (`backend/app/schemas/`), decoupled from presentation frameworks.
+6. **Pluggable Notification Abstraction**: Background workers and domain services emit events to `NotificationService`, which delegates delivery to configured providers (Discord, Email).
 
 ---
 
-## Communication Patterns
+## 3. Services and Responsibilities
 
-| From | To | Method |
-|------|----|--------|
-| Discord Bot → Backend | HTTP REST API | Synchronous |
-| Backend → Workers | Redis queue (enqueue task) | Asynchronous |
-| Workers → Backend services | Direct Python import (shared service layer) | Synchronous within worker |
-| Backend → Discord | Webhook / bot API for notifications | Asynchronous |
-| Workers → Discord | Via notification service → Discord API | Asynchronous |
+### 3.1 Web Application (`frontend/`)
+- **Role**: Primary user interface.
+- **Characteristics**: Clean, professional, responsive, information-dense, Simple Blue design system (`--primary: #2563eb`).
+- **Core Views**:
+  - `/login` & `/register`: Authentication.
+  - `/dashboard`: Daily digest summary ("What is worth applying today?").
+  - `/jobs` & `/jobs/:id`: Multi-criteria search, JD inspection, match breakdowns, action buttons (*Apply*, *Save*, *Tailor Resume*).
+  - `/recommendations`: High-scoring job recommendations.
+  - `/profile`: Direct candidate profile editing and baseline context synchronization.
+  - `/resume`: Tailored resume workspace, LaTeX/Cover Letter preview, PDF compilation download, Zero-Hallucination provenance verification.
+  - `/applications`: Application lifecycle tracking from `SAVED` to `INTERVIEW`/`OFFER`.
 
-### How Discord communicates with backend
+### 3.2 Backend API & Domain Core (`backend/`)
+- **Role**: Application behavior, API contracts, domain logic, and AI orchestration.
+- **Layers**:
+  - `api/v1/`: HTTP route handlers (`/auth`, `/profile`, `/jobs`, `/matches`, `/resumes`, `/applications`).
+  - `schemas/`: Pydantic DTOs and API contracts.
+  - `models/`: SQLAlchemy ORM database models.
+  - `services/`:
+    - `candidate.py`: Candidate profile management and context sync.
+    - `matching/`: Tri-state hard filters, 7-signal deterministic scoring engine, explainable evidence generator.
+    - `tailoring/`: `RoleClassifier`, `EvidenceScorer`, `DiverseEvidenceSelector`, `AdaptiveSummaryBuilder`, `ProvenanceVerifier`, `latex_generator.py`, `latex_compiler.py`, `cover_letter_generator.py`.
+    - `ingestion_pipeline.py` & `deduplication/`: Multi-source collection, SHA-256 hash caching, 3-tier deduplication.
+    - `notifications/`: `NotificationService` and notification provider abstractions.
 
-Discord bot makes HTTP requests to FastAPI endpoints. Bot never imports backend code directly.
+### 3.3 Background Workers (`backend/app/worker.py` & `daily_runner.py`)
+- **Role**: Autonomous job scanning, taxonomy sync, batch scoring, and daily notification dispatch.
+- **Modes**:
+  - `--daily-batch`: Executes full daily scan (Sync context -> Ingest jobs with 0 LLM cost -> Batch match -> Rank top jobs -> Emit notification summary).
+  - `--run-once`: Single collection cycle.
+  - Daemon mode: Periodic collection loop.
 
-### How workers communicate with services
-
-Workers import and call the same Python service layer as the backend. They share the same codebase but run in separate processes.
-
-### How asynchronous jobs are executed
-
-1. Backend or scheduler enqueues a task to Redis
-2. Worker process dequeues and executes
-3. Worker calls service layer for business logic
-4. Results stored in database
-5. Notifications triggered if needed
-
-### How retries are handled
-
-- **Safe to retry:** Job collection, JD extraction, matching, resume generation
-- **Retry with backoff:** LLM API calls, external source requests
-- **NOT safe to retry blindly:** Application submission (risk of duplicates)
-- Failed tasks are recorded with error details
-- Retry count is bounded; exhausted retries mark the task as failed
-
-### How failures are represented
-
-```
-Task states: PENDING → RUNNING → SUCCESS | FAILED | RETRY
-```
-
-Failed tasks store: error type, error message, attempt count, last attempt timestamp.
-
-### How notifications are triggered
-
-Services emit notification events. A notification service formats and delivers via Discord API (DM or channel message). Workers can trigger notifications after completing background tasks.
+### 3.4 Discord Notification Adapter (`discord-bot/`)
+- **Role**: Supplementary notification receiver and legacy command adapter.
+- **Behavior**:
+  - Receives alerts (High match alerts, Daily digest) with summary cards and direct web links (`http://localhost:3000/jobs/{id}`).
+  - Deprecated slash commands return brief summaries pointing users to the Web Application.
 
 ---
 
-## Dependency Rules
-
-```
-Allowed:
-  Discord Bot → Backend API (HTTP)
-  Backend API → Service Layer → Repository → PostgreSQL
-  Workers → Service Layer → Repository → PostgreSQL
-  Service Layer → LLM API (via AI service)
-  Notification Service → Discord API
-
-Forbidden:
-  Discord Bot → Database (no direct SQL)
-  Discord Bot → LLM API (no direct AI calls)
-  Worker → Discord API (must go through notification service)
-  API Route Handler → Database (must go through service/repository)
-```
-
----
-
-## Conceptual Data Model
-
-### Entity Overview
+## 4. Entity Data Model
 
 ```mermaid
 erDiagram
-    Candidate ||--o{ CandidateSkill : has
-    Candidate ||--o{ CandidateProject : has
-    Candidate ||--o{ CandidateExperience : has
+    User ||--|| Candidate : "has (1-1)"
+    User ||--o{ SavedJob : "saves"
+    
+    Candidate ||--o{ CandidateSkill : "possesses"
+    Candidate ||--o{ CandidateProject : "built"
+    Candidate ||--o{ CandidateExperience : "worked"
+    Candidate ||--o{ CandidateCertification : "achieved"
 
-    JobSource ||--o{ Job : provides
-    Company ||--o{ Job : posts
-    Job ||--o{ JobRequirement : contains
-    Job ||--o{ JobMatch : evaluated_against
+    RawJob ||--|| Job : "standardized_into (1-1)"
+    Job ||--o{ JobSkill : "requires"
+    Skill ||--o{ JobSkill : "referenced_by"
+    Skill ||--o{ SkillAlias : "has_aliases"
 
-    JobMatch }o--|| Candidate : matches
+    Job ||--o{ JobMatch : "evaluated_in"
+    Candidate ||--o{ JobMatch : "matched_with"
 
-    Job ||--o{ Application : applied_to
-    Application ||--o{ ApplicationEvent : has
-    Application ||--o{ ResumeVersion : generated_for
+    Job ||--o{ TailoredResume : "tailored_for"
+    Candidate ||--o{ TailoredResume : "owns"
+    TailoredResume ||--o{ EvidenceMap : "verified_by"
+    TailoredResume ||--o| CoverLetter : "includes"
 
-    ResumeVersion ||--o{ ResumeEvidence : contains
+    Job ||--o{ ApplicationLog : "applied_to"
+    TailoredResume ||--o{ ApplicationLog : "submitted_with"
+    User ||--o{ ApplicationLog : "tracks"
 ```
 
-### Entity Definitions
-
-#### Candidate
-
-- **Purpose:** The single user of the system.
-- **Identity:** Single record (MVP is single-tenant).
-- **Important fields:** name, location, target_roles, target_locations, preferences.
-- **Relationships:** Has skills, projects, experience. Matched against jobs.
-- **Source of truth:** `context/candidate-profile.yaml` + `context/master-resume.md` at load time; database at runtime.
-
-#### CandidateSkill
-
-- **Purpose:** A skill the candidate possesses.
-- **Important fields:** name, category, proficiency_level (optional).
-- **Relationship:** Belongs to Candidate. Referenced during matching.
-
-#### CandidateProject
-
-- **Purpose:** A project the candidate has built or contributed to.
-- **Important fields:** name, description, technologies, role, evidence (list of verifiable claims).
-- **Relationship:** Belongs to Candidate. Referenced during resume tailoring.
-
-#### CandidateExperience
-
-- **Purpose:** Work experience entry.
-- **Important fields:** company, role, period, description, achievements.
-- **Relationship:** Belongs to Candidate. Referenced during matching and resume generation.
-
-#### JobSource
-
-- **Purpose:** A job listing platform or feed.
-- **Important fields:** name, source_type (api/feed/career_page), base_url, enabled, last_collected_at, health_status.
-- **Relationship:** Provides Jobs. Owns source-specific collection logic.
-- **Lifecycle:** Active / Disabled / Error.
-
-#### Company
-
-- **Purpose:** An employer posting jobs.
-- **Important fields:** name, normalized_name, website, industry.
-- **Relationship:** Posts Jobs. May appear across multiple sources.
-
-#### Job
-
-- **Purpose:** A normalized job posting.
-- **Identity:** Internal ID. Deduplicated across sources.
-- **Important fields:** See "Normalized Job Schema" below.
-- **Relationships:** Belongs to Company, provided by JobSource, has Requirements, has Matches, has Applications.
-- **Lifecycle:** ACTIVE / EXPIRED / DUPLICATE / REMOVED.
-
-#### JobRequirement
-
-- **Purpose:** A structured requirement extracted from the JD by AI.
-- **Important fields:** type (required_skill / preferred_skill / education / experience / certification / other), description, category, is_hard_filter.
-- **Relationship:** Belongs to Job. Used for matching.
-
-#### JobMatch
-
-- **Purpose:** The result of matching a Job against the Candidate.
-- **Important fields:** score, recommendation, matched_requirements, missing_requirements, evidence_used, warnings, explanation.
-- **Relationship:** Links Job to Candidate. One per Job per scoring run.
-- **Lifecycle:** Created after analysis. May be recalculated if candidate profile changes.
-
-#### Application
-
-- **Purpose:** Tracks an application to a specific job.
-- **Identity:** One Application per Job (for the single candidate).
-- **Important fields:** status, applied_at, notes.
-- **Relationships:** Belongs to Job. Has Events. Has ResumeVersions.
-- **Lifecycle:** See application lifecycle in `docs/PROJECT.md`.
-
-#### ApplicationEvent
-
-- **Purpose:** An immutable log entry recording a state change or action.
-- **Important fields:** event_type, old_status, new_status, timestamp, triggered_by (user/system), notes.
-- **Relationship:** Belongs to Application. Append-only.
-
-#### ResumeVersion
-
-- **Purpose:** A tailored resume generated for a specific job.
-- **Important fields:** version, content, format (md/docx/pdf), created_at, job_id.
-- **Relationship:** Belongs to Application/Job. Contains ResumeEvidence.
-
-#### ResumeEvidence
-
-- **Purpose:** Links a claim in the generated resume to its source evidence.
-- **Important fields:** claim, source_type (profile/resume/user_input), source_reference, section.
-- **Relationship:** Belongs to ResumeVersion. Enables provenance tracing.
-
-#### Notification
-
-- **Purpose:** A message sent to the user via Discord.
-- **Important fields:** type (daily_digest / status_update / error / high_match), content, sent_at, delivered.
-- **Lifecycle:** PENDING → SENT → DELIVERED / FAILED.
+### Entity Summary
+- **User**: Authentication and user identity (`id`, `email`, `hashed_password`, `full_name`, `is_active`).
+- **Candidate**: Source of Truth candidate profile (`user_id`, `headline`, `summary`, `education`, `target_roles`, `target_locations`, `preferences`).
+- **CandidateSkill / Project / Experience**: Atomic candidate facts, verifiable metrics, and claims.
+- **RawJob**: Immutable source of truth from scrapers (`source`, `source_url`, `content_hash`, `raw_payload`).
+- **Job**: Standardized job posting (`title`, `company_name`, `location`, `work_mode`, `level`, `min_salary`, `max_salary`, `embedding`, `status`).
+- **SavedJob**: User bookmarks (`user_id`, `job_id`, `notes`).
+- **JobMatch**: Deterministic match results, 7 signals, hard filter results, recommendations (`candidate_id`, `job_id`, `score`, `eligibility`, `recommendation`, `signals`, `matched_skills`).
+- **TailoredResume**: Evidence-grounded LaTeX resume (`latex_source`, `pdf_path`, `provenance_score`, `is_provenance_verified`).
+- **EvidenceMap**: Fact-checking links from each generated bullet point to source candidate facts.
+- **ApplicationLog**: Application status state machine (`DRAFT`, `READY`, `SENT`, `INTERVIEW`, `OFFER`, `REJECTED`).
 
 ---
 
-## Normalized Job Schema
+## 5. Dependency Rules
 
-A job collected from any source is normalized to a common representation.
+```text
+Allowed:
+  Web Frontend → Backend REST API (HTTP)
+  Discord Bot → Backend REST API (HTTP)
+  Backend REST API → Domain Services → Repositories → PostgreSQL
+  Workers → Domain Services → Repositories → PostgreSQL
+  Domain Services → NotificationService → DiscordNotificationProvider
+  Domain Services → AI Services (OpenAI SDK / Local Embeddings)
 
-### Data Layers
-
-| Layer | Description | Authority |
-|-------|-------------|-----------|
-| **Source data** | Raw data as received from the job source | Source platform |
-| **Normalized data** | Cleaned, standardized fields | System (deterministic) |
-| **AI-extracted data** | Requirements, skills, seniority parsed by LLM | AI (validated) |
-
-### Conceptual Fields
-
+Forbidden:
+  Frontend → Database Direct (Must use REST API)
+  Discord Bot → Database Direct (Must use REST API)
+  Domain Core → Discord Bot Direct (Must use NotificationService abstraction)
+  Job Pipeline → Frontend (Must be completely decoupled from UI)
 ```
-source                → JobSource reference
-external_id           → ID from the source platform
-canonical_url         → Deduplicated URL to the job posting
-company               → Normalized company name
-title                 → Job title
-description_raw       → Original JD text (preserved)
-description_clean     → Cleaned/normalized text
-location              → Structured: city, state, country, remote_policy
-employment_type       → full_time / part_time / contract / internship
-experience_level      → entry / mid / senior / lead / principal
-salary_min            → Numeric (normalized currency)
-salary_max            → Numeric
-salary_currency       → ISO currency code
-skills_listed         → Skills explicitly listed in posting
-requirements_extracted → AI-extracted structured requirements
-posted_at             → When the job was posted (from source)
-discovered_at         → When the system first found it
-expires_at            → Expiration date if available
-```
-
-**`description_raw` is always preserved.** Normalized and extracted data supplements but never replaces the original.
 
 ---
 
-## Job Source / Collector Architecture
+## 6. Technology Stack
 
-### Conceptual Interface
-
-```
-JobCollector (abstract)
-├── source_name: str
-├── source_type: api | feed | career_page
-├── collect_jobs() → list[RawJob]        # Fetch listings
-├── collect_job_details(id) → RawJob     # Fetch single job detail
-├── normalize(raw: RawJob) → Job         # Transform to common schema
-└── health_check() → SourceHealth        # Check source availability
-```
-
-### Adding a New Source
-
-1. Implement the `JobCollector` interface for the new source
-2. Register the collector in configuration
-3. Source-specific parsing/normalization stays inside the collector
-4. Common schema goes into the shared Job model
-
-### Source-Specific Logic Isolation
-
-Each collector owns its own:
-- Authentication (if needed)
-- Pagination
-- Rate limiting (per-source)
-- Response parsing
-- Error handling
-
-Shared across collectors:
-- Normalized Job schema
-- Deduplication logic
-- Storage (repository layer)
-
-### Source Failure Handling
-
-```
-Source unavailable → retry with backoff → record failure → continue other sources
-Rate limited      → respect retry-after → slow down collection
-Auth expired      → log error → disable source → alert user
-```
-
-Source health tracked per-source: last_success, last_failure, consecutive_failures, status.
-
-### Source Priority
-
-1. Official APIs (most reliable, permitted)
-2. Public RSS/Atom feeds
-3. Public company career pages
-4. Other explicitly permitted methods
-
-Never bypass access restrictions, CAPTCHA, or anti-bot mechanisms.
-
----
-
-## Job Deduplication Strategy
-
-### Detection Layers (in order)
-
-| Priority | Method | Type |
-|----------|--------|------|
-| 1 | `source + external_id` | Exact (same source re-crawl) |
-| 2 | Canonical URL normalization | Exact (same job, different URL params) |
-| 3 | `company + normalized_title + location` | Probable (same job, multiple sources) |
-| 4 | High text similarity on description | Fuzzy (last resort, MVP may defer) |
-
-### Handling
-
-- **Exact duplicate:** Merge metadata, keep earliest `discovered_at`.
-- **Probable duplicate:** Link as related, present once, note multiple sources.
-- **Same position from multiple sources:** Pick canonical source, track all source references.
-
-MVP should prefer deterministic rules (layers 1–3). Fuzzy matching is a future enhancement.
-
----
-
-## Discord Command Surface
-
-> **Status:** All PLANNED — none implemented.
-
-### Conceptual Commands
-
-| Command | Purpose | Interaction |
-|---------|---------|-------------|
-| `/jobs` | List recommended jobs | Embed list + buttons |
-| `/job <id>` | View job details + match | Embed + action buttons |
-| `/match <id>` | View match explanation | Embed |
-| `/resume <job_id>` | Generate/view tailored resume | Embed + file attachment |
-| `/apply <job_id>` | Start application preparation | Modal / multi-step |
-| `/applications` | List tracked applications | Embed list |
-| `/application <id>` | View application details | Embed + status buttons |
-| `/profile` | View candidate profile | Embed |
-| `/profile update` | Update profile fields | Modal |
-| `/digest` | Trigger manual daily digest | Embed |
-| `/settings` | Bot settings | Embed + buttons |
-
-### Interaction Patterns
-
-| Pattern | Use For |
-|---------|---------|
-| Slash Command | All user-initiated actions |
-| Embed | Displaying structured data (jobs, matches, applications) |
-| Button | Quick actions (save, generate resume, approve) |
-| Modal | Multi-field input (profile update, application answers) |
-| Ephemeral response | Confirmations, errors, sensitive data |
-| DM notification | Daily digest, status updates, alerts |
-
-### Which Actions Use Which Interaction
-
-- **View actions** → Embed (public or ephemeral)
-- **Quick decisions** → Buttons on embeds (save job, request resume)
-- **Data entry** → Modal (edit profile, answer questions)
-- **Confirmations** → Ephemeral response with confirm button
-- **Notifications** → DM to candidate
-- **Submission approval** → DM with explicit confirm/cancel buttons
-
----
-
-## Notification System
-
-### Types
-
-| Type | Trigger | Frequency | Channel |
-|------|---------|-----------|---------|
-| Daily Digest | Scheduled (cron) | Once daily | DM |
-| Application Status | Status change | On event | DM |
-| Error Alert | Collection/processing failure | On occurrence | DM |
-| High-Match Alert | Score above high threshold | On event (future) | DM |
-
-**MVP primary notification:** Daily digest.
-
-Daily digest contains:
-- New jobs discovered since last digest
-- Top recommended matches
-- Application status changes
-- Collection summary (sources checked, jobs found)
-
-High-frequency unsolicited notifications are NOT part of MVP.
-
----
-
-## Scheduling and Workers
-
-### Conceptual Architecture
-
-```
-Scheduler (cron-based)
-  ↓
-Redis Queue (task queue)
-  ↓
-Worker Process (pulls tasks)
-  ↓
-Task Execution (calls service layer)
-```
-
-### Worker framework
-
-TBD — choose during implementation (candidates: Celery, ARQ, RQ, custom).
-
-### Conceptual Tasks
-
-| Task | Schedule | Idempotent | Retryable |
-|------|----------|------------|-----------|
-| `collect_jobs` | Periodic (e.g., every 4h) | Yes | Yes |
-| `analyze_job` | On new job discovered | Yes | Yes |
-| `match_job` | After analysis complete | Yes | Yes |
-| `generate_resume` | On user request | Yes | Yes |
-| `send_daily_digest` | Daily (cron) | Yes (at-most-once) | Yes |
-| `submit_application` | On user approval | **No** | **No** — notify user on failure |
-
-### Task Properties
-
-- **Idempotent:** Re-running produces the same result (safe to retry).
-- **Retryable:** Automatic retry on transient failure with exponential backoff.
-- **Bounded:** Maximum retry count per task. Exhausted retries → mark FAILED → alert.
-- **Observable:** Task start, completion, and failure are logged.
-- **Rate-limited:** External API calls respect per-source rate limits.
-
----
-
-## Error Handling
-
-### By Category
-
-| Scenario | Behavior |
-|----------|----------|
-| Job source unavailable | Retry with backoff → record failure → continue other sources |
-| LLM API timeout | Retry (up to 3x) → mark AI processing as failed |
-| LLM returns invalid output | Retry with stricter prompt → fail if schema invalid after retries |
-| Resume generation failure | Do not create invalid resume → notify user |
-| Application submission failure | **Never silently retry** → require user review |
-| Database connection lost | Retry connection → fail task → alert |
-| Discord API failure | Queue notification for retry → log error |
-
-### Safe vs Dangerous Retry
-
-| Safe to retry | Dangerous to retry |
-|---------------|-------------------|
-| Job collection | Application submission |
-| JD extraction | Any action with external side effects |
-| Matching | Payment (if ever applicable) |
-| Resume generation | |
-| Notifications | |
-
----
-
-## Observability
-
-### What should be observable
-
-| Category | Metrics/Logs |
-|----------|-------------|
-| Job collection | Jobs found per source, duplicates detected, source errors |
-| AI processing | LLM requests count, latency, failures, token usage |
-| Matching | Jobs analyzed, match distribution, processing time |
-| Resume generation | Resumes generated, failures, generation time |
-| Applications | Status transitions, submission attempts |
-| Notifications | Digest sent, delivery failures |
-| Workers | Task queue depth, execution time, retry count |
-
-**Do not log:** secrets, API keys, full candidate PII unnecessarily.
-
----
-
-## Technology Stack
-
-| Component | Technology | Status |
-|-----------|-----------|--------|
-| Discord Bot | TypeScript, Node.js, discord.js | PLANNED |
-| Backend API | Python, FastAPI, Pydantic | PLANNED |
-| ORM | SQLAlchemy | PLANNED |
-| Database | PostgreSQL + pgvector | PLANNED |
-| Queue | Redis | PLANNED |
-| AI/LLM | OpenAI API, structured outputs | PLANNED |
-| Browser automation | Playwright (where permitted) | PLANNED |
-| Infrastructure | Docker Compose | PLANNED |
-| Worker framework | TBD | TBD |
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Web Frontend** | HTML5 / JavaScript / CSS (Simple Blue Design Tokens) | Primary Product Interface |
+| **Backend API** | Python 3.11+, FastAPI, Pydantic 2.0 | API Contracts & AI Orchestration |
+| **Database** | PostgreSQL 16 + pgvector | Single Source of Truth & Vector Search |
+| **ORM & Migrations** | Async SQLAlchemy 2.0 (`asyncpg`), Alembic | Data Persistence |
+| **Background Processing**| Asyncio Worker, Redis | Batch Ingestion & Scheduled Jobs |
+| **Notification Channel**| Discord Webhook / Bot API (discord.js v14) | Notification Adapter |
+| **PDF Compilation** | `pdflatex` / `xelatex` (TeXLive Sandbox) | Resume Generation |

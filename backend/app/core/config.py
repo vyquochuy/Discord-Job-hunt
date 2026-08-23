@@ -18,26 +18,29 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 8000
     BACKEND_API_URL: str = "http://localhost:8000"
 
-    # Bảo mật API nội bộ giữa Bot Discord và Backend
+    # Bảo mật API nội bộ & Web Auth
     INTERNAL_API_SECRET: str = "change_me_to_a_secure_random_string_32_chars"
+    JWT_SECRET_KEY: str = "job_hunter_platform_secret_key_web_2026_flexible_auth"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    DISCORD_WEBHOOK_URL: Optional[str] = None
 
     # Cơ sở dữ liệu (PostgreSQL + pgvector)
     POSTGRES_USER: str = "jobhunter"
     POSTGRES_PASSWORD: str = "jobhunter_secure_password"
     POSTGRES_DB: str = "jobhunter_db"
-    POSTGRES_HOST: str = "postgres"
+    POSTGRES_HOST: str = "127.0.0.1"
     POSTGRES_PORT: int = 5432
     DATABASE_URL: str = (
-        "postgresql+asyncpg://jobhunter:jobhunter_secure_password@postgres:5432/jobhunter_db"
+        "postgresql+asyncpg://jobhunter:jobhunter_secure_password@127.0.0.1:5432/jobhunter_db"
     )
     DATABASE_URL_SYNC: str = (
-        "postgresql://jobhunter:jobhunter_secure_password@postgres:5432/jobhunter_db"
+        "postgresql://jobhunter:jobhunter_secure_password@127.0.0.1:5432/jobhunter_db"
     )
 
     # Redis Queue & Cache
-    REDIS_HOST: str = "redis"
+    REDIS_HOST: str = "127.0.0.1"
     REDIS_PORT: int = 6379
-    REDIS_URL: str = "redis://redis:6379/0"
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
 
     # AI / LLM Configuration
     OPENAI_API_KEY: Optional[str] = None

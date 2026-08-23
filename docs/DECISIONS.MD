@@ -4,15 +4,13 @@
 
 ## ADR-001 — Discord as primary interface
 
-**Status:** Accepted
+**Status:** Superseded by ADR-011
 
-**Context:** The system needs a user interface for job review, application approval, and notifications. Building a custom web UI is expensive for a personal tool.
+**Context:** The system initially explored Discord as a rapid interface for MVP prototyping.
 
-**Decision:** Use Discord as the sole user interface for MVP.
+**Decision:** (Legacy) Use Discord as the sole user interface for initial prototyping.
 
-**Reason:** Discord provides rich interaction primitives (slash commands, buttons, embeds, modals, DMs) without custom frontend development. The candidate already uses Discord daily.
-
-**Consequences:** All user interactions flow through Discord. No web UI needed for MVP. Interface capabilities bounded by Discord's API.
+**Consequences:** Superseded by ADR-011. Discord is now an optional notification adapter and legacy command redirector.
 
 ---
 
@@ -26,7 +24,7 @@
 
 **Reason:** discord.js is the most mature and well-documented Discord library. TypeScript provides type safety and better IDE support.
 
-**Consequences:** Bot is a separate Node.js service. Two language ecosystems (TypeScript + Python). Bot communicates with backend via HTTP API.
+**Consequences:** Bot is a separate Node.js service. Communicates with backend via HTTP API as a notification adapter.
 
 ---
 
@@ -40,7 +38,7 @@
 
 **Reason:** Python has the best AI/ML ecosystem (OpenAI SDK, LangChain, etc.). FastAPI provides async performance, automatic OpenAPI docs, and native Pydantic integration for structured output.
 
-**Consequences:** Backend and workers are Python services. Pydantic models serve as both API schemas and LLM structured output schemas.
+**Consequences:** Backend and workers are Python services. Pydantic models serve as API contracts, schemas, and LLM structured output schemas.
 
 ---
 
@@ -50,7 +48,7 @@
 
 **Context:** Need persistent storage for jobs, candidates, matches, applications. May need vector similarity search for semantic matching.
 
-**Decision:** Use PostgreSQL with pgvector extension.
+**Decision:** Use PostgreSQL with pgvector extension as the Single Source of Truth at runtime.
 
 **Reason:** PostgreSQL is reliable and well-understood. pgvector enables embedding-based semantic search without a separate vector database. Single database simplifies operations.
 
@@ -68,7 +66,7 @@
 
 **Reason:** Lightweight, well-supported in Python ecosystem. Suitable for job scheduling and task queuing.
 
-**Consequences:** Redis is an infrastructure dependency alongside PostgreSQL. Worker framework choice (Celery, ARQ, RQ, or custom) is TBD.
+**Consequences:** Redis is an infrastructure dependency alongside PostgreSQL.
 
 ---
 
@@ -78,25 +76,25 @@
 
 **Context:** The system can prepare applications automatically. The question is whether it should also submit automatically.
 
-**Decision:** All application submissions require explicit user confirmation via Discord.
+**Decision:** All application submissions require explicit user confirmation on the Web UI.
 
 **Reason:** Applications are high-stakes, irreversible actions. Automated submission risks sending incorrect, incomplete, or unwanted applications. The cost of a bad application is higher than the cost of a manual click.
 
-**Consequences:** No fully automated apply pipeline. System prepares and presents — user decides. Submission failures are not silently retried.
+**Consequences:** No fully automated blind apply pipeline. System prepares and presents on the Web — user decides and triggers submission.
 
 ---
 
-## ADR-007 — Master resume as source of truth for generation
+## ADR-007 — Candidate profile facts as source of truth for generation
 
-**Status:** Accepted
+**Status:** Accepted (Clarified)
 
 **Context:** AI generates tailored resumes. It needs a defined boundary for what it can claim about the candidate.
 
-**Decision:** `context/master-resume.md` is the single source of truth. All generated resume content must be derivable from it.
+**Decision:** PostgreSQL Candidate facts (seeded initially from `context/candidate-profile.yaml` & `context/master-resume.tex`) are the runtime Source of Truth. All generated resume content must be traceable to verified facts.
 
 **Reason:** Prevents AI from hallucinating experience. Creates an auditable trail from generated claim to source evidence.
 
-**Consequences:** Master resume must be comprehensive and maintained. Resume tailoring is constrained to selecting, reordering, and rewording existing evidence. Every generated claim must be traceable.
+**Consequences:** Resume tailoring is constrained to selecting, reordering, and rewording existing evidence. Every generated claim must be traceable.
 
 ---
 
@@ -110,7 +108,7 @@
 
 **Reason:** LLM scoring is non-reproducible, non-debuggable, and inconsistent across runs. Deterministic scoring is testable, explainable, and consistent. Score components are individually verifiable.
 
-**Consequences:** Scoring logic lives in code with configurable weights, not in prompts. Scoring is transparent and auditable. Weights can be tuned based on application outcomes.
+**Consequences:** Scoring logic lives in code with configurable weights, not in prompts. Scoring is transparent and auditable.
 
 ---
 
@@ -124,7 +122,7 @@
 
 **Reason:** Cost efficiency. Extraction tasks don't need frontier models. Generation tasks benefit from better models.
 
-**Consequences:** Three model configuration variables. Operations specify which tier they require. Easy to upgrade/downgrade models per operation.
+**Consequences:** Three model configuration variables. Operations specify which tier they require.
 
 ---
 
@@ -136,6 +134,26 @@
 
 **Decision:** Model application status as an explicit state machine with defined valid transitions. State changes are recorded as immutable events.
 
-**Reason:** Prevents invalid state transitions (e.g., jumping from discovered to submitted). Event log provides full audit trail. State machine is testable.
+**Reason:** Prevents invalid state transitions. Event log provides full audit trail. State machine is testable.
 
-**Consequences:** Application state transitions must go through the state machine. Invalid transitions are rejected. All transitions are logged as ApplicationEvents.
+**Consequences:** Application state transitions must go through the state machine. Invalid transitions are rejected.
+
+---
+
+## ADR-011 — Web Application-First Architecture with Pluggable Notifications
+
+**Status:** Accepted
+
+**Context:** The initial Discord-only interface limited information density, lacked visual comparison tools, dashboard metrics, and a dedicated candidate workspace.
+
+**Decision:**
+1. Migrate system to **Web Application-First**: Web UI (Simple Blue theme) is the primary user interface.
+2. Decouple business logic completely from Discord. Discord becomes a pluggable `NotificationProvider`.
+3. Establish User 1–1 CandidateProfile identity mapping.
+4. Establish PostgreSQL as the single runtime Source of Truth for all state.
+5. Deprecate Discord slash commands gradually by providing brief summary cards with direct redirect links to the Web App.
+
+**Reason:** Web interface provides superior information architecture, fast filtering, full resume previewing, and interactive application tracking.
+
+**Consequences:** Web Frontend communicates with Backend REST API. Discord bot is purely an adapter.
+
