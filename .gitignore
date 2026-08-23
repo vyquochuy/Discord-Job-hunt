@@ -68,4 +68,9 @@ temp/
 !docs/*.pdf
 
 # Resume files
-context/*
+context/
+!context.example/
+!context.example/**
+
+
+backend/storage/

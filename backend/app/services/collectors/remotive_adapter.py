@@ -23,9 +23,9 @@ class RemotiveJobCollector(BaseJobCollector):
     def source_name(self) -> str:
         return "remotive"
 
-    async def fetch_jobs(self, limit: int = 20) -> List[RawJobData]:
+    async def fetch_jobs(self, limit: int = 50) -> List[RawJobData]:
         results: List[RawJobData] = []
-        params = {"category": "software-dev", "limit": limit}
+        categories = ["software-dev", "devops-sysadmin"]
         headers = {
             "User-Agent": "JobHunterBot/1.0 (https://github.com/vyquochuy/Discord-Job-hunt; job-matching-bot)",
             "Accept": "application/json",
@@ -33,33 +33,44 @@ class RemotiveJobCollector(BaseJobCollector):
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(self.API_URL, params=params, headers=headers)
-                if response.status_code != 200:
-                    logger.warning(f"Remotive API returned status {response.status_code}")
-                    return results
+                seen_ids = set()
+                for cat in categories:
+                    if len(results) >= limit:
+                        break
 
-                data = response.json()
-                raw_jobs_list = data.get("jobs", [])
+                    params = {"category": cat, "limit": limit}
+                    response = await client.get(self.API_URL, params=params, headers=headers)
+                    if response.status_code != 200:
+                        logger.warning(f"Remotive API ({cat}) returned status {response.status_code}")
+                        continue
 
-                for item in raw_jobs_list[:limit]:
-                    job_id = str(item.get("id"))
-                    url = item.get("url") or f"https://remotive.com/job/{job_id}"
-                    
-                    # Content hash trên toàn bộ payload
-                    content_hash = self.compute_content_hash(item)
+                    data = response.json()
+                    raw_jobs_list = data.get("jobs", [])
 
-                    results.append(
-                        RawJobData(
-                            source=self.source_name,
-                            source_url=url,
-                            source_job_id=job_id,
-                            raw_payload=item,
-                            raw_html=None,
-                            content_hash=content_hash,
+                    for item in raw_jobs_list:
+                        if len(results) >= limit:
+                            break
+
+                        job_id = str(item.get("id"))
+                        if job_id in seen_ids:
+                            continue
+                        seen_ids.add(job_id)
+
+                        url = item.get("url") or f"https://remotive.com/job/{job_id}"
+                        content_hash = self.compute_content_hash(item)
+
+                        results.append(
+                            RawJobData(
+                                source=self.source_name,
+                                source_url=url,
+                                source_job_id=job_id,
+                                raw_payload=item,
+                                raw_html=None,
+                                content_hash=content_hash,
+                            )
                         )
-                    )
 
-                logger.info(f"Successfully fetched {len(results)} jobs from Remotive API")
+                logger.info(f"Successfully fetched {len(results)} IT/DevOps jobs from Remotive API")
         except Exception as e:
             logger.error(f"Error fetching jobs from Remotive: {e}")
 

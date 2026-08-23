@@ -428,7 +428,7 @@ class ResumeIntelligenceEngine:
         scored_projects: List[ScoredProject] = []
         all_scored_evidences: List[ScoredEvidence] = []
 
-        candidate_projects = candidate.projects if "projects" in candidate.__dict__ and candidate.projects else []
+        candidate_projects = getattr(candidate, "projects", None) or []
         for proj in candidate_projects:
             proj_ev_scored: List[ScoredEvidence] = []
             if proj.evidence_points:
@@ -475,8 +475,9 @@ class ResumeIntelligenceEngine:
         # 6. Sắp xếp Kỹ năng ưu tiên (Priority Skills)
         # Bắt đầu từ candidate skills thực có, ưu tiên matched skills và role domain affinity
         candidate_skills_list = []
-        if "skills" in candidate.__dict__ and candidate.skills:
-            candidate_skills_list = [s.name for s in candidate.skills]
+        skills_rel = getattr(candidate, "skills", None) or []
+        if skills_rel:
+            candidate_skills_list = [s.name for s in skills_rel]
         if not candidate_skills_list:
             candidate_skills_list = ["C++", "Python", "JavaScript", "TypeScript", "SQL", "Linux", "Docker", "X.509 PKI", "OpenSSL"]
 

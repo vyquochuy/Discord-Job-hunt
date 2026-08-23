@@ -85,7 +85,7 @@ class DailyBatchRunnerService:
     async def run_daily_batch(
         cls,
         session: Optional[AsyncSession] = None,
-        limit_per_source: int = 15,
+        limit_per_source: int = 50,
         context_dir: Optional[str] = None,
     ) -> DailyBatchSummary:
         if session is not None:
@@ -98,7 +98,7 @@ class DailyBatchRunnerService:
     async def _execute_batch(
         cls,
         session: AsyncSession,
-        limit_per_source: int = 15,
+        limit_per_source: int = 50,
         context_dir: Optional[str] = None,
     ) -> DailyBatchSummary:
         start_time = datetime.now(timezone.utc)
@@ -134,8 +134,36 @@ class DailyBatchRunnerService:
         except Exception as e:
             logger.warning(f"⚠️ Non-blocking warning during skill taxonomy sync: {e}")
 
-        # 3. Thu thập Job mới từ các Collectors (Zero LLM cost)
-        logger.info("Step 3/5: Collecting new jobs from active sources (Zero LLM Cost)...")
+        # 2b. Tinh gọn dữ liệu: Đánh dấu EXPIRED cho tin cũ quá 30 ngày (trừ tin đã Bookmark hoặc đã Nộp)
+        try:
+            from datetime import timedelta
+            from sqlalchemy import update
+            from app.models.saved_job import SavedJob
+            from app.models.resume import ApplicationLog
+
+            cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+            saved_job_ids_stmt = select(SavedJob.job_id)
+            app_job_ids_stmt = select(ApplicationLog.job_id)
+
+            expire_stmt = (
+                update(Job)
+                .where(
+                    Job.status == JobStatusEnum.ACTIVE,
+                    Job.created_at < cutoff,
+                    Job.id.notin_(saved_job_ids_stmt),
+                    Job.id.notin_(app_job_ids_stmt),
+                )
+                .values(status=JobStatusEnum.EXPIRED)
+            )
+            res_expire = await session.execute(expire_stmt)
+            if res_expire.rowcount:
+                logger.info(f"🧹 Retention Policy: Auto-expired {res_expire.rowcount} stale jobs older than 30 days.")
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"⚠️ Non-blocking warning during stale jobs retention check: {e}")
+
+        # 3. Thu thập Job mới từ các Collectors Đa trang có chủ đích IT (Zero LLM cost)
+        logger.info("Step 3/5: Collecting new IT jobs from multi-page active sources (Zero LLM Cost)...")
         collectors = [
             RemotiveJobCollector(),
             ITViecJobCollector(),

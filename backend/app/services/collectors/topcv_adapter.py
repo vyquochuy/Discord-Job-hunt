@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ logger = logging.getLogger("topcv_adapter")
 class TopCVJobCollector(BaseJobCollector):
     """
     Adapter thu thập tin tuyển dụng từ TopCV.vn.
-    Hỗ trợ bóc tách danh sách tin IT và xử lý bot detection / WAF fallback.
+    Hỗ trợ bóc tách danh sách tin IT đa trang và xử lý bot detection / WAF fallback.
     """
 
     BASE_URL = "https://www.topcv.vn"
@@ -25,7 +26,7 @@ class TopCVJobCollector(BaseJobCollector):
     def source_name(self) -> str:
         return "topcv"
 
-    async def fetch_jobs(self, limit: int = 20) -> List[RawJobData]:
+    async def fetch_jobs(self, limit: int = 50) -> List[RawJobData]:
         results: List[RawJobData] = []
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -41,72 +42,91 @@ class TopCVJobCollector(BaseJobCollector):
             "Upgrade-Insecure-Requests": "1",
         }
 
+        page = 1
+        max_pages = min(10, max(1, (limit + 19) // 20))
+
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                response = await client.get(self.SEARCH_URL, headers=headers)
-                if response.status_code != 200:
-                    logger.warning(
-                        f"TopCV.vn returned status {response.status_code} "
-                        f"(Notice: TopCV may require browser automation/proxy if Cloudflare WAF is active)"
-                    )
-                    return results
-
-                soup = BeautifulSoup(response.text, "html.parser")
-                job_cards = soup.select(
-                    ".job-item-search-result, .job-item-2, .job-item, .job-ta, div[data-job-id]"
-                )
-
-                for card in job_cards[:limit]:
-                    # 1. Tiêu đề và link
-                    title_elem = card.select_one("h3 a, .title a, a[href*='/viec-lam/']")
-                    if not title_elem:
-                        continue
-
-                    title = title_elem.get_text(strip=True)
-                    rel_url = title_elem.get("href", "")
-                    url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
-
-                    # 2. Tên công ty
-                    company_elem = card.select_one("a.company, .company-name, a[href*='/cong-ty/'], .name")
-                    company = company_elem.get_text(strip=True) if company_elem else "IT Company"
-
-                    # 3. Địa điểm
-                    location_elem = card.select_one(".address, .city, .location")
-                    location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
-
-                    # 4. Mức lương
-                    salary_elem = card.select_one(".salary, .badge-salary")
-                    salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
-
-                    # 5. Kỹ năng / Tags
-                    skill_badges = card.select(".tag, .badge, .job-tag")
-                    skills = [s.get_text(strip=True) for s in skill_badges if s.get_text(strip=True)]
-
-                    card_payload = {
-                        "title": title,
-                        "company": company,
-                        "location": location,
-                        "url": url,
-                        "salary_text": salary_text,
-                        "skills": skills,
-                    }
-
-                    content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
-                    job_id_match = re.search(r"/(\d+)\.html", url)
-                    source_job_id = job_id_match.group(1) if job_id_match else None
-
-                    results.append(
-                        RawJobData(
-                            source=self.source_name,
-                            source_url=url,
-                            source_job_id=source_job_id,
-                            raw_payload=card_payload,
-                            raw_html=str(card),
-                            content_hash=content_hash,
+                while page <= max_pages and len(results) < limit:
+                    target_url = f"{self.SEARCH_URL}?sort=new&page={page}" if page > 1 else self.SEARCH_URL
+                    logger.info(f"TopCV: Fetching page {page}/{max_pages} from {target_url}...")
+                    
+                    response = await client.get(target_url, headers=headers)
+                    if response.status_code != 200:
+                        logger.warning(
+                            f"TopCV.vn page {page} returned status {response.status_code}"
                         )
+                        break
+
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    job_cards = soup.select(
+                        ".job-item-search-result, .job-item-2, .job-item, .job-ta, div[data-job-id]"
                     )
 
-                logger.info(f"Successfully scraped {len(results)} jobs from TopCV.vn")
+                    if not job_cards:
+                        logger.info(f"TopCV: No more job cards found on page {page}.")
+                        break
+
+                    page_jobs_count = 0
+                    for card in job_cards:
+                        if len(results) >= limit:
+                            break
+
+                        # 1. Tiêu đề và link
+                        title_elem = card.select_one("h3 a, .title a, a[href*='/viec-lam/']")
+                        if not title_elem:
+                            continue
+
+                        title = title_elem.get_text(strip=True)
+                        rel_url = title_elem.get("href", "")
+                        url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+
+                        # 2. Tên công ty
+                        company_elem = card.select_one("a.company, .company-name, a[href*='/cong-ty/'], .name")
+                        company = company_elem.get_text(strip=True) if company_elem else "IT Company"
+
+                        # 3. Địa điểm
+                        location_elem = card.select_one(".address, .city, .location")
+                        location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
+
+                        # 4. Mức lương
+                        salary_elem = card.select_one(".salary, .badge-salary")
+                        salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
+
+                        # 5. Kỹ năng / Tags
+                        skill_badges = card.select(".tag, .badge, .job-tag")
+                        skills = [s.get_text(strip=True) for s in skill_badges if s.get_text(strip=True)]
+
+                        card_payload = {
+                            "title": title,
+                            "company": company,
+                            "location": location,
+                            "url": url,
+                            "salary_text": salary_text,
+                            "skills": skills,
+                        }
+
+                        content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
+                        job_id_match = re.search(r"/(\d+)\.html", url)
+                        source_job_id = job_id_match.group(1) if job_id_match else None
+
+                        results.append(
+                            RawJobData(
+                                source=self.source_name,
+                                source_url=url,
+                                source_job_id=source_job_id,
+                                raw_payload=card_payload,
+                                raw_html=str(card),
+                                content_hash=content_hash,
+                            )
+                        )
+                        page_jobs_count += 1
+
+                    page += 1
+                    if page <= max_pages and len(results) < limit:
+                        await asyncio.sleep(0.35)
+
+                logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from TopCV.vn")
         except Exception as e:
             logger.error(f"Error scraping TopCV: {e}", exc_info=True)
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ logger = logging.getLogger("itviec_adapter")
 class ITViecJobCollector(BaseJobCollector):
     """
     Adapter thu thập tin tuyển dụng ngành CNTT Việt Nam từ ITViec.
+    Hỗ trợ duyệt phân trang đa trang (Pagination Loop).
     """
 
     BASE_URL = "https://itviec.com"
@@ -24,7 +26,7 @@ class ITViecJobCollector(BaseJobCollector):
     def source_name(self) -> str:
         return "itviec"
 
-    async def fetch_jobs(self, limit: int = 20) -> List[RawJobData]:
+    async def fetch_jobs(self, limit: int = 50) -> List[RawJobData]:
         results: List[RawJobData] = []
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -32,72 +34,90 @@ class ITViecJobCollector(BaseJobCollector):
             "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
         }
 
+        page = 1
+        max_pages = min(10, max(1, (limit + 19) // 20))
+
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                response = await client.get(self.SEARCH_URL, headers=headers)
-                if response.status_code != 200:
-                    logger.warning(f"ITViec request returned status {response.status_code}")
-                    return results
+                while page <= max_pages and len(results) < limit:
+                    target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
+                    logger.info(f"ITViec: Fetching page {page}/{max_pages} from {target_url}...")
 
-                soup = BeautifulSoup(response.text, "html.parser")
-                
-                # Tìm các job card theo selector của ITViec
-                job_cards = soup.select(".job-card, .job_content, div[data-search--job-selection-target='jobCard']")
-                
-                if not job_cards:
-                    # Fallback tìm các link job nếu ITViec thay đổi class
-                    job_cards = soup.find_all("div", class_=re.compile(r"job.*card|job-item", re.I))
+                    response = await client.get(target_url, headers=headers)
+                    if response.status_code != 200:
+                        logger.warning(f"ITViec page {page} request returned status {response.status_code}")
+                        break
 
-                for card in job_cards[:limit]:
-                    title_elem = card.select_one("h3 a, .job-card__title a, a[href*='/it-jobs/']")
-                    if not title_elem:
-                        continue
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    
+                    # Tìm các job card theo selector của ITViec
+                    job_cards = soup.select(".job-card, .job_content, div[data-search--job-selection-target='jobCard']")
+                    
+                    if not job_cards:
+                        # Fallback tìm các link job nếu ITViec thay đổi class
+                        job_cards = soup.find_all("div", class_=re.compile(r"job.*card|job-item", re.I))
 
-                    title = title_elem.get_text(strip=True)
-                    rel_url = title_elem.get("href", "")
-                    url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                    if not job_cards:
+                        logger.info(f"ITViec: No more job cards found on page {page}.")
+                        break
 
-                    company_elem = card.select_one(
-                        "span.text-hover-underline, a.text-rich-grey, .job-card__company-name, .employer-name, a[href*='/companies/']"
-                    )
-                    company = company_elem.get_text(strip=True) if company_elem else "IT Company"
+                    for card in job_cards:
+                        if len(results) >= limit:
+                            break
 
-                    location_elem = card.select_one(
-                        "div.text-rich-grey.text-truncate, .job-card__location, .city, .address"
-                    )
-                    location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
+                        title_elem = card.select_one("h3 a, .job-card__title a, a[href*='/it-jobs/']")
+                        if not title_elem:
+                            continue
 
-                    # Lấy các skill badges (thẻ a có class itag)
-                    skill_badges = card.select("a.itag, .job-card__skills a, .tag-list a")
-                    skills = [s.get_text(strip=True) for s in skill_badges if s.get_text(strip=True)]
+                        title = title_elem.get_text(strip=True)
+                        rel_url = title_elem.get("href", "")
+                        url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
 
-                    # Lấy thông tin lương nếu hiển thị
-                    salary_elem = card.select_one(".job-card__salary, .salary")
-                    salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
-
-                    card_payload = {
-                        "title": title,
-                        "company": company,
-                        "location": location,
-                        "url": url,
-                        "skills": skills,
-                        "salary_text": salary_text,
-                    }
-
-                    content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
-
-                    results.append(
-                        RawJobData(
-                            source=self.source_name,
-                            source_url=url,
-                            source_job_id=url.split("/")[-1].split("?")[0] if url else None,
-                            raw_payload=card_payload,
-                            raw_html=str(card),
-                            content_hash=content_hash,
+                        company_elem = card.select_one(
+                            "span.text-hover-underline, a.text-rich-grey, .job-card__company-name, .employer-name, a[href*='/companies/']"
                         )
-                    )
+                        company = company_elem.get_text(strip=True) if company_elem else "IT Company"
 
-                logger.info(f"Successfully scraped {len(results)} jobs from ITViec")
+                        location_elem = card.select_one(
+                            "div.text-rich-grey.text-truncate, .job-card__location, .city, .address"
+                        )
+                        location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
+
+                        # Lấy các skill badges (thẻ a có class itag)
+                        skill_badges = card.select("a.itag, .job-card__skills a, .tag-list a")
+                        skills = [s.get_text(strip=True) for s in skill_badges if s.get_text(strip=True)]
+
+                        # Lấy thông tin lương nếu hiển thị
+                        salary_elem = card.select_one(".job-card__salary, .salary")
+                        salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
+
+                        card_payload = {
+                            "title": title,
+                            "company": company,
+                            "location": location,
+                            "url": url,
+                            "skills": skills,
+                            "salary_text": salary_text,
+                        }
+
+                        content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
+
+                        results.append(
+                            RawJobData(
+                                source=self.source_name,
+                                source_url=url,
+                                source_job_id=url.split("/")[-1].split("?")[0] if url else None,
+                                raw_payload=card_payload,
+                                raw_html=str(card),
+                                content_hash=content_hash,
+                            )
+                        )
+
+                    page += 1
+                    if page <= max_pages and len(results) < limit:
+                        await asyncio.sleep(0.35)
+
+                logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from ITViec")
         except Exception as e:
             logger.error(f"Error scraping ITViec: {e}")
 

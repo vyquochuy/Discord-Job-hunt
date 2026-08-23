@@ -35,6 +35,32 @@
 
 ---
 
+## Phase 2.5 — Manual & Ad-hoc Job Ingestion (URL / Raw Text Parsing)
+**Status:** PLANNED
+
+**Goal:** Allow users to instantly import any external job posting via direct URL or by pasting raw unformatted job text (social media posts, Facebook, Telegram, emails) into structured jobs for immediate matching and resume tailoring.
+
+**Scope:**
+- [ ] **Dual-Mode Ingestion API (`POST /api/v1/jobs/ingest-manual`):**
+  - **Mode A: Raw Text Ingestion:** Parse free-form, unformatted job post text (with emojis, bullet points, salary, contact info, job descriptions, requirements).
+  - **Mode B: Direct URL Ingestion:** Fetch and extract job postings directly from arbitrary web links (TopCV, LinkedIn, company career pages, etc.).
+- [ ] **Intelligent Job Extractor Engine:**
+  - Fast rule-based + LLM structured JSON extraction (`title`, `company_name`, `location`, `work_mode`, `level`, `salary`, `skills_required`, `responsibilities`, `contact_email`, `contact_phone`, `apply_url`).
+  - Normalize extracted skills against Canonical Skill Taxonomy (`SkillNormalizer`).
+- [ ] **Instant Action Pipeline:**
+  - Auto-save to `jobs` table with source tagged as `manual_text` or `manual_url`.
+  - Trigger immediate 7-signal deterministic matching (`JobMatchService`).
+  - Provide 1-click action to tailor Resume & Cover Letter for the imported job.
+- [ ] **User Interface (Web & Discord Bot):**
+  - **Web App:** Modal / Dropzone **"➕ Nhập JD thủ công"** with Textarea & URL input field and structured preview before saving.
+  - **Discord Bot:** Slash command `/job import` or Modal form for pasting job text directly in chat.
+
+**Acceptance Criteria:**
+- [ ] User can paste raw post text (e.g., recruitment posts from Facebook/Zalo/Email) and get a structured job entry with >95% accuracy.
+- [ ] Candidate can view match score and generate a tailored CV & Cover Letter for the imported job immediately without waiting for daily crawl.
+
+---
+
 ## Phase 3 — Job Intelligence
 **Status:** COMPLETED
 

@@ -119,7 +119,7 @@ class ApiClient {
     });
   }
 
-  async triggerDailyBatch(limitPerSource = 15) {
+  async triggerDailyBatch(limitPerSource = 50) {
     return this.request(`/jobs/daily-batch?limit_per_source=${limitPerSource}`, {
       method: 'POST',
     });
@@ -165,6 +165,33 @@ class ApiClient {
     });
   }
 
+  async uploadResumeFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${API_BASE}/profile/upload-resume`;
+    const headers = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP Error ${response.status}`;
+      try {
+        const errData = await response.json();
+        errorMsg = errData.detail || errorMsg;
+      } catch (_) {}
+      throw new Error(errorMsg);
+    }
+    return await response.json();
+  }
+
   // --- Resumes & Applications APIs ---
   async getTailoredResume(jobId) {
     return this.request(`/resumes/job/${jobId}`);
@@ -177,6 +204,18 @@ class ApiClient {
         force_regenerate: forceRegenerate,
         custom_tone: customTone,
       }),
+    });
+  }
+
+  async deleteTailoredResume(jobId) {
+    return this.request(`/resumes/job/${jobId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteTailoredResumeById(resumeId) {
+    return this.request(`/resumes/${resumeId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -201,6 +240,25 @@ class ApiClient {
       body: JSON.stringify({ status, error_message: errorMessage }),
     });
   }
+
+  // --- System Administration & Database APIs ---
+  async purgeDatabase(scope = 'jobs_and_tailoring', cleanStorage = true) {
+    return this.request('/system/purge-database', {
+      method: 'POST',
+      body: JSON.stringify({
+        scope,
+        clean_storage: cleanStorage,
+        confirm: true,
+      }),
+    });
+  }
+
+  async resetDemo() {
+    return this.request('/system/reset-demo', {
+      method: 'POST',
+    });
+  }
 }
 
 window.api = new ApiClient();
+

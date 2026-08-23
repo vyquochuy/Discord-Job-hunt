@@ -275,5 +275,58 @@ class ResumeTailorService:
         res = await session.execute(stmt)
         return res.scalars().first()
 
+    @classmethod
+    async def delete_tailored_resume_by_job_id(
+        cls, session: AsyncSession, job_id: uuid.UUID, candidate_id: Optional[uuid.UUID] = None
+    ) -> bool:
+        """
+        Xóa bản Tailored Resume và Cover Letter theo Job ID, đồng thời dọn dẹp artifacts trên ổ đĩa.
+        """
+        resume = await cls.get_tailored_resume_by_job_id(session, job_id, candidate_id=candidate_id)
+        if not resume:
+            return False
+
+        # 1. Xóa file artifacts trên disk
+        try:
+            job_storage = latex_compiler.get_storage_root() / str(job_id)
+            if job_storage.exists() and job_storage.is_dir():
+                import shutil
+                shutil.rmtree(job_storage, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f"Failed to delete artifact directory for job {job_id}: {e}")
+
+        # 2. Xóa khỏi database
+        await session.delete(resume)
+        await session.commit()
+        logger.info(f"Deleted tailored resume & cover letter for job_id={job_id}")
+        return True
+
+    @classmethod
+    async def delete_tailored_resume_by_id(
+        cls, session: AsyncSession, resume_id: uuid.UUID
+    ) -> bool:
+        """
+        Xóa bản Tailored Resume và Cover Letter theo ID.
+        """
+        resume = await cls.get_tailored_resume_by_id(session, resume_id)
+        if not resume:
+            return False
+
+        # 1. Xóa file artifacts trên disk
+        try:
+            if resume.job_id:
+                job_storage = latex_compiler.get_storage_root() / str(resume.job_id)
+                if job_storage.exists() and job_storage.is_dir():
+                    import shutil
+                    shutil.rmtree(job_storage, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f"Failed to delete artifact directory for resume {resume_id}: {e}")
+
+        # 2. Xóa khỏi database
+        await session.delete(resume)
+        await session.commit()
+        logger.info(f"Deleted tailored resume ID={resume_id}")
+        return True
+
 
 resume_service = ResumeTailorService()

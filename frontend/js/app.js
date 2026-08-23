@@ -68,6 +68,7 @@ function navigateTo(viewName) {
     profile: 'Candidate Profile & Truth Master',
     resume: 'Resume Intelligence Workspace',
     applications: 'Application Tracker Lifecycle',
+    system: 'System Administration & Database Management',
   };
   const headerTitle = document.getElementById('header-title-text');
   if (headerTitle) {
@@ -350,7 +351,8 @@ async function openJobDetailModal(jobId) {
     const footerEl = document.getElementById('modal-job-footer');
     footerEl.innerHTML = `
       <button class="btn btn-secondary" onclick="saveJobBookmark('${job.id}')">⭐ Lưu tin này</button>
-      <button class="btn btn-primary" onclick="startResumeTailoring('${job.id}')">📄 Tailor Resume (LaTeX + PDF)</button>
+      <button class="btn btn-primary" onclick="startResumeTailoring('${job.id}', false)">📄 Tailor Resume</button>
+      <button class="btn btn-outline" onclick="startResumeTailoring('${job.id}', true)" title="Bỏ qua cache và tạo lại CV mới">🔄 Tái tạo mới (Bypass Cache)</button>
       <button class="btn btn-success" onclick="prepareApplicationModal('${job.id}')">🚀 Nộp đơn ứng tuyển</button>
     `;
   } catch (err) {
@@ -384,23 +386,53 @@ async function saveJobBookmark(jobId) {
 }
 
 // --- 4. Resume Workspace View ---
-async function startResumeTailoring(jobId) {
+async function startResumeTailoring(jobId, forceRegenerate = false, customTone = 'professional_and_humble') {
   closeJobDetailModal();
   navigateTo('resume');
 
   const resumeContainer = document.getElementById('resume-workspace-content');
   if (resumeContainer) {
-    resumeContainer.innerHTML = '<div style="text-align: center; padding: 4rem;">Đang chạy Resume Intelligence Engine (RoleClassifier -> MMR Evidence Selection -> LaTeX Generator -> Provenance Verifier -> PDF Sandbox)...</div>';
+    const actionLabel = forceRegenerate ? 'Tái tạo mới (Bypass Cache)' : 'May đo CV';
+    resumeContainer.innerHTML = `<div style="text-align: center; padding: 4rem;">Đang thực hiện ${actionLabel} với Multi-Stage Guardrails (RoleClassifier -> MMR Evidence -> LaTeX Generator -> Provenance Verifier -> PDF Sandbox)...</div>`;
   }
 
   try {
-    const tailoredResume = await api.tailorResume(jobId, false, 'professional_and_humble');
+    const tailoredResume = await api.tailorResume(jobId, forceRegenerate, customTone);
     state.selectedResume = tailoredResume;
     renderResumeWorkspace(tailoredResume);
-    showToast('Đã hoàn thành sinh CV may đo cá nhân hóa!', 'success');
+    showToast(forceRegenerate ? 'Đã tái tạo CV và Cover Letter mới!' : 'Đã hoàn thành sinh CV may đo cá nhân hóa!', 'success');
   } catch (err) {
     resumeContainer.innerHTML = `<div style="color: var(--danger); padding: 2rem;">Lỗi tạo Resume: ${err.message}</div>`;
     showToast(`Lỗi tạo Resume: ${err.message}`, 'error');
+  }
+}
+
+async function deleteTailoredResumeForJob(jobId) {
+  if (!confirm('Bạn có chắc chắn muốn xóa bản Tailored Resume và Cover Letter của công việc này để tạo lại từ đầu?')) {
+    return;
+  }
+
+  try {
+    showToast('Đang xóa bản CV và Cover Letter...', 'info');
+    await api.deleteTailoredResume(jobId);
+    showToast('Đã xóa thành công bản CV và Cover Letter!', 'success');
+    
+    // Reset workspace to empty state
+    const container = document.getElementById('resume-workspace-content');
+    if (container) {
+      container.innerHTML = `
+        <div class="card empty-state-card">
+          <div class="empty-state-icon">🗑️</div>
+          <h3>Đã xóa bản may đo Resume & Cover Letter</h3>
+          <p class="empty-state-text">
+            Bản ghi trong cơ sở dữ liệu và các tệp tin PDF/TeX trên ổ đĩa đã được xóa sạch. Bạn có thể quay lại <strong>Job Explorer</strong> để tạo mới.
+          </p>
+          <button class="btn btn-primary" onclick="navigateTo('jobs')">Quay lại Khám phá công việc →</button>
+        </div>
+      `;
+    }
+  } catch (err) {
+    showToast(`Lỗi xóa Resume: ${err.message}`, 'error');
   }
 }
 
@@ -409,8 +441,34 @@ function renderResumeWorkspace(resume) {
   if (!container) return;
 
   const pdfUrl = api.getResumePdfUrl(resume.id);
+  const jobId = resume.job_id;
 
   container.innerHTML = `
+    <!-- Top Action Toolbar -->
+    <div class="card" style="margin-bottom: 1rem; padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; background-color: var(--bg-surface-elevated);">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="badge badge-blue">Job ID: ${jobId ? jobId.slice(0, 8) : 'N/A'}</span>
+        <span class="badge badge-green">Zero-Hallucination: ${(resume.provenance_score ?? 100).toFixed(0)}%</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <select id="tailor-tone-select" class="form-control" style="padding: 0.35rem 0.65rem; font-size: 0.85rem; width: auto;" title="Chọn văn phong Cover Letter">
+          <option value="professional_and_humble">Phong cách: Chuyên nghiệp & Khiêm tốn</option>
+          <option value="enthusiastic_and_modern">Phong cách: Nhiệt huyết & Hiện đại</option>
+          <option value="direct_and_impactful">Phong cách: Trực diện & Tác động</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="startResumeTailoring('${jobId}', true, document.getElementById('tailor-tone-select').value)" title="Ép sinh lại mới hoàn toàn bỏ qua cache">
+          🔄 Tái tạo mới (Bypass Cache)
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTailoredResumeForJob('${jobId}')" title="Xóa bản CV và Cover Letter này">
+          🗑️ Xóa bản này
+        </button>
+        <button class="btn btn-success btn-sm" onclick="prepareApplicationModal('${jobId}')">
+          🚀 Nộp đơn ứng tuyển
+        </button>
+      </div>
+    </div>
+
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
       <!-- Left: PDF Preview & Info -->
       <div>
@@ -418,7 +476,6 @@ function renderResumeWorkspace(resume) {
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <div>
               <h3>${resume.target_title}</h3>
-              <span class="badge badge-green">Zero-Hallucination: ${resume.provenance_score.toFixed(0)}%</span>
             </div>
             <a href="${pdfUrl}" target="_blank" class="btn btn-primary btn-sm">📥 Tải file PDF</a>
           </div>
@@ -436,10 +493,10 @@ function renderResumeWorkspace(resume) {
       <div>
         <div class="card" style="margin-bottom: 1.5rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h4>✉️ Cover Letter (Markdown)</h4>
+            <h4>✉️ Cover Letter (Multi-Stage Guardrails)</h4>
             <button class="btn btn-outline btn-sm" onclick="copyCoverLetterText()">Sao chép</button>
           </div>
-          <div id="cover-letter-text" style="background-color: var(--bg-body); padding: 1rem; border-radius: var(--radius-md); font-size: 0.85rem; line-height: 1.6; max-height: 250px; overflow-y: auto; white-space: pre-wrap;">
+          <div id="cover-letter-text" style="background-color: var(--bg-body); padding: 1rem; border-radius: var(--radius-md); font-size: 0.85rem; line-height: 1.6; max-height: 280px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">
             ${resume.cover_letter ? resume.cover_letter.content_markdown : 'Chưa có Cover Letter.'}
           </div>
         </div>
@@ -447,14 +504,21 @@ function renderResumeWorkspace(resume) {
         <div class="card">
           <h4 style="margin-bottom: 0.75rem;">🛡️ Fact-Checking Evidence Map</h4>
           <div style="max-height: 300px; overflow-y: auto;">
-            ${(resume.evidence_items || []).map(ev => `
-              <div style="padding: 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem;">
-                <div style="font-weight: 600; color: var(--primary-700);">${ev.claim_text}</div>
-                <div style="color: var(--text-subtle); margin-top: 0.2rem;">
-                  Nguồn: <em>${ev.source_file || 'Hồ sơ ứng viên'}</em> (Độ tin cậy: ${ev.confidence_score.toFixed(0)}%)
+            ${(resume.evidence_items || []).map((ev, idx) => {
+              const score = ev.similarity_score != null ? (ev.similarity_score <= 1.0 ? ev.similarity_score * 100 : ev.similarity_score) : 100;
+              return `
+                <div style="padding: 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <strong style="color: var(--primary-700);">[${ev.section || 'CLAIM'}] #${idx + 1}</strong>
+                    <span class="badge badge-green" style="font-size: 0.75rem;">✓ Độ tin cậy: ${score.toFixed(0)}%</span>
+                  </div>
+                  <div style="color: var(--text-main); font-weight: 500;">${ev.claim_text}</div>
+                  <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.3rem;">
+                    📌 <em>Sự thật gốc: "${ev.original_fact || 'Hồ sơ ứng viên'}"</em>
+                  </div>
                 </div>
-              </div>
-            `).join('')}
+              `;
+            }).join('') || '<div style="padding: 1rem; color: var(--text-subtle); text-align: center;">Không có dữ liệu bằng chứng.</div>'}
           </div>
         </div>
       </div>
@@ -651,6 +715,89 @@ async function triggerDailyBatch() {
   }
 }
 
+// --- 8. File Upload & Dynamic Ingestion ---
+async function handleResumeFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const statusText = document.getElementById('upload-status-text');
+  if (statusText) {
+    statusText.textContent = `⏳ Đang tải lên và phân tích ${file.name}...`;
+  }
+  showToast(`Đang phân tích tệp ${file.name}...`, 'info');
+
+  try {
+    const res = await api.uploadResumeFile(file);
+    if (statusText) {
+      statusText.textContent = `✅ Đã tải lên và nạp hồ sơ thành công từ ${file.name}!`;
+    }
+    showToast(`Đã phân tích ${res.skills_imported} kỹ năng, ${res.projects_imported} dự án, ${res.experiences_imported} kinh nghiệm!`, 'success');
+    
+    // Tải lại dữ liệu Profile lên UI
+    loadProfile();
+  } catch (err) {
+    if (statusText) {
+      statusText.textContent = `❌ Tải lên thất bại: ${err.message}`;
+    }
+    showToast(`Lỗi tải lên tệp: ${err.message}`, 'error');
+  }
+}
+
+// --- 9. System Administration & Database Purge ---
+async function confirmPurgeDatabase(scope, description) {
+  const promptMessage = `⚠️ CẢNH BÁO: Bạn đang yêu cầu thực thi:\n"${description}" (Phạm vi: ${scope})\n\nBạn có chắc chắn muốn xóa không? Thao tác này KHÔNG THỂ HOÀN TÁC!`;
+  if (!confirm(promptMessage)) {
+    return;
+  }
+
+  try {
+    showToast(`Đang thực thi xóa dữ liệu phạm vi '${scope}'...`, 'warning');
+    const report = await api.purgeDatabase(scope, true);
+    showToast(`Thao tác hoàn tất: ${report.message}`, 'success');
+    
+    // Refresh views based on scope
+    if (scope === 'all' || scope === 'jobs_and_tailoring') {
+      state.jobs = [];
+      state.topRecommendations = [];
+      state.selectedResume = null;
+      loadDashboard();
+      if (scope === 'all') loadProfile();
+    } else if (scope === 'tailoring_only') {
+      state.selectedResume = null;
+      const resumeContainer = document.getElementById('resume-workspace-content');
+      if (resumeContainer) {
+        resumeContainer.innerHTML = `
+          <div class="card empty-state-card">
+            <div class="empty-state-icon">📄</div>
+            <h3>Toàn bộ dữ liệu Tailored Resume đã được làm trống</h3>
+            <p class="empty-state-text">Bạn có thể chọn công việc trong <strong>Job Explorer</strong> để tạo bản CV may đo mới.</p>
+            <button class="btn btn-primary" onclick="navigateTo('jobs')">Khám phá công việc →</button>
+          </div>
+        `;
+      }
+    }
+  } catch (err) {
+    showToast(`Lỗi dọn dẹp Database: ${err.message}`, 'error');
+  }
+}
+
+async function confirmResetDemo() {
+  const promptMessage = `🔄 BẠN CÓ CHẮC CHẮN MUỐN RESET DEMO?\n\nThao tác này sẽ:\n1. Xóa toàn bộ dữ liệu hiện tại\n2. Nạp lại Từ điển Canonical Skills (180+ kỹ năng)\n3. Đồng bộ lại Hồ sơ ứng viên từ context.example/\n\nTiếp tục?`;
+  if (!confirm(promptMessage)) {
+    return;
+  }
+
+  try {
+    showToast('Đang khôi phục toàn bộ hệ thống về trạng thái mẫu ban đầu...', 'info');
+    const res = await api.resetDemo();
+    showToast(`Khôi phục thành công: ${res.message}`, 'success');
+    loadDashboard();
+    loadProfile();
+  } catch (err) {
+    showToast(`Lỗi reset demo: ${err.message}`, 'error');
+  }
+}
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
   // Setup Navigation listeners
@@ -672,6 +819,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Setup Drag & Drop for Dropzone
+  const dropzone = document.getElementById('resume-dropzone');
+  if (dropzone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const fileInput = document.getElementById('resume-file-input');
+        if (fileInput) {
+          fileInput.files = files;
+          handleResumeFileUpload({ target: { files } });
+        }
+      }
+    });
+  }
+
   // Load default view
   navigateTo('dashboard');
 });
+

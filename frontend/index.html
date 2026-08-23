@@ -44,6 +44,10 @@
           <span class="nav-icon">👤</span>
           <span>Candidate Profile</span>
         </a>
+        <a class="nav-link" data-view="system">
+          <span class="nav-icon">⚙️</span>
+          <span>System & Database</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -213,11 +217,27 @@
 
         <!-- View 6: Candidate Profile -->
         <section id="view-profile" class="view-section">
+          <div class="card profile-card" style="margin-bottom: 1.5rem;">
+            <div class="profile-header-row" style="margin-bottom: 1rem;">
+              <div>
+                <h3>📥 Tải lên CV / Profile (PDF, TeX, YAML, MD)</h3>
+                <p class="profile-subtitle">Tự động trích xuất thông tin, kỹ năng, kinh nghiệm và dự án nạp vào Database.</p>
+              </div>
+            </div>
+            <div id="resume-dropzone" class="dropzone" onclick="document.getElementById('resume-file-input').click()">
+              <input type="file" id="resume-file-input" style="display: none;" accept=".pdf,.tex,.yaml,.yml,.md,.txt" onchange="handleResumeFileUpload(event)">
+              <div class="dropzone-icon">📄</div>
+              <div class="dropzone-title">Kéo thả tệp tin CV hoặc nhấn vào đây để chọn</div>
+              <div class="dropzone-sub">Hỗ trợ: <strong>.PDF, .TeX, .YAML, .MD, .TXT</strong> (Tối đa 15MB)</div>
+              <div id="upload-status-text" style="margin-top: 0.75rem; font-weight: 500; font-size: 0.85rem; color: var(--primary-600);"></div>
+            </div>
+          </div>
+
           <div class="card profile-card">
             <div class="profile-header-row">
               <div>
                 <h3>Hồ sơ Ứng viên (Single Source of Truth)</h3>
-                <p class="profile-subtitle">Dữ liệu tại đây được lưu trực tiếp trong PostgreSQL và là cơ sở duy nhất để AI may đo Resume.</p>
+                <p class="profile-subtitle">Dữ liệu tại đây được lưu trực tiếp trong Database và là cơ sở duy nhất để AI may đo Resume.</p>
               </div>
               <button class="btn btn-primary btn-sm" onclick="saveProfileChanges()">💾 Lưu thay đổi</button>
             </div>
@@ -269,6 +289,111 @@
             </div>
           </div>
         </section>
+
+        <!-- View 7: System & Database Management -->
+        <section id="view-system" class="view-section">
+          <div class="section-subtitle">
+            <p>Quản trị hệ thống, làm trống cơ sở dữ liệu và dọn dẹp các tệp tin tạm (PDF, LaTeX) trên máy chủ.</p>
+          </div>
+
+          <div class="system-grid">
+            <!-- Card 1: Tailoring Only -->
+            <div class="card system-card card-warning">
+              <div>
+                <div class="system-card-header">
+                  <div class="system-card-icon" style="color: var(--warning);">📄</div>
+                  <div>
+                    <h4>Xóa Tailored Resumes & Cover Letters</h4>
+                    <span class="badge badge-amber">Phạm vi: tailoring_only</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
+                  Xóa toàn bộ bản CV may đo, Cover Letter, Evidence Map và toàn bộ tệp tin PDF/TeX trên ổ đĩa. <strong>Giữ nguyên tin tuyển dụng và hồ sơ ứng viên.</strong>
+                </p>
+              </div>
+              <button class="btn btn-warning" onclick="confirmPurgeDatabase('tailoring_only', 'Xóa toàn bộ Resumes, Cover Letters và file tạm')">
+                🗑️ Dọn dẹp Tailoring Cache
+              </button>
+            </div>
+
+            <!-- Card 2: Matches Only -->
+            <div class="card system-card card-info">
+              <div>
+                <div class="system-card-header">
+                  <div class="system-card-icon" style="color: var(--primary-600);">🎯</div>
+                  <div>
+                    <h4>Xóa Bảng điểm Phù hợp (Matches)</h4>
+                    <span class="badge badge-blue">Phạm vi: matches_only</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
+                  Xóa bảng điểm 7-signal Matching để hệ thống tính điểm lại từ đầu khi chạy Daily Batch hoặc mở tin tuyển dụng.
+                </p>
+              </div>
+              <button class="btn btn-primary" onclick="confirmPurgeDatabase('matches_only', 'Xóa bảng điểm Job Matches')">
+                🔄 Reset Điểm Matching
+              </button>
+            </div>
+
+            <!-- Card 3: Jobs & Tailoring -->
+            <div class="card system-card card-danger">
+              <div>
+                <div class="system-card-header">
+                  <div class="system-card-icon" style="color: var(--danger);">💼</div>
+                  <div>
+                    <h4>Xóa Jobs & Tailoring Data</h4>
+                    <span class="badge badge-red">Phạm vi: jobs_and_tailoring</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
+                  Xóa toàn bộ Tin tuyển dụng (Jobs & Raw Jobs), Matches, Resumes và Cover Letters. <strong>Giữ nguyên Hồ sơ ứng viên & Từ điển Kỹ năng.</strong>
+                </p>
+              </div>
+              <button class="btn btn-danger" onclick="confirmPurgeDatabase('jobs_and_tailoring', 'Xóa toàn bộ Jobs, Matches và Resumes')">
+                ⚠️ Xóa Tin tuyển dụng & Cache
+              </button>
+            </div>
+
+            <!-- Card 4: Reset Demo -->
+            <div class="card system-card card-info">
+              <div>
+                <div class="system-card-header">
+                  <div class="system-card-icon" style="color: var(--primary-600);">✨</div>
+                  <div>
+                    <h4>Khôi phục Dữ liệu Mẫu (Reset Demo)</h4>
+                    <span class="badge badge-green">Re-seed All</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
+                  Làm trống toàn bộ Database, nạp lại Từ điển Canonical Skills (180+ kỹ năng) và đồng bộ Profile từ thư mục <code>context.example/</code>.
+                </p>
+              </div>
+              <button class="btn btn-primary" onclick="confirmResetDemo()">
+                🔄 Khôi phục Trạng thái Mẫu
+              </button>
+            </div>
+
+            <!-- Card 5: Full Wipe -->
+            <div class="card system-card card-danger">
+              <div>
+                <div class="system-card-header">
+                  <div class="system-card-icon" style="color: var(--danger);">💥</div>
+                  <div>
+                    <h4>Làm trống Hoàn toàn Database</h4>
+                    <span class="badge badge-red">Phạm vi: all (Wipe All)</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
+                  Xóa sạch toàn bộ dữ liệu trong tất cả các bảng: Jobs, Candidates, Resumes, Applications, Skills. Thao tác không thể hoàn tác!
+                </p>
+              </div>
+              <button class="btn btn-danger" onclick="confirmPurgeDatabase('all', 'LÀM TRỐNG HOÀN TOÀN CƠ SỞ DỮ LIỆU')">
+                💥 Xóa sạch Database (Purge All)
+              </button>
+            </div>
+          </div>
+        </section>
+
 
       </div>
     </main>

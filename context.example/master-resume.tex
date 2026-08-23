@@ -1,0 +1,61 @@
+\documentclass[10pt, letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fontawesome5}
+\usepackage{xcolor}
+
+\usepackage{geometry}
+\geometry{left=1.2cm, top=1.2cm, right=1.2cm, bottom=1.2cm}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=blue,
+}
+
+\titleformat{\section}{\Large\bfseries\scshape\raggedright}{}{0em}{}[\titlerule]
+
+\begin{document}
+
+\begin{center}
+    {\huge \textbf{Nguyen Van A}} \\ \vspace{4pt}
+    {\Large \textbf{Software Engineer Intern}} \\ \vspace{6pt}
+    \small
+    \href{mailto:nguyenvana@example.com}{\faEnvelope\ nguyenvana@example.com} \quad
+    \href{https://github.com/NguyenVanA}{\faGithub\ github.com/NguyenVanA} \quad
+    \href{https://www.linkedin.com/in/nguyenvana/}{\faLinkedin\ linkedin.com/in/nguyenvana} \quad
+    \faMapMarker\ Thu Duc, Ho Chi Minh \quad
+    \faPhone\ (+84) 123456789
+\end{center}
+
+\section*{Objective}
+Final-year Computer Science student with strong foundations in Python, TypeScript, algorithms, and backend microservices. Seeking a Software Engineer Internship where I can contribute to real-world software development while strengthening expertise in system design and engineering practices.
+
+\section*{Education}
+\textbf{Hanoi University of Science and Technology} \hfill \textbf{2022 -- 2026} \\
+Bachelor of Science in Computer Science \hfill GPA: 3.15/4.0 \\
+Relevant Coursework: Database Systems, Computer Networks, Artificial Intelligence, Cryptography, Blockchain.
+
+\section*{Skills}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=0pt]
+    \item \textbf{Programming Languages:} Python, JavaScript, TypeScript, C++, Dart, SQL
+    \item \textbf{Frameworks \& Libraries:} FastAPI, React, NextJS, Hono, Tailwind CSS, Flutter
+    \item \textbf{Databases \& Tools:} PostgreSQL, Redis, SQLite, Docker, Git, Linux
+    \item \textbf{Languages:} Vietnamese (Native), English (B1)
+\end{itemize}
+
+\section*{Projects}
+\textbf{AI Job Hunter System} \hfill \textbf{Jul 2026 -- Present} \\
+\textit{Author \& Sole Developer} \hfill \href{https://github.com}{github.com}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+    \item Engineered an asynchronous job ingestion and matching engine using FastAPI, PostgreSQL (pgvector), and Redis.
+    \item Designed a deterministic 7-signal scoring engine with strict hard filters, evaluating jobs in under 6 seconds.
+    \item Built interactive Discord bot automation streaming personalized recommendations and tailored resumes.
+\end{itemize}
+
+\end{document}

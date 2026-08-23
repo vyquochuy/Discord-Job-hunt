@@ -1,6 +1,6 @@
 import secrets
 from typing import Optional, Any
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -70,10 +70,30 @@ async def update_profile(
     response_model=CandidateSyncResponse,
     status_code=status.HTTP_200_OK,
     summary="Đồng bộ hồ sơ từ context files",
-    description="Đọc toàn bộ file trong thư mục context/ (candidate-profile.yaml, master-resume.tex, master-resume.md) và nạp mới vào PostgreSQL.",
+    description="Đọc toàn bộ file trong thư mục context/ (candidate-profile.yaml, master-resume.tex, master-resume.md, master-resume.pdf) hoặc context.example/ và nạp mới vào PostgreSQL.",
 )
 async def sync_profile(
     db: AsyncSession = Depends(get_db),
     _authorized: bool = Depends(verify_profile_access),
 ) -> CandidateSyncResponse:
     return await CandidateService.sync_profile_from_context(db)
+
+
+@router.post(
+    "/upload-resume",
+    response_model=CandidateSyncResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Tải lên và phân tích CV động (.pdf, .tex, .yaml, .md, .json)",
+    description="Cho phép người dùng upload file CV (PDF, LaTeX, YAML, Markdown) để tự động trích xuất thông tin cá nhân, kỹ năng, dự án và cập nhật vào hệ thống.",
+)
+async def upload_resume(
+    file: UploadFile = File(..., description="File CV (.pdf, .tex, .yaml, .yml, .md, .json)"),
+    db: AsyncSession = Depends(get_db),
+    _authorized: bool = Depends(verify_profile_access),
+) -> CandidateSyncResponse:
+    file_bytes = await file.read()
+    return await CandidateService.ingest_resume_file(
+        session=db,
+        filename=file.filename or "resume.pdf",
+        file_bytes=file_bytes,
+    )

@@ -130,3 +130,44 @@ async def get_resume_latex_source(
         content=resume.latex_source,
         media_type="text/plain",
     )
+
+
+@router.delete("/job/{job_id}")
+async def delete_tailored_resume_by_job(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa bản Tailored Resume và Cover Letter của một Job ID cụ thể để chuẩn bị sinh lại.
+    """
+    deleted = await resume_service.delete_tailored_resume_by_job_id(db, job_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No tailored resume found for job ID {job_id} to delete",
+        )
+    return {
+        "status": "success",
+        "message": f"Tailored resume and cover letter for job {job_id} deleted successfully.",
+    }
+
+
+@router.delete("/{id}")
+async def delete_tailored_resume(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa bản Tailored Resume và Cover Letter theo ID.
+    """
+    deleted = await resume_service.delete_tailored_resume_by_id(db, id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tailored resume with ID {id} not found to delete",
+        )
+    return {
+        "status": "success",
+        "message": f"Tailored resume {id} deleted successfully.",
+    }
+

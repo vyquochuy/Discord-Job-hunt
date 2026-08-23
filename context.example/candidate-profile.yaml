@@ -1,0 +1,203 @@
+# Candidate Profile
+# Source of truth for AI resume generation and job matching.
+# Synced with master-resume.tex
+
+candidate:
+  name: "Nguyen Van A"
+  headline: "Intern"
+  email: "[EMAIL_ADDRESS]"
+  phone: "(+84) 123456789"
+  location: "Thu Duc, Ho Chi Minh"
+  github: "https://github.com/NguyenVanA"
+  linkedin: "https://www.linkedin.com/in/nguyenvana/"
+  portfolio: ""
+  summary: "Final-year Computer Science student specializing in Cyber Security with strong foundations in C++, object-oriented programming, algorithms, computer networks, and software engineering. Experienced in developing system-level applications, implementing security protocols, and designing scalable software architectures through academic and personal projects. Seeking a Software Engineer Internship where I can contribute to real-world software development while strengthening expertise in C++, system design, and software engineering practices."
+
+education:
+  - institution: "Hanoi University of Science and Technology"
+    degree: "Bachelor"
+    field: "Computer Science - Cyber Security"
+    graduation_year: 2026
+    gpa: "3.15/4.0"
+    coursework:
+      - "Computer Networks"
+      - "Database Systems"
+      - "Fundamentals of Artificial Intelligence"
+      - "Introduction to Machine Learning"
+      - "Introduction to Cryptography"
+      - "Encryption Application"
+      - "Blockchain and Applications"
+      - "Data Safety and Recovery"
+
+target_roles:
+  - "System Intern"
+  - "DevOps Engineer Intern"
+  - "Site Reliability Engineer Intern"
+  - "Cloud / Infrastructure Engineer"
+  - "Backend Developer"
+
+target_locations:
+  - "Ho Chi Minh City"
+  - "Remote"
+  - "Hybrid"
+
+skills:
+  programming:
+    - "Python"
+    - "JavaScript"
+    - "TypeScript"
+    - "C++"
+    - "Dart"
+  frameworks:
+    - "React"
+    - "Tailwind CSS"
+    - "NextJS"
+    - "Hono"
+    - "Flutter"
+    - "FastAPI"
+  tools_databases:
+    - "SQL"
+    - "PostgreSQL"
+    - "SQLite"
+    - "Cloudflare D1"
+    - "Git"
+    - "Linux"
+    - "Docker"
+    - "Wireshark"
+    - "Redis"
+    - "pgvector"
+    - "Alembic"
+  security:
+    - "Zero-Knowledge Architecture"
+    - "Argon2id"
+    - "AES-256-GCM"
+    - "ECDH P-256"
+    - "Shamir Secret Sharing"
+    - "Anti-Enumeration Security"
+    - "X.509 PKI"
+    - "OpenSSL"
+    - "RSA-2048"
+    - "SHA-256"
+  soft_skills:
+    - "Problem-solving"
+    - "System design thinking"
+    - "Technical documentation"
+    - "Teamwork"
+  languages:
+    - language: "Vietnamese"
+      level: "Native"
+    - language: "English"
+      level: "B1"
+
+projects:
+  - name: "AI Job Hunter: Autonomous Agent & Resume Intelligence System"
+    role: "Author & Sole Developer"
+    summary: "Asynchronous backend platform for multi-source job ingestion, 7-signal deterministic matching, provenance-verified resume tailoring, and Discord Bot operations"
+    period: "Jul 2026 -- Present"
+    repository_url: "https://github.com"
+    demo_url: ""
+    technologies:
+      - "Python"
+      - "FastAPI"
+      - "PostgreSQL"
+      - "pgvector"
+      - "Redis"
+      - "SQLAlchemy"
+      - "Alembic"
+      - "Docker"
+      - "TypeScript"
+      - "discord.js"
+      - "LaTeX"
+      - "RapidFuzz"
+    evidence:
+      - title: "Asynchronous Microservices & Ingestion Engine"
+        detail: "Architected an asynchronous backend engine using FastAPI, SQLAlchemy 2.0 async, Redis, and PostgreSQL with pgvector; engineered a multi-source job ingestion pipeline across 5 collectors (ITViec, Remotive, TopCV, CareerLink, Mock) utilizing SHA-256 content hashing for zero-token redundant caching."
+      - title: "3-Tier Deduplication & 7-Signal Matching"
+        detail: "Designed a 3-tier deduplication pipeline (Exact Hash -> RapidFuzz -> Cosine pgvector) and a deterministic 7-signal job scoring engine with strict tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN) and invariant weight normalization, evaluating batches in under 6 seconds."
+      - title: "Zero-Hallucination Resume Tailoring & LaTeX Sandbox"
+        detail: "Engineered an evidence-grounded resume tailoring engine with RoleClassifier, MMR-style diverse evidence selection, and ProvenanceVerifier (partial and token set fuzzy checks), paired with automated LaTeX compilation sandbox (pdflatex) generating verifiable PDF resumes and markdown cover letters with >= 90% provenance confidence."
+      - title: "Discord Bot Automation & Full Observability"
+        detail: "Built an interactive Discord bot (TypeScript, discord.js v14) with rich embeds, action buttons, modals, and direct PDF streaming, orchestrating end-to-end autonomous daily batch runs across 58 automated unit and integration tests."
+
+  - name: "EAP-TLS Authentication Protocol Demo"
+    role: "Sole Developer"
+    summary: "Simulation of the IEEE 802.1X EAP-TLS authentication workflow using modern C++"
+    period: "Feb 2025 -- May 2025"
+    repository_url: "https://github.com/vyquochuy/EAP-TLS-DEMO"
+    demo_url: ""
+    technologies:
+      - "C++17"
+      - "OpenSSL"
+      - "X.509 PKI"
+      - "RSA-2048"
+      - "SHA-256"
+      - "Visual Studio 2022"
+    evidence:
+      - title: "Protocol Simulation & Architecture"
+        detail: "Designed and implemented a complete simulation of the IEEE 802.1X EAP-TLS authentication protocol in C++17, developing a three-party architecture consisting of EAP Peer, Authenticator, and Authentication Server to emulate enterprise network authentication workflows."
+      - title: "PKI & Certificate Infrastructure"
+        detail: "Implemented Public Key Infrastructure (PKI) components including Certificate Authority creation, X.509 certificate generation, certificate signing, and chain validation using OpenSSL."
+      - title: "Mutual Authentication & Cryptography"
+        detail: "Built mutual authentication mechanisms through certificate verification and secure session establishment using RSA-OAEP encrypted key exchange and SHA-256 based key derivation."
+      - title: "Object-Oriented System Modeling"
+        detail: "Applied object-oriented design principles to model authentication entities, certificate management, and protocol message flows."
+
+  - name: "VYVYCHAT"
+    role: "Full-stack Developer"
+    summary: "Full-stack real-time messaging platform built on Cloudflare's serverless infrastructure"
+    period: "May 2026 -- Jun 2026"
+    repository_url: "https://github.com/vyquochuy/vyvychat"
+    demo_url: "https://vyvychat.myvault-service.workers.dev/"
+    technologies:
+      - "React"
+      - "TypeScript"
+      - "Tailwind CSS"
+      - "Cloudflare Workers"
+      - "Durable Objects"
+      - "Web Crypto API"
+      - "IndexedDB"
+      - "Cloudflare D1"
+      - "Cloudflare KV"
+    evidence:
+      - title: "Cryptography & E2EE"
+        detail: "Architected a zero-knowledge End-to-End Encryption (E2EE) system with secure ECDH P-256 key exchange, non-extractable local key storage, and recovery-based key rotation; verified correct decryption across 3 simultaneous device sessions with no key leakage."
+      - title: "Stateful Real-Time Edge"
+        detail: "Engineed a stateful WebSocket layer using Cloudflare Durable Objects to manage persistent edge connections, achieving a measured round-trip latency of ~45ms (tested from Vietnam to Cloudflare Asia-Pacific PoP) with stable presence tracking and typing indicators under concurrent load."
+      - title: "Serverless Infrastructure & Rate-Limiting"
+        detail: "Designed a relational data model on Cloudflare D1 (SQLite) and implemented token-bucket rate-limiting with Cloudflare KV to protect authentication and OTP flows; load-tested to sustain 200 req/min per user before throttling, blocking brute-force attempts within under 1 second."
+
+  - name: "Account Manager: Zero-Knowledge Password Vault"
+    role: "Author & Lead Developer"
+    summary: "Flutter application for securely managing credentials offline with a Zero-Knowledge backend sync model"
+    period: "Mar 2026 -- Present"
+    repository_url: "https://github.com/Chickyo/Account-Manager"
+    demo_url: ""
+    technologies:
+      - "Cloudflare Workers"
+      - "Hono"
+      - "TypeScript"
+      - "Flutter"
+      - "Dart"
+      - "Android Keystore/Keychain"
+      - "Hive"
+      - "Argon2id"
+      - "AES-256-GCM/CTR"
+    evidence:
+      - title: "Serverless API & Sync Architecture"
+        detail: "Designed a highly scalable serverless synchronization backend using Cloudflare Workers and the Hono framework (TypeScript); API endpoints benchmarked at < 80ms average response time under simulated multi-device sync load (tested with 10 concurrent devices), handling only pre-encrypted Vault Chunks to guarantee zero server-side plaintext exposure."
+      - title: "Relational Database & Blind Storage Schema"
+        detail: "Modeled a robust 9-table relational database schema in Cloudflare D1 (SQLite) supporting multi-tenant user metadata, device logs, and recovery blobs via Shamir's Secret Sharing (3-of-5 threshold); paired with Cloudflare KV Namespace for high-performance session caching."
+      - title: "Cryptographic & Anti-Enumeration Security"
+        detail: "Implemented server-side authentication with client-side Argon2id password hashing (t=3, m=64MB) and deterministic fake salts to eliminate user enumeration; engineered dynamic token-bucket rate-limiting capable of sustaining legitimate traffic up to 100 req/min while auto-blocking anomalous bursts (>20 req/10s) within one KV write cycle; audit logging captures 100% of auth events."
+
+experience: []
+
+certifications: []
+
+preferences:
+  employment_types:
+    - "Internship"
+    - "Full-time"
+  remote: "hybrid"
+  minimum_salary: null
+  currency: "VND"

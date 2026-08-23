@@ -306,7 +306,7 @@ async def trigger_collection(
 
 @router.post("/daily-batch")
 async def trigger_daily_batch(
-    limit_per_source: int = Query(15, ge=1, le=50, description="Số lượng tin tối đa mỗi nguồn"),
+    limit_per_source: int = Query(50, ge=1, le=100, description="Số lượng tin tối đa mỗi nguồn"),
     db: AsyncSession = Depends(get_db),
 ):
     """

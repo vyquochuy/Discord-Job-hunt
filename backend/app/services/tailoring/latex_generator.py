@@ -129,18 +129,30 @@ class LaTeXGenerator:
         edu_entries = []
         if candidate.education:
             for edu in candidate.education:
-                inst = cls.sanitize_bullet(edu.get("institution", "VNUHCM - University of Science"))
-                degree = edu.get("degree", "Bachelor")
-                field = cls.sanitize_bullet(edu.get("field", "Computer Science - Cyber Security"))
-                gpa = edu.get("gpa", "3.15/4.0")
-                grad_year = edu.get("graduation_year", "2026")
-                coursework = ", ".join(edu.get("coursework", []))
-                coursework_escaped = cls.sanitize_bullet(coursework)
+                if isinstance(edu, dict):
+                    inst = cls.sanitize_bullet(edu.get("institution", "VNUHCM - University of Science"))
+                    degree = edu.get("degree", "Bachelor")
+                    field = cls.sanitize_bullet(edu.get("field", "Computer Science - Cyber Security"))
+                    gpa = edu.get("gpa", "3.15/4.0")
+                    grad_year = edu.get("graduation_year", "2026")
+                    coursework = ", ".join(edu.get("coursework", [])) if isinstance(edu.get("coursework"), list) else str(edu.get("coursework", ""))
+                    coursework_escaped = cls.sanitize_bullet(coursework)
 
-                edu_block = f"""\\noindent \\textbf{{{inst}}} \\hfill Oct 2022 -- Expected Oct {grad_year}\\\\
+                    edu_block = f"""\\noindent \\textbf{{{inst}}} \\hfill Oct 2022 -- Expected Oct {grad_year}\\\\
 \\textit{{Major: {field}}} \\hfill \\textit{{GPA: {gpa}}}\\\\
 \\textbf{{Relevant Coursework:}} {coursework_escaped}."""
-                edu_entries.append(edu_block)
+                    edu_entries.append(edu_block)
+
+        if not edu_entries:
+            inst = "VNUHCM - University of Science"
+            field = "Computer Science - Cyber Security"
+            gpa = "3.15/4.0"
+            grad_year = "2026"
+            coursework = "Computer Networks, Database Systems, Fundamentals of Artificial Intelligence, Introduction to Machine Learning, Introduction to Cryptography, Encryption Application, Blockchain and Applications, Data Safety and Recovery"
+            edu_block = f"""\\noindent \\textbf{{{inst}}} \\hfill Oct 2022 -- Expected Oct {grad_year}\\\\
+\\textit{{Major: {field}}} \\hfill \\textit{{GPA: {gpa}}}\\\\
+\\textbf{{Relevant Coursework:}} {coursework}."""
+            edu_entries.append(edu_block)
 
         education_latex = "\n\n".join(edu_entries)
 
