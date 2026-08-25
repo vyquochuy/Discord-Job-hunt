@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.schemas.resume import (
     TailorResumeRequest,
     TailoredResumeResponse,
+    UpdateLatexRequest,
 )
 from app.services.tailoring.resume_service import resume_service
 
@@ -82,13 +83,24 @@ async def get_tailored_resume_by_job(
     return resume
 
 
+import re
+import unicodedata
+
+def sanitize_header_filename(text: str) -> str:
+    """Chuyển đổi tên có dấu tiếng Việt hoặc ký tự đặc biệt thành ASCII an toàn cho HTTP Header."""
+    normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    cleaned = re.sub(r'[^a-zA-Z0-9_\-]', '_', normalized).strip('_')
+    return cleaned or "Document"
+
+
 @router.get("/{id}/pdf")
 async def download_resume_pdf(
     id: uuid.UUID,
+    download: bool = Query(False, description="Nếu True sẽ trả về attachment để tải xuống, ngược lại inline để xem trước"),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.
+    Xem trước hoặc tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.
     """
     resume = await resume_service.get_tailored_resume_by_id(db, id)
     if not resume:
@@ -103,11 +115,15 @@ async def download_resume_pdf(
             detail="PDF artifact file not found on disk. Please trigger re-tailoring.",
         )
 
-    filename = f"Resume_{resume.candidate.full_name.replace(' ', '_')}_{resume.job.company_name.replace(' ', '_')}.pdf"
+    cand_name = sanitize_header_filename(resume.candidate.full_name if resume.candidate else "Candidate")
+    comp_name = sanitize_header_filename(resume.job.company_name if resume.job else "Company")
+    filename = f"Resume_{cand_name}_{comp_name}.pdf"
+
     return FileResponse(
         path=resume.pdf_path,
         media_type="application/pdf",
         filename=filename,
+        content_disposition_type="attachment" if download else "inline",
     )
 
 
@@ -130,6 +146,34 @@ async def get_resume_latex_source(
         content=resume.latex_source,
         media_type="text/plain",
     )
+
+
+@router.put("/{id}/tex", response_model=TailoredResumeResponse)
+async def update_resume_latex_source(
+    id: uuid.UUID,
+    payload: UpdateLatexRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cập nhật mã nguồn LaTeX (.tex) do người dùng chỉnh sửa và tự động biên dịch lại PDF.
+    """
+    try:
+        updated_resume = await resume_service.update_and_recompile_latex(
+            session=db,
+            resume_id=id,
+            new_latex_source=payload.latex_source,
+        )
+        return updated_resume
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recompilation failed: {str(e)}",
+        )
 
 
 @router.delete("/job/{job_id}")

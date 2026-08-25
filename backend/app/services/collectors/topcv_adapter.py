@@ -43,7 +43,7 @@ class TopCVJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(10, max(1, (limit + 19) // 20))
+        max_pages = min(25, max(1, (limit + 19) // 20))
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -73,16 +73,28 @@ class TopCVJobCollector(BaseJobCollector):
                             break
 
                         # 1. Tiêu đề và link
-                        title_elem = card.select_one("h3 a, .title a, a[href*='/viec-lam/']")
+                        title_elem = card.select_one("h3 a, .title a, a[href*='/viec-lam/'], span.bold a, a.job-title")
                         if not title_elem:
                             continue
 
-                        title = title_elem.get_text(strip=True)
+                        title = (
+                            title_elem.get("title")
+                            or title_elem.get("data-original-title")
+                            or title_elem.get_text(strip=True)
+                            or (title_elem.select_one("span") and title_elem.select_one("span").get_text(strip=True))
+                            or ""
+                        )
+                        if not title:
+                            span_title = card.select_one("span.bold, span.title-name, .title")
+                            title = span_title.get_text(strip=True) if span_title else ""
+                        if not title:
+                            continue
+
                         rel_url = title_elem.get("href", "")
                         url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
 
                         # 2. Tên công ty
-                        company_elem = card.select_one("a.company, .company-name, a[href*='/cong-ty/'], .name")
+                        company_elem = card.select_one("a.company, .company-name, a[href*='/cong-ty/'], .name, span.company-name")
                         company = company_elem.get_text(strip=True) if company_elem else "IT Company"
 
                         # 3. Địa điểm

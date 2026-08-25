@@ -97,25 +97,35 @@ class CandidateRepository:
                                 proficiency=None,
                             )
                         )
-                    elif isinstance(item, dict) and "language" in item:
-                        new_skills.append(
-                            CandidateSkill(
-                                category=cat,
-                                name=item["language"].strip(),
-                                proficiency=item.get("level"),
+                    elif isinstance(item, dict):
+                        sk_name = item.get("name") or item.get("language")
+                        if sk_name and isinstance(sk_name, str):
+                            new_skills.append(
+                                CandidateSkill(
+                                    category=cat,
+                                    name=sk_name.strip(),
+                                    proficiency=item.get("level"),
+                                )
                             )
-                        )
 
         new_projects: List[CandidateProject] = []
         projects_list = parsed.get("projects", [])
         for idx, p in enumerate(projects_list):
             if isinstance(p, dict) and p.get("name"):
+                period_val = p.get("period")
+                if isinstance(period_val, dict):
+                    start = period_val.get("start", "")
+                    end = period_val.get("end") or "Present"
+                    period_str = f"{start} -- {end}" if (start and end) else (start or None)
+                else:
+                    period_str = str(period_val) if period_val else None
+
                 new_projects.append(
                     CandidateProject(
                         name=p["name"],
                         role=p.get("role"),
                         summary=p.get("summary"),
-                        period=p.get("period"),
+                        period=period_str,
                         repository_url=p.get("repository_url"),
                         demo_url=p.get("demo_url"),
                         technologies=p.get("technologies", []),

@@ -330,25 +330,87 @@ class CandidateProfileParser:
             parsed_yaml = cls.parse_yaml(yaml_content)
 
             if "candidate" in parsed_yaml and isinstance(parsed_yaml["candidate"], dict):
-                for k, v in parsed_yaml["candidate"].items():
-                    if v:
+                cand = parsed_yaml["candidate"]
+                if "identity" in cand and isinstance(cand["identity"], dict):
+                    for k, v in cand["identity"].items():
+                        if v is not None:
+                            merged["candidate"][k] = v
+                if "professional_status" in cand and isinstance(cand["professional_status"], dict):
+                    merged["candidate"]["professional_status"] = cand["professional_status"].get("status")
+                    if not merged["candidate"].get("headline") and cand["professional_status"].get("status"):
+                        merged["candidate"]["headline"] = cand["professional_status"].get("status")
+                for k, v in cand.items():
+                    if k not in ("identity", "professional_status") and v is not None:
                         merged["candidate"][k] = v
 
             if parsed_yaml.get("education"):
                 merged["education"] = parsed_yaml["education"]
-            if parsed_yaml.get("target_roles"):
-                merged["target_roles"] = parsed_yaml["target_roles"]
-            if parsed_yaml.get("target_locations"):
-                merged["target_locations"] = parsed_yaml["target_locations"]
-            if parsed_yaml.get("skills"):
-                merged["skills"].update(parsed_yaml["skills"])
+
+            # Xử lý career_preferences hoặc target_roles / target_locations trực tiếp
+            if parsed_yaml.get("career_preferences") and isinstance(parsed_yaml["career_preferences"], dict):
+                cp = parsed_yaml["career_preferences"]
+                if cp.get("target_roles"):
+                    tr = cp["target_roles"]
+                    if isinstance(tr, dict):
+                        roles = []
+                        if tr.get("primary") and isinstance(tr["primary"], list):
+                            roles.extend(tr["primary"])
+                        if tr.get("secondary") and isinstance(tr["secondary"], list):
+                            roles.extend(tr["secondary"])
+                        merged["target_roles"] = roles
+                    elif isinstance(tr, list):
+                        merged["target_roles"] = tr
+                if cp.get("target_locations"):
+                    merged["target_locations"] = cp["target_locations"]
+                merged.setdefault("preferences", {}).update({
+                    k: v for k, v in cp.items() if k not in ("target_roles", "target_locations")
+                })
+            else:
+                if parsed_yaml.get("target_roles"):
+                    merged["target_roles"] = parsed_yaml["target_roles"]
+                if parsed_yaml.get("target_locations"):
+                    merged["target_locations"] = parsed_yaml["target_locations"]
+                if parsed_yaml.get("preferences"):
+                    merged["preferences"] = parsed_yaml["preferences"]
+
+            # Xử lý skills (hỗ trợ cả dạng list lẫn dict category -> {skill: {level: ...}})
+            if parsed_yaml.get("skills") and isinstance(parsed_yaml["skills"], dict):
+                for cat, items in parsed_yaml["skills"].items():
+                    if isinstance(items, dict):
+                        skill_list = []
+                        for sk_name, sk_info in items.items():
+                            if isinstance(sk_info, dict):
+                                level = sk_info.get("level")
+                                skill_list.append({"name": str(sk_name), "level": level})
+                            else:
+                                skill_list.append(str(sk_name))
+                        merged["skills"][cat] = skill_list
+                    elif isinstance(items, list):
+                        merged["skills"][cat] = items
+
+            # Xử lý projects (chuyển đổi period dict -> period string nếu cần)
             if parsed_yaml.get("projects"):
-                merged["projects"] = parsed_yaml["projects"]
+                projects_list = []
+                for p in parsed_yaml["projects"]:
+                    if isinstance(p, dict):
+                        proj_dict = dict(p)
+                        period_val = proj_dict.get("period")
+                        if isinstance(period_val, dict):
+                            start = period_val.get("start", "")
+                            end = period_val.get("end") or "Present"
+                            if start and end:
+                                proj_dict["period"] = f"{start} -- {end}"
+                            elif start:
+                                proj_dict["period"] = start
+                            else:
+                                proj_dict["period"] = None
+                        projects_list.append(proj_dict)
+                merged["projects"] = projects_list
+
             if parsed_yaml.get("experience"):
                 merged["experience"] = parsed_yaml["experience"]
             if parsed_yaml.get("certifications"):
                 merged["certifications"] = parsed_yaml["certifications"]
-            if parsed_yaml.get("preferences"):
-                merged["preferences"] = parsed_yaml["preferences"]
 
         return merged
+

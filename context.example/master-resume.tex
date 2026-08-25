@@ -50,12 +50,16 @@ Relevant Coursework: Database Systems, Computer Networks, Artificial Intelligenc
 \end{itemize}
 
 \section*{Projects}
-\textbf{AI Job Hunter System} \hfill \textbf{Jul 2026 -- Present} \\
-\textit{Author \& Sole Developer} \hfill \href{https://github.com}{github.com}
-\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
-    \item Engineered an asynchronous job ingestion and matching engine using FastAPI, PostgreSQL (pgvector), and Redis.
-    \item Designed a deterministic 7-signal scoring engine with strict hard filters, evaluating jobs in under 6 seconds.
-    \item Built interactive Discord bot automation streaming personalized recommendations and tailored resumes.
+\noindent \textbf{AI Job Hunter: Autonomous Agent \& Resume Intelligence System} $|$ \href{https://github.com}{repository} \hfill Jul 2026 -- Present\\
+\textit{Asynchronous job intelligence platform for multi-source ingestion, deterministic matching, and evidence-grounded resume tailoring.}\\
+\begin{itemize}[leftmargin=0.25in, nosep]
+    \item \textbf{Autonomous Job Ingestion \& Discord Operations:} Built an async job pipeline with FastAPI, PostgreSQL/pgvector, Redis, and a TypeScript Discord bot supporting automated daily runs, rich embeds, interactive actions, and PDF streaming.
+
+    \item \textbf{3-Tier Deduplication \& 7-Signal Matching:} Implemented SHA-256, RapidFuzz, and pgvector deduplication with a deterministic 7-signal scoring engine and tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN), processing job batches in <6s.
+
+    \item \textbf{Evidence-Grounded Resume Tailoring:} Engineered RoleClassifier, diverse evidence selection, and ProvenanceVerifier to generate zero-hallucination LaTeX resumes and Markdown cover letters, with automated pdflatex compilation and $\ge$ 90\% provenance confidence.
+
+    \item \textbf{Technologies:} Python, FastAPI, PostgreSQL, pgvector, Redis, SQLAlchemy, Alembic, Docker, TypeScript, discord.js, LaTeX, RapidFuzz.
 \end{itemize}
 
 \end{document}

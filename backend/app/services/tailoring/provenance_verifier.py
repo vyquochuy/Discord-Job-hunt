@@ -1,18 +1,28 @@
+import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from rapidfuzz import fuzz
 
 from app.models.candidate import Candidate
 from app.schemas.resume import EvidenceMapItem
+from app.schemas.tailoring_ir import (
+    ClaimVerificationStatus,
+    DecomposedClaim,
+    FactNode,
+    MetricFact,
+)
+from app.services.tailoring.fact_graph import fact_graph_builder
+
+logger = logging.getLogger("provenance_verifier")
 
 
 class ProvenanceVerifier:
     """
-    Engine kiểm chứng nguồn gốc sự thật (Zero-Hallucination Provenance Engine):
-    - Đảm bảo mọi claim, metric, con số và công nghệ trong CV được sinh ra đều bắt nguồn 100% từ
-      context/master-resume.tex hoặc candidate-profile.yaml.
+    Engine kiểm chứng nguồn gốc sự thật (Deterministic Claim-Level Provenance Engine):
+    - Đối soát 100% claim, metric, con số và công nghệ với Đồ thị Sự thật bất biến (Fact Graph).
+    - Phân rã bullet point thành các atomic claims để kiểm chứng độc lập.
     - Phát hiện các con số/thành tích bịa đặt (hallucinated metrics).
-    - Tính điểm tin cậy Provenance Score (0 - 100).
+    - Tính điểm tin cậy Provenance Score (0.0 - 100.0%).
     """
 
     @staticmethod
@@ -20,79 +30,75 @@ class ProvenanceVerifier:
         """Trích xuất tất cả các con số, phần trăm, độ trễ và thông số kỹ thuật định lượng."""
         if not text:
             return set()
-        # Tìm số có đơn vị hoặc số độc lập (vd: 45ms, 200 req/min, 40%, 3.15, 64MB, AES-256)
-        pattern = r"\b\d+(?:\.\d+)?(?:ms|s|%|req/min|req/10s|MB|GB|KB|POPs?|PoP)?\b"
+        pattern = r"\b\d+(?:\.\d+)?(?:ms|s|%|req/min|req/10s|MB|GB|KB|POPs?|PoP|tables?|devices?|threshold)?\b"
         found = set(re.findall(pattern, text, re.IGNORECASE))
         return found
 
     @classmethod
+    def decompose_claims(cls, text: str, bullet_ref: str = "") -> List[DecomposedClaim]:
+        """Phân rã một bullet point hoặc đoạn văn bản thành các atomic claims độc lập."""
+        if not text:
+            return []
+        
+        clauses = re.split(r"[;\n•\–]", text)
+        decomposed: List[DecomposedClaim] = []
+
+        for idx, clause in enumerate(clauses):
+            c_text = clause.strip()
+            if len(c_text) < 5:
+                continue
+            
+            # Trích xuất metrics và công nghệ có trong clause
+            metrics = list(cls.extract_numbers_and_metrics(c_text))
+            
+            decomposed.append(
+                DecomposedClaim(
+                    claim_id=f"{bullet_ref}.claim_{idx+1}",
+                    bullet_ref=bullet_ref,
+                    action_text=c_text,
+                    claimed_metrics=metrics,
+                )
+            )
+
+        if not decomposed:
+            decomposed.append(
+                DecomposedClaim(
+                    claim_id=f"{bullet_ref}.claim_1",
+                    bullet_ref=bullet_ref,
+                    action_text=text,
+                    claimed_metrics=list(cls.extract_numbers_and_metrics(text)),
+                )
+            )
+
+        return decomposed
+
+    @classmethod
     def collect_candidate_facts(cls, candidate: Candidate) -> List[Dict[str, Any]]:
         """
-        Gom toàn bộ các sự thật (Facts) có sẵn từ candidate profile và master resume thành danh sách tham chiếu.
+        Gom toàn bộ các sự thật (Facts) có sẵn từ FactGraph thành danh sách tham chiếu.
         """
+        fact_nodes = fact_graph_builder.build_fact_graph(candidate)
         facts: List[Dict[str, Any]] = []
 
-        # 1. Projects Facts
-        if candidate.projects:
-            for proj in candidate.projects:
-                proj_name = proj.name
-                if proj.summary:
-                    facts.append({
-                        "source_entity_type": "PROJECT",
-                        "source_entity_id": proj_name,
-                        "fact_text": f"{proj_name}: {proj.summary}",
-                        "technologies": proj.technologies or [],
-                    })
+        for fid, fnode in fact_nodes.items():
+            facts.append({
+                "source_entity_type": fnode.entity_type,
+                "source_entity_id": fnode.entity_id,
+                "fact_text": fnode.raw_statement,
+                "technologies": fnode.technologies,
+                "metrics": [m.raw_token for m in fnode.metrics],
+                "fact_id": fid,
+            })
 
-                if proj.evidence_points:
-                    for idx, ev in enumerate(proj.evidence_points):
-                        detail = ev.get("detail", "") if isinstance(ev, dict) else str(ev)
-                        title = ev.get("title", "") if isinstance(ev, dict) else f"Evidence {idx+1}"
-                        facts.append({
-                            "source_entity_type": "PROJECT",
-                            "source_entity_id": f"{proj_name}:{title}",
-                            "fact_text": detail,
-                            "technologies": proj.technologies or [],
-                        })
-
-        # 2. Experience Facts
-        if candidate.experiences:
-            for exp in candidate.experiences:
-                if exp.description:
-                    facts.append({
-                        "source_entity_type": "EXPERIENCE",
-                        "source_entity_id": f"{exp.company}:{exp.role}",
-                        "fact_text": exp.description,
-                        "technologies": [],
-                    })
-                if exp.achievements:
-                    for ach in exp.achievements:
-                        facts.append({
-                            "source_entity_type": "EXPERIENCE",
-                            "source_entity_id": f"{exp.company}:{exp.role}",
-                            "fact_text": str(ach),
-                            "technologies": [],
-                        })
-
-        # 3. Education Facts
-        if candidate.education:
-            for edu in candidate.education:
-                if isinstance(edu, dict):
-                    edu_text = f"{edu.get('institution', '')} {edu.get('degree', '')} {edu.get('field', '')} GPA: {edu.get('gpa', '')} Coursework: {', '.join(edu.get('coursework', []))}"
-                    facts.append({
-                        "source_entity_type": "EDUCATION",
-                        "source_entity_id": edu.get("institution", "University"),
-                        "fact_text": edu_text,
-                        "technologies": [],
-                    })
-
-        # 4. Raw Master Resume Text
-        if candidate.raw_master_resume_tex:
+        # Bổ sung raw master resume nếu có
+        if getattr(candidate, "raw_master_resume_tex", None):
             facts.append({
                 "source_entity_type": "MASTER_RESUME",
                 "source_entity_id": "master-resume.tex",
                 "fact_text": candidate.raw_master_resume_tex,
                 "technologies": [],
+                "metrics": list(cls.extract_numbers_and_metrics(candidate.raw_master_resume_tex)),
+                "fact_id": "master_resume.raw",
             })
 
         return facts
@@ -107,17 +113,16 @@ class ProvenanceVerifier:
         all_candidate_metrics: Set[str],
     ) -> EvidenceMapItem:
         """
-        Kiểm tra 1 bullet point / claim trong CV đối soát với toàn bộ sự thật của ứng viên.
+        Kiểm tra 1 bullet point / claim trong CV đối soát với Fact Graph.
         """
         claim_metrics = cls.extract_numbers_and_metrics(claim_text)
-        
-        # Tìm fact có độ tương đồng cao nhất
+
+        # 1. Structured / Semantic Fact Matching
         best_match_fact = None
         best_score = 0.0
 
         for f in candidate_facts:
             fact_str = f["fact_text"]
-            # RapidFuzz: kết hợp partial_ratio và token_set_ratio để bắt chính xác cả trích đoạn lẫn paraphrase
             p_score = fuzz.partial_ratio(claim_text.lower(), fact_str.lower())
             t_score = fuzz.token_set_ratio(claim_text.lower(), fact_str.lower())
             score = max(p_score, t_score)
@@ -125,21 +130,27 @@ class ProvenanceVerifier:
                 best_score = score
                 best_match_fact = f
 
-        # Kiểm tra metric hallucination
+        # 2. Metric Integrity Check
         is_verified = True
         notes = []
 
-        unverified_metrics = claim_metrics - all_candidate_metrics
-        # Loại bỏ các số nhỏ thông thường như 1, 2, 3 nếu là bullet count
-        unverified_metrics = {m for m in unverified_metrics if m not in {"1", "2", "3", "2026"}}
+        # Các số thông thường bỏ qua kiểm tra hallucination (ví dụ: năm, thứ tự)
+        unverified_metrics = {
+            m for m in claim_metrics - all_candidate_metrics
+            if m not in {"1", "2", "3", "4", "5", "2022", "2025", "2026", "Oct", "Expected"}
+        }
 
-        if unverified_metrics and best_score < 70.0:
+        if unverified_metrics and best_score < 80.0:
             is_verified = False
             notes.append(f"Unverified metrics detected: {', '.join(unverified_metrics)}")
 
         if best_score < 50.0 and is_verified:
             is_verified = False
             notes.append(f"Low semantic support (Score: {best_score:.1f})")
+
+        status = ClaimVerificationStatus.VERIFIED if is_verified else ClaimVerificationStatus.UNVERIFIED
+        if not is_verified and unverified_metrics:
+            status = ClaimVerificationStatus.CONFLICTING
 
         similarity_norm = min(1.0, max(0.0, best_score / 100.0))
 
@@ -149,10 +160,10 @@ class ProvenanceVerifier:
             claim_text=claim_text,
             source_entity_type=best_match_fact["source_entity_type"] if best_match_fact else "UNKNOWN",
             source_entity_id=best_match_fact["source_entity_id"] if best_match_fact else None,
-            original_fact=best_match_fact["fact_text"][:300] if best_match_fact else "No matching fact found",
+            original_fact=best_match_fact["fact_text"] if best_match_fact else "No matching fact found",
             is_verified=is_verified,
-            similarity_score=round(similarity_norm, 2),
-            notes="; ".join(notes) if notes else "Verified with candidate context",
+            similarity_score=round(similarity_norm, 4),
+            notes="; ".join(notes) if notes else "Fact verified with Ground Truth",
         )
 
     @classmethod
@@ -162,44 +173,45 @@ class ProvenanceVerifier:
         tailored_sections: Dict[str, List[str]],
     ) -> Tuple[List[EvidenceMapItem], float, bool]:
         """
-        Kiểm tra toàn bộ các mục trong CV được sinh ra.
-        Trả về: (Danh sách EvidenceMapItem, Provenance Score 0-100, is_all_verified).
+        Kiểm chứng toàn diện các sections của Resume.
+        Trả về: (evidence_items, provenance_score, is_verified).
         """
         candidate_facts = cls.collect_candidate_facts(candidate)
-        
-        # Gom toàn bộ metrics hợp lệ của candidate
+
+        # Gom toàn bộ metrics có trong facts
         all_metrics: Set[str] = set()
         for f in candidate_facts:
+            all_metrics.update(f.get("metrics", []))
             all_metrics.update(cls.extract_numbers_and_metrics(f["fact_text"]))
 
         evidence_items: List[EvidenceMapItem] = []
-        total_claims = 0
-        verified_claims = 0
+        verified_count = 0
+        total_items = 0
 
         for section_name, claims in tailored_sections.items():
             for idx, claim in enumerate(claims):
                 if not claim or not claim.strip():
                     continue
-                total_claims += 1
-                item = cls.verify_claim(
-                    claim_text=claim.strip(),
+                total_items += 1
+                ev_item = cls.verify_claim(
+                    claim_text=claim,
                     section=section_name,
                     bullet_index=idx,
                     candidate_facts=candidate_facts,
                     all_candidate_metrics=all_metrics,
                 )
-                evidence_items.append(item)
-                if item.is_verified:
-                    verified_claims += 1
+                evidence_items.append(ev_item)
+                if ev_item.is_verified:
+                    verified_count += 1
 
-        if total_claims == 0:
-            score = 100.0
-            is_verified = True
-        else:
-            score = round((verified_claims / total_claims) * 100.0, 1)
-            is_verified = (score >= 90.0)
+        provenance_score = (verified_count / max(total_items, 1)) * 100.0
+        provenance_score = round(provenance_score, 1)
+        is_fully_verified = (provenance_score >= 90.0)
 
-        return evidence_items, score, is_verified
+        logger.info(
+            f"[ProvenanceVerifier] Checked {total_items} claims. Score: {provenance_score}%. Verified: {is_fully_verified}."
+        )
+        return evidence_items, provenance_score, is_fully_verified
 
 
 provenance_verifier = ProvenanceVerifier()

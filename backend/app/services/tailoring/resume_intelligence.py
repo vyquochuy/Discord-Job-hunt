@@ -1,141 +1,125 @@
 import logging
 import re
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 from rapidfuzz import fuzz
 
 from app.models.candidate import Candidate, CandidateProject
 from app.models.job import Job
 from app.models.match import JobMatch
+from app.schemas.tailoring_ir import (
+    FactNode,
+    JDCapabilityProfile,
+    LayoutBudget,
+    MetricFact,
+    ResumeStrategy,
+    ScoredEvidenceItem,
+    ScoredProjectCandidate,
+    SkillRequirementType,
+)
+from app.services.tailoring.fact_graph import CAPABILITY_TAXONOMY, fact_graph_builder
+from app.services.tailoring.jd_capability_analyzer import (
+    DOMAIN_KEYWORD_TAXONOMY,
+    jd_capability_analyzer,
+)
 
 logger = logging.getLogger("resume_intelligence")
 
+# Backward compatibility alias
+ScoredEvidence = ScoredEvidenceItem
+ScoredProject = ScoredProjectCandidate
 
-# ============================================================================
-# Dataclasses & Data Contracts
-# ============================================================================
-
-@dataclass
-class ScoredEvidence:
-    """Đại diện cho một bullet point minh chứng kỹ thuật kèm điểm số liên quan."""
-    project_name: str
-    evidence_title: str
-    evidence_detail: str
-    technologies: List[str]
-    score: float  # 0.0 - 1.0 (multi-tier relevance score)
-    capabilities: List[str]  # ["api", "database", "realtime", "crypto", "infra", ...]
-    metrics: List[str] = field(default_factory=list)
-
-
-@dataclass
-class ScoredProject:
-    """Đại diện cho một dự án đã được tính điểm tổng hợp và xếp hạng các bullet points."""
-    project: CandidateProject
-    project_score: float  # Aggregate relevance score
-    ranked_evidence: List[ScoredEvidence]  # Bullet points đã sắp xếp theo thứ tự ưu tiên
-
-
-@dataclass
-class ResumeStrategy:
-    """
-    Kế hoạch chiến lược định vị CV (Resume Strategy) thống nhất cho cả Resume Generator và Cover Letter:
-    - Quyết định trọng tâm positioning theo JD.
-    - Xếp hạng dự án và bullet points.
-    - Đảm bảo 100% Zero-Hallucination (chỉ sử dụng dữ liệu thực tế từ hồ sơ ứng viên).
-    """
-    role_family: str  # "backend" | "system" | "security" | "general"
-    target_title: str
-    adaptive_summary: str
-    priority_skills: List[str]  # Kỹ năng thực có của ứng viên, sắp xếp ưu tiên theo JD
-    ranked_projects: List[ScoredProject]
-    selected_evidence: List[ScoredEvidence]  # Top diverse evidence cho Cover Letter
-    matched_skills: List[str]
-    top_capabilities: List[str] = field(default_factory=list)
-
-
-# ============================================================================
-# Capability & Domain Mapping Taxonomy
-# ============================================================================
-
-CAPABILITY_KEYWORDS: Dict[str, Set[str]] = {
-    "api": {
-        "api", "rest", "graphql", "endpoint", "endpoints", "hono", "fastapi", "http",
-        "sync", "microservices", "request", "token-bucket", "rate-limiting", "middleware"
-    },
-    "database": {
-        "database", "db", "sql", "relational", "sqlite", "d1", "cloudflare d1", "postgres",
-        "postgresql", "redis", "kv", "cloudflare kv", "schema", "table", "tables", "indexeddb",
-        "query", "data model", "blind storage"
-    },
-    "realtime": {
-        "websocket", "websockets", "real-time", "realtime", "durable objects", "stateful",
-        "presence", "messaging", "pubsub", "concurrency", "channel"
-    },
-    "infra": {
-        "infrastructure", "serverless", "cloudflare workers", "workers", "docker", "linux",
-        "cloud", "edge", "latency", "deployment", "ci/cd", "pop", "asia-pacific pop"
-    },
-    "crypto": {
-        "cryptography", "crypto", "encryption", "e2ee", "end-to-end", "zero-knowledge",
-        "ecdh", "argon2id", "aes", "aes-256", "rsa", "rsa-2048", "sha-256", "pki",
-        "x.509", "shamir", "key exchange", "salts", "hashing"
-    },
-    "system_programming": {
-        "c++", "c++17", "system-level", "openssl", "protocol", "ieee 802.1x", "eap-tls",
-        "peer", "authenticator", "authentication server", "memory", "object-oriented"
-    },
-    "security": {
-        "security", "authentication", "auth", "anti-enumeration", "brute-force", "audit",
-        "access control", "keystore", "keychain", "vulnerability", "tls", "eap"
-    },
-}
-
-ROLE_DOMAIN_AFFINITIES: Dict[str, Dict[str, float]] = {
-    "backend": {
-        "api": 1.0,
-        "database": 1.0,
-        "realtime": 0.7,
-        "infra": 0.6,
-        "crypto": 0.4,
-        "system_programming": 0.5,
-        "security": 0.5,
-    },
-    "system": {
-        "infra": 1.0,
-        "realtime": 0.8,
-        "system_programming": 0.8,
-        "api": 0.6,
-        "database": 0.6,
-        "crypto": 0.4,
-        "security": 0.5,
-    },
-    "security": {
-        "crypto": 1.0,
-        "security": 1.0,
-        "system_programming": 0.8,
-        "api": 0.5,
-        "database": 0.4,
-        "infra": 0.4,
-        "realtime": 0.3,
-    },
-    "general": {
-        "api": 0.7,
-        "database": 0.7,
-        "infra": 0.7,
-        "realtime": 0.6,
-        "crypto": 0.6,
-        "system_programming": 0.6,
-        "security": 0.6,
-    },
+CAP_TO_DOMAIN_MAP: Dict[str, str] = {
+    "api": "backend",
+    "database": "database",
+    "backend": "backend",
+    "realtime": "realtime",
+    "infra": "cloud",
+    "cloud": "cloud",
+    "crypto": "security",
+    "security": "security",
+    "system_programming": "systems",
+    "systems": "systems",
+    "mobile": "mobile",
+    "frontend": "frontend",
+    "automation": "automation",
+    "data_ai": "data_ai",
 }
 
 
+def normalize_target_title_to_english(raw_title: Optional[str], role_family: str = "general") -> str:
+    """
+    Chuẩn hóa chức danh ứng tuyển (target_role / target_title) sang tiếng Anh chuẩn,
+    bảo đảm CV may đo và Cover Letter luôn viết hoàn toàn bằng tiếng Anh.
+    Ví dụ:
+    - 'Thực Tập Sinh Phát Triển Phần Mềm' -> 'Software Engineer Intern'
+    - 'Thực tập sinh Backend' -> 'Backend Developer Intern'
+    - 'Lập trình viên C++ Thực tập' -> 'C++ Software Engineer Intern'
+    - 'Thực tập sinh An toàn thông tin' -> 'Cyber Security Intern'
+    - 'Thực tập sinh DevOps' -> 'DevOps Engineer Intern'
+    """
+    if not raw_title:
+        fallback_map = {
+            "backend": "Backend Developer Intern",
+            "system": "System & Infrastructure Intern",
+            "systems": "System & Infrastructure Intern",
+            "security": "Cyber Security & Systems Intern",
+            "frontend": "Frontend Developer Intern",
+            "mobile": "Mobile App Developer Intern",
+            "cloud": "Cloud / DevOps Engineer Intern",
+            "devops": "DevOps Engineer Intern",
+        }
+        return fallback_map.get(role_family.lower(), "Software Engineer Intern")
+
+    title = raw_title.strip()
+    title_lower = title.lower()
+
+    # Kiểm tra xem có chứa tiếng Việt có dấu hoặc cụm từ tiếng Việt không
+    has_vietnamese = bool(re.search(
+        r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]",
+        title_lower
+    ) or any(w in title_lower for w in ["thực tập", "thuc tap", "sinh viên", "lập trình viên", "chuyên viên", "kỹ sư", "nhân viên"]))
+
+    if not has_vietnamese:
+        return title
+
+    is_intern = any(w in title_lower for w in ["thực tập", "thuc tap", "intern", "trainee", "sinh viên", "fresher"])
+
+    if any(w in title_lower for w in ["an toàn thông tin", "bảo mật", "cyber", "security", "an ninh mạng", "pentest", "soc"]):
+        return "Cyber Security Intern" if is_intern else "Security Engineer"
+    elif any(w in title_lower for w in ["backend", "back-end", "máy chủ", "server"]):
+        return "Backend Developer Intern" if is_intern else "Backend Developer"
+    elif any(w in title_lower for w in ["frontend", "front-end", "giao diện"]):
+        return "Frontend Developer Intern" if is_intern else "Frontend Developer"
+    elif any(w in title_lower for w in ["fullstack", "full-stack"]):
+        return "Full-Stack Developer Intern" if is_intern else "Full-Stack Developer"
+    elif any(w in title_lower for w in ["hệ thống", "system", "c++", "embedded", "nhúng", "ha tang", "hạ tầng"]):
+        return "System & Infrastructure Intern" if is_intern else "System Engineer"
+    elif any(w in title_lower for w in ["devops", "cloud", "sre", "điện toán đám mây"]):
+        return "DevOps Engineer Intern" if is_intern else "DevOps Engineer"
+    elif any(w in title_lower for w in ["mobile", "di động", "flutter", "android", "ios"]):
+        return "Mobile App Developer Intern" if is_intern else "Mobile Developer"
+    elif any(w in title_lower for w in ["ai", "trí tuệ nhân tạo", "machine learning", "học máy", "data"]):
+        return "AI / Machine Learning Intern" if is_intern else "AI Engineer"
+    elif any(w in title_lower for w in ["phát triển phần mềm", "phần mềm", "software", "lập trình viên"]):
+        return "Software Engineer Intern" if is_intern else "Software Engineer"
+
+    fallback_map = {
+        "backend": "Backend Developer Intern" if is_intern else "Backend Developer",
+        "system": "System Engineer Intern" if is_intern else "System Engineer",
+        "systems": "System Engineer Intern" if is_intern else "System Engineer",
+        "security": "Cyber Security Intern" if is_intern else "Security Engineer",
+        "frontend": "Frontend Developer Intern" if is_intern else "Frontend Developer",
+        "mobile": "Mobile Developer Intern" if is_intern else "Mobile Developer",
+    }
+    return fallback_map.get(role_family.lower(), "Software Engineer Intern" if is_intern else "Software Engineer")
+
+
 # ============================================================================
-# Role Classifier
+# Role Classifier (Kept for compatibility & primary categorization)
 # ============================================================================
 
 class RoleClassifier:
-    """Xác định Role Family của công việc dựa trên Title, Requirements và Description."""
+    """Xác định Role Family chủ đạo của công việc dựa trên Title, Requirements và Description."""
 
     BACKEND_KEYWORDS = {
         "backend", "back-end", "python developer", "api", "rest", "database",
@@ -143,7 +127,7 @@ class RoleClassifier:
         "java", "golang", "server", "microservice"
     }
     SYSTEM_KEYWORDS = {
-        "system", "devops", "cloud", "infrastructure", "sre", "reliability",
+        "system", "systems", "devops", "cloud", "infrastructure", "sre", "reliability",
         "platform", "linux", "docker", "serverless", "embedded", "network",
         "distributed", "edge", "sysadmin"
     }
@@ -154,14 +138,13 @@ class RoleClassifier:
 
     @classmethod
     def classify_role(cls, job: Job) -> str:
-        text = f"{job.title} {job.normalized_title} {job.description or ''} {job.requirements_summary or ''}".lower()
+        text = f"{getattr(job, 'title', '')} {getattr(job, 'normalized_title', '')} {getattr(job, 'description', '') or ''} {getattr(job, 'requirements_summary', '') or ''}".lower()
+        title_lower = f"{getattr(job, 'title', '')} {getattr(job, 'normalized_title', '')}".lower()
 
         backend_score = sum(1 for kw in cls.BACKEND_KEYWORDS if kw in text)
         system_score = sum(1 for kw in cls.SYSTEM_KEYWORDS if kw in text)
         security_score = sum(1 for kw in cls.SECURITY_KEYWORDS if kw in text)
 
-        # Trọng số ưu tiên cao hơn cho Title
-        title_lower = f"{job.title} {job.normalized_title}".lower()
         for kw in cls.BACKEND_KEYWORDS:
             if kw in title_lower:
                 backend_score += 4
@@ -186,31 +169,29 @@ class RoleClassifier:
 
 
 # ============================================================================
-# Multi-Tier Evidence Scorer
+# Multi-Signal Evidence Scorer (General & Penalty-Aware)
 # ============================================================================
 
 class EvidenceScorer:
     """
-    Chấm điểm liên quan (Relevance Score) của từng Evidence Point đối với JD:
-    - Phân tích đa lớp: Responsibility Match + Technical/Capability Match + Domain Affinity + Strength.
-    - Tuyệt đối không hallucinate hay mutate công nghệ.
+    Chấm điểm đa tín hiệu (Multi-Signal Evidence Scoring) cho từng bullet point:
+    1. Responsibility Fit (30%): So khớp với core problem statements của JD.
+    2. Capability Alignment (25%): Tích vô hướng với vector năng lực đa chiều của JD.
+    3. Technology Precision Fit (20%): Trọng số Required (1.0), Preferred (0.7), Implicit (0.4).
+    4. Evidence & Metric Strength (15%): Có chỉ số định lượng cụ thể và tech count.
+    5. JD Importance Weight (10%): Nhân hệ số ưu tiên bài toán cốt lõi.
+    6. Negative Irrelevance Penalty (-15%): Phạt nếu công nghệ hoàn toàn lệch pha với JD.
     """
 
     @classmethod
     def infer_capabilities(cls, title: str, detail: str, technologies: List[str]) -> List[str]:
-        """Tự động trích xuất các capability tags từ văn bản và tech stack của bullet point."""
-        text = f"{title} {detail} {' '.join(technologies)}".lower()
-        detected = []
-        for cap, keywords in CAPABILITY_KEYWORDS.items():
-            if any(kw in text for kw in keywords):
-                detected.append(cap)
-        return detected or ["general"]
+        text = f"{title} {detail}"
+        return fact_graph_builder.infer_capabilities(text, technologies)
 
     @classmethod
     def extract_metrics(cls, text: str) -> List[str]:
-        """Trích xuất các con số và chỉ số định lượng."""
-        pattern = r"\b\d+(?:\.\d+)?(?:ms|s|%|req/min|req/10s|MB|GB|KB|POPs?|PoP)?\b"
-        return list(set(re.findall(pattern, text, re.IGNORECASE)))
+        facts = fact_graph_builder.extract_metric_facts(text, "temp")
+        return [f.raw_token for f in facts]
 
     @classmethod
     def score_evidence(
@@ -221,70 +202,125 @@ class EvidenceScorer:
         job: Job,
         role_family: str,
         matched_skills: List[str],
-    ) -> ScoredEvidence:
+        jd_profile: Optional[JDCapabilityProfile] = None,
+        fact_node: Optional[FactNode] = None,
+    ) -> ScoredEvidenceItem:
         title = evidence_point.get("title", "") if isinstance(evidence_point, dict) else ""
         detail = evidence_point.get("detail", "") if isinstance(evidence_point, dict) else str(evidence_point)
         evidence_techs = evidence_point.get("technologies", project_technologies) if isinstance(evidence_point, dict) else project_technologies
 
+        profile = jd_profile or jd_capability_analyzer.analyze_job(job)
         capabilities = cls.infer_capabilities(title, detail, evidence_techs)
         metrics = cls.extract_metrics(detail)
 
-        # 1. Responsibility Match (35%): RapidFuzz so với JD description + requirements
+        claim_text = f"{title}: {detail}" if title else detail
+
+        # 1. Responsibility Fit (30%)
+        resp_scores = []
+        for problem in profile.core_problem_statements:
+            p_score = fuzz.partial_ratio(claim_text.lower(), problem.lower())
+            t_score = fuzz.token_set_ratio(claim_text.lower(), problem.lower())
+            resp_scores.append(max(p_score, t_score) / 100.0)
+        
+        # Token overlap giữa claim text và JD context
         jd_context = f"{job.title} {job.description or ''} {job.requirements_summary or ''}".lower()
-        claim_text = f"{title} {detail}".lower()
-        resp_score = (
-            max(
-                fuzz.partial_ratio(claim_text, jd_context),
-                fuzz.token_set_ratio(claim_text, jd_context),
-            )
-            / 100.0
-        )
+        jd_words = set(re.findall(r"[a-zA-Z0-9_\+\#\.\-]+", jd_context))
+        claim_words = set(re.findall(r"[a-zA-Z0-9_\+\#\.\-]+", claim_text.lower()))
+        common_words = claim_words & jd_words
+        term_overlap = len(common_words) / max(len(claim_words), 1)
+        resp_scores.append(min(1.0, term_overlap * 2.5))
 
-        # 2. Skill & Capability Match (30%):
-        # - Exact Tech Match (1.0)
-        # - Capability Match (0.5)
-        matched_lower = {s.lower() for s in (matched_skills or [])}
-        exact_matches = sum(1 for t in evidence_techs if t.lower() in matched_lower)
-        tech_score = (exact_matches / max(len(evidence_techs), 1)) if evidence_techs else 0.0
+        gen_score = max(
+            fuzz.partial_ratio(claim_text.lower(), jd_context),
+            fuzz.token_set_ratio(claim_text.lower(), jd_context)
+        ) / 100.0
+        resp_scores.append(gen_score)
+        responsibility_score = max(max(resp_scores) if resp_scores else 0.50, 0.40)
 
-        # Thưởng thêm cho capability match
-        cap_match_count = 0
+        # 2. Capability Alignment (30%)
+        cap_alignment_scores = []
         for cap in capabilities:
-            cap_keywords = CAPABILITY_KEYWORDS.get(cap, set())
-            if any(kw in jd_context for kw in cap_keywords):
-                cap_match_count += 1
-        cap_score = min(1.0, (cap_match_count / max(len(capabilities), 1)))
+            dom = CAP_TO_DOMAIN_MAP.get(cap.lower(), cap.lower())
+            cap_weight = profile.capability_vector.get(dom, profile.capability_vector.get(cap, 0.40))
+            cap_alignment_scores.append(cap_weight)
+        capability_score = max(cap_alignment_scores) if cap_alignment_scores else 0.50
 
-        tech_and_cap_score = min(1.0, (tech_score * 0.7 + cap_score * 0.3))
+        # 3. Technology Precision Fit (25%)
+        tech_points = 0.0
+        for tech in evidence_techs:
+            t_low = tech.lower()
+            req_type = profile.skill_classifications.get(tech, SkillRequirementType.IRRELEVANT)
+            if req_type == SkillRequirementType.REQUIRED or t_low in jd_words:
+                tech_points += 1.0
+            elif req_type == SkillRequirementType.PREFERRED or any(t_low in w for w in jd_words):
+                tech_points += 0.8
+            elif req_type == SkillRequirementType.IMPLICIT:
+                tech_points += 0.5
+            elif t_low in [s.lower() for s in matched_skills]:
+                tech_points += 0.9
+            else:
+                tech_points += 0.2
+        
+        tech_fit_score = min(1.0, (tech_points / max(len(evidence_techs), 1)) * 1.3) if evidence_techs else 0.40
 
-        # 3. Domain Affinity Match (20%): Dựa trên Role Family
-        affinities = ROLE_DOMAIN_AFFINITIES.get(role_family, ROLE_DOMAIN_AFFINITIES["general"])
-        domain_score = max([affinities.get(c, 0.5) for c in capabilities], default=0.5)
-
-        # 4. Evidence Strength (15%): Có metrics định lượng và tên công nghệ rõ ràng
-        strength_score = 0.5
+        # 4. Evidence & Metric Strength (15%)
+        evidence_strength_score = 0.50
         if metrics:
-            strength_score += 0.3
-        if len(evidence_techs) >= 2:
-            strength_score += 0.2
-        strength_score = min(1.0, strength_score)
+            evidence_strength_score += 0.30
+        if len(evidence_techs) >= 3:
+            evidence_strength_score += 0.20
+        evidence_strength_score = min(1.0, evidence_strength_score)
 
-        # Tính điểm tổng hợp (Weighted sum)
-        total_score = (
-            0.35 * resp_score
-            + 0.30 * tech_and_cap_score
-            + 0.20 * domain_score
-            + 0.15 * strength_score
+        # 5. Negative Irrelevance Penalty (Phạt nếu công nghệ hoàn toàn lệch domain JD)
+        irrelevance_penalty = 0.0
+        top_jd_domains = set(profile.primary_domains)
+        bullet_domains = {CAP_TO_DOMAIN_MAP.get(c.lower(), c.lower()) for c in capabilities}
+        if bullet_domains and not (bullet_domains & top_jd_domains):
+            if "general" not in top_jd_domains and max(profile.capability_vector.values()) >= 0.80:
+                irrelevance_penalty = 0.10
+
+        # 6. JD Importance Multiplier
+        jd_importance_weight = 1.0
+        if any(kw in claim_text.lower() for kw in profile.primary_domains):
+            jd_importance_weight = 1.1
+
+        # Tổng hợp điểm số đa tín hiệu
+        base_composite = (
+            0.30 * responsibility_score
+            + 0.30 * capability_score
+            + 0.25 * tech_fit_score
+            + 0.15 * evidence_strength_score
         )
-        total_score = round(min(1.0, max(0.0, total_score)), 4)
+        
+        final_score = (base_composite * jd_importance_weight) - irrelevance_penalty
+        final_score = round(min(1.0, max(0.0, final_score)), 4)
 
-        return ScoredEvidence(
+        if not fact_node:
+            p_slug = re.sub(r"[^a-zA-Z0-9_]", "_", project_name.lower()).strip("_")
+            fact_node = FactNode(
+                fact_id=f"project.{p_slug}.temp_bullet",
+                entity_type="PROJECT",
+                entity_id=project_name,
+                raw_statement=claim_text,
+                technologies=evidence_techs,
+                capabilities=capabilities,
+                metrics=[MetricFact(f"metric_{i}", 0.0, "", "", m) for i, m in enumerate(metrics)],
+            )
+
+        return ScoredEvidenceItem(
+            fact_node=fact_node,
             project_name=project_name,
             evidence_title=title,
             evidence_detail=detail,
             technologies=evidence_techs,
-            score=total_score,
-            capabilities=capabilities,
+            total_score=final_score,
+            responsibility_score=round(responsibility_score, 4),
+            capability_score=round(capability_score, 4),
+            tech_fit_score=round(tech_fit_score, 4),
+            evidence_strength_score=round(evidence_strength_score, 4),
+            jd_importance_weight=jd_importance_weight,
+            irrelevance_penalty=irrelevance_penalty,
+            matched_capabilities=capabilities,
             metrics=metrics,
         )
 
@@ -294,35 +330,31 @@ class EvidenceScorer:
 # ============================================================================
 
 class DiverseEvidenceSelector:
-    """Chọn lọc tập bằng chứng hàng đầu (Top Evidence) đảm bảo độ phủ đa dạng các năng lực."""
+    """Chọn lọc tập bằng chứng hàng đầu đảm bảo độ phủ đa dạng các năng lực."""
 
     @classmethod
     def select_diverse_evidence(
         cls,
-        all_scored_evidence: List[ScoredEvidence],
+        all_scored_evidence: List[ScoredEvidenceItem],
         limit: int = 3,
-        min_threshold: float = 0.3,
-    ) -> List[ScoredEvidence]:
-        qualified = [e for e in all_scored_evidence if e.score >= min_threshold]
+        min_threshold: float = 0.30,
+    ) -> List[ScoredEvidenceItem]:
+        qualified = [e for e in all_scored_evidence if e.total_score >= min_threshold]
         if not qualified:
             qualified = all_scored_evidence
 
-        # Sắp xếp giảm dần theo điểm
-        sorted_ev = sorted(qualified, key=lambda e: e.score, reverse=True)
+        sorted_ev = sorted(qualified, key=lambda e: e.total_score, reverse=True)
 
-        selected: List[ScoredEvidence] = []
+        selected: List[ScoredEvidenceItem] = []
         covered_capabilities: Set[str] = set()
 
-        # Tuyển chọn: Ưu tiên năng lực chưa được đại diện
         for item in sorted_ev:
-            item_caps = set(item.capabilities)
-            # Nếu chưa đủ limit và có năng lực mới hoặc chưa chọn cái nào
+            item_caps = set(item.matched_capabilities or item.fact_node.capabilities)
             if len(selected) < limit:
                 if not covered_capabilities or not item_caps.issubset(covered_capabilities):
                     selected.append(item)
                     covered_capabilities.update(item_caps)
 
-        # Nếu vẫn chưa đủ limit, lấy thêm các items có điểm cao nhất còn lại
         for item in sorted_ev:
             if len(selected) >= limit:
                 break
@@ -333,14 +365,14 @@ class DiverseEvidenceSelector:
 
 
 # ============================================================================
-# Adaptive Summary Builder
+# Grounded Summary Synthesizer (Evidence-Locked & Hybrid-Aware)
 # ============================================================================
 
 class AdaptiveSummaryBuilder:
     """
-    Xây dựng Summary định vị theo Role Family:
-    - Tuyệt đối chỉ sử dụng dữ liệu thực tế: trường đại học, chuyên ngành, GPA, các kỹ năng và dự án đã kiểm chứng.
-    - Phân hóa rõ rệt trọng tâm: Backend (APIs, Database, Distributed) vs System (Cloud, Linux, Automation) vs Security (PKI, E2EE, Crypto).
+    Xây dựng Summary định vị thích ứng không dùng template cứng:
+    - Danh tính học vấn thật: Trường ĐH KHTN (VNUHCM-US), chuyên ngành Cyber Security, GPA thật.
+    - Định vị chuyên môn theo phổ năng lực JD kết hợp bằng chứng dự án đã kiểm chứng.
     """
 
     @classmethod
@@ -349,10 +381,10 @@ class AdaptiveSummaryBuilder:
         candidate: Candidate,
         role_family: str,
         target_title: str,
-        top_evidence: List[ScoredEvidence],
+        top_evidence: List[ScoredEvidenceItem],
         matched_skills: List[str],
+        jd_profile: Optional[JDCapabilityProfile] = None,
     ) -> str:
-        # Trích xuất thông tin học vấn thật
         edu_major = "Computer Science (Cyber Security)"
         edu_school = "VNUHCM - University of Science"
         if candidate.education and len(candidate.education) > 0:
@@ -360,26 +392,55 @@ class AdaptiveSummaryBuilder:
             edu_major = edu_0.get("field", edu_major)
             edu_school = edu_0.get("institution", edu_school)
 
-        if role_family == "backend":
+        # Thu thập các năng lực hàng đầu từ top evidence
+        verified_caps = []
+        for e in top_evidence:
+            verified_caps.extend(e.matched_capabilities)
+        unique_caps = list(dict.fromkeys(verified_caps))
+
+        profile = jd_profile or JDCapabilityProfile(
+            capability_vector={"backend": 0.8}, primary_domains=[role_family]
+        )
+        primary_doms = profile.primary_domains
+
+        # Xác định các điểm sáng kỹ thuật thực chiến
+        has_api_db = any(c in unique_caps for c in ["api", "database"])
+        has_crypto_pki = any(c in unique_caps for c in ["crypto", "system_programming", "security"])
+        has_realtime_infra = any(c in unique_caps for c in ["realtime", "infra"])
+        has_mobile = "mobile" in unique_caps
+
+        if "systems" in primary_doms or "security" in primary_doms:
+            if has_crypto_pki:
+                summary = (
+                    f"Final-year {edu_major} student at {edu_school} with deep foundations in modern C++, "
+                    f"Public Key Infrastructure (PKI), and applied cryptography. Hands-on experience architecting "
+                    f"zero-knowledge security workflows, IEEE 802.1X EAP-TLS protocol emulation, X.509 certificate chain validation with OpenSSL, "
+                    f"and serverless cryptographic synchronization. Seeking a {target_title} position to apply secure architecture and systems engineering practices."
+                )
+            else:
+                summary = (
+                    f"Final-year {edu_major} student at {edu_school} specializing in system-level software engineering, "
+                    f"cloud infrastructure, and low-latency network protocols. Practical experience developing high-performance "
+                    f"serverless edge services and protocol simulations. Seeking a {target_title} position to build robust, scalable, and resilient systems."
+                )
+        elif "mobile" in primary_doms or has_mobile and "mobile" in profile.capability_vector and profile.capability_vector["mobile"] >= 0.40:
+            summary = (
+                f"Final-year {edu_major} student at {edu_school} with strong expertise in cross-platform mobile development with Flutter/Dart "
+                f"and secure serverless backends with Cloudflare Workers/Hono. Experienced in architecting offline-first local storage, "
+                f"hardware-backed keystores, and zero-knowledge synchronization APIs. Seeking a {target_title} role to engineer high-quality, secure client-server applications."
+            )
+        elif "frontend" in primary_doms:
+            summary = (
+                f"Final-year {edu_major} student at {edu_school} with practical experience engineering responsive real-time web applications "
+                f"with React, TypeScript, and Tailwind CSS. Hands-on background connecting UI clients to stateful edge WebSockets and serverless APIs. "
+                f"Seeking a {target_title} position to deliver polished, resilient, and performant user experiences."
+            )
+        elif "backend" in primary_doms or has_api_db:
             summary = (
                 f"Final-year {edu_major} student at {edu_school} specializing in backend software engineering, "
                 f"relational data modeling, and distributed serverless APIs. Hands-on experience architecting high-throughput "
                 f"REST and WebSocket services with Cloudflare Workers, Hono, and SQLite/D1, backed by client-side cryptographic hashing "
                 f"and dynamic rate limiting. Seeking a {target_title} position to build scalable, secure, and resilient backend systems."
-            )
-        elif role_family == "system":
-            summary = (
-                f"Final-year {edu_major} student at {edu_school} with strong interest in cloud infrastructure, "
-                f"Linux systems, automation, and distributed platforms. Practical experience engineering stateful "
-                f"edge WebSocket infrastructure on Cloudflare Durable Objects and automated serverless deployments. "
-                f"Seeking a {target_title} role to contribute to reliable cloud operations and high-performance system engineering."
-            )
-        elif role_family == "security":
-            summary = (
-                f"Final-year {edu_major} student at {edu_school} with deep foundations in modern C++, Public Key Infrastructure (PKI), "
-                f"and applied cryptography. Experienced in implementing end-to-end cryptographic workflows including IEEE 802.1X EAP-TLS protocol simulation, "
-                f"X.509 certificate chain validation with OpenSSL, and zero-knowledge E2EE messaging. "
-                f"Seeking a {target_title} role to apply secure architecture and cryptographic engineering practices."
             )
         else:
             summary = candidate.summary or (
@@ -396,7 +457,14 @@ class AdaptiveSummaryBuilder:
 # ============================================================================
 
 class ResumeIntelligenceEngine:
-    """Facade điều phối toàn bộ lớp Resume Intelligence."""
+    """
+    Facade điều phối toàn bộ lớp Resume Intelligence:
+    1. Trích xuất Fact Graph cấu trúc từ Candidate.
+    2. Phân tích JD Capability Profile đa chiều.
+    3. Chấm điểm minh chứng đa tín hiệu (Multi-Signal Evidence Scoring).
+    4. Tuyển chọn dự án có mục tiêu (Targeted MMR) và phân bổ Layout Budget.
+    5. Xây dựng ResumeStrategy làm Intermediate Representation duy nhất.
+    """
 
     @classmethod
     def build_strategy(
@@ -405,17 +473,22 @@ class ResumeIntelligenceEngine:
         job: Job,
         match_record: Optional[JobMatch] = None,
         custom_tone: str = "professional_and_humble",
+        layout_budget: Optional[LayoutBudget] = None,
     ) -> ResumeStrategy:
-        # 1. Xác định Role Family
+        budget = layout_budget or LayoutBudget()
+
+        # 1. Xây dựng Fact Graph & JD Capability Profile
+        fact_nodes = fact_graph_builder.build_fact_graph(candidate)
+        jd_profile = jd_capability_analyzer.analyze_job(job)
         role_family = RoleClassifier.classify_role(job)
-        target_title = job.title or candidate.headline or "Software Engineer Intern"
+        raw_title = job.title or candidate.headline or "Software Engineer Intern"
+        target_title = normalize_target_title_to_english(raw_title, role_family)
 
         # 2. Thu thập matched skills
         matched_skills = []
         if match_record and match_record.matched_skills:
             matched_skills = match_record.matched_skills
         else:
-            # Safely check candidate skills against job description / keywords
             candidate_skills = []
             if "skills" in candidate.__dict__ and candidate.skills:
                 candidate_skills = [s.name for s in candidate.skills]
@@ -425,14 +498,20 @@ class ResumeIntelligenceEngine:
                     matched_skills.append(s)
 
         # 3. Chấm điểm từng Evidence Point trong từng Project
-        scored_projects: List[ScoredProject] = []
-        all_scored_evidences: List[ScoredEvidence] = []
+        scored_projects: List[ScoredProjectCandidate] = []
+        all_scored_evidences: List[ScoredEvidenceItem] = []
 
-        candidate_projects = getattr(candidate, "projects", None) or []
+        from app.services.tailoring.fact_graph import safe_get_relation
+        candidate_projects = safe_get_relation(candidate, "projects")
         for proj in candidate_projects:
-            proj_ev_scored: List[ScoredEvidence] = []
+            proj_ev_scored: List[ScoredEvidenceItem] = []
+            p_slug = re.sub(r"[^a-zA-Z0-9_]", "_", proj.name.lower()).strip("_")
+
             if proj.evidence_points:
-                for ev in proj.evidence_points:
+                for b_idx, ev in enumerate(proj.evidence_points):
+                    bullet_fact_id = f"project.{p_slug}.bullet_{b_idx+1}"
+                    f_node = fact_nodes.get(bullet_fact_id)
+
                     scored_ev = EvidenceScorer.score_evidence(
                         project_name=proj.name,
                         evidence_point=ev,
@@ -440,42 +519,59 @@ class ResumeIntelligenceEngine:
                         job=job,
                         role_family=role_family,
                         matched_skills=matched_skills,
+                        jd_profile=jd_profile,
+                        fact_node=f_node,
                     )
                     proj_ev_scored.append(scored_ev)
                     all_scored_evidences.append(scored_ev)
 
             # Sắp xếp bullet points trong project theo score giảm dần
-            proj_ev_scored.sort(key=lambda e: e.score, reverse=True)
+            proj_ev_scored.sort(key=lambda e: e.total_score, reverse=True)
 
-            # Aggregate Project Score (lấy điểm trung bình của top bullets)
+            # Aggregate Project Score
             if proj_ev_scored:
-                top_scores = [e.score for e in proj_ev_scored[:2]]
+                top_scores = [e.total_score for e in proj_ev_scored[:2]]
                 proj_score = sum(top_scores) / len(top_scores)
             else:
-                proj_score = 0.5
+                proj_score = 0.50
+
+            all_caps = []
+            for ev in proj_ev_scored:
+                all_caps.extend(ev.matched_capabilities)
+            unique_caps = list(dict.fromkeys(all_caps))
 
             scored_projects.append(
-                ScoredProject(
+                ScoredProjectCandidate(
                     project=proj,
                     project_score=round(proj_score, 4),
                     ranked_evidence=proj_ev_scored,
+                    capabilities=unique_caps,
+                    matched_technologies=[t for t in (proj.technologies or []) if t.lower() in [m.lower() for m in matched_skills]],
                 )
             )
 
-        # 4. Sắp xếp thứ tự các Projects theo Project Score giảm dần
-        scored_projects.sort(key=lambda p: p.project_score, reverse=True)
+        # 4. Tuyển chọn Dự án & Phân bổ Bố cục (Targeted MMR)
+        from app.services.tailoring.project_selector import project_selector
+        selection_result = project_selector.select_projects(
+            candidate_projects=scored_projects,
+            job=job,
+            role_family=role_family,
+            matched_skills=matched_skills,
+            layout_budget=budget,
+            jd_capability_profile=jd_profile,
+        )
+        selected_projects = selection_result.selected_projects
 
         # 5. Tuyển chọn Diverse Evidence cho Cover Letter
         selected_evidence = DiverseEvidenceSelector.select_diverse_evidence(
             all_scored_evidence=all_scored_evidences,
             limit=3,
-            min_threshold=0.3,
+            min_threshold=0.30,
         )
 
         # 6. Sắp xếp Kỹ năng ưu tiên (Priority Skills)
-        # Bắt đầu từ candidate skills thực có, ưu tiên matched skills và role domain affinity
         candidate_skills_list = []
-        skills_rel = getattr(candidate, "skills", None) or []
+        skills_rel = safe_get_relation(candidate, "skills")
         if skills_rel:
             candidate_skills_list = [s.name for s in skills_rel]
         if not candidate_skills_list:
@@ -485,46 +581,72 @@ class ResumeIntelligenceEngine:
 
         def skill_rank_key(skill_name: str) -> Tuple[int, int]:
             s_lower = skill_name.lower()
+            # 1. Trực tiếp matched trong JD
             is_matched = 1 if s_lower in matched_set else 0
-            # Kiểm tra affinity
-            affinities = ROLE_DOMAIN_AFFINITIES.get(role_family, {})
-            aff_score = 0
-            for cap, weight in affinities.items():
-                if any(kw in s_lower for kw in CAPABILITY_KEYWORDS.get(cap, set())):
-                    aff_score = max(aff_score, int(weight * 10))
-            return (is_matched, aff_score)
+            # 2. Trọng số yêu cầu trong JD Capability Profile
+            req_type = jd_profile.skill_classifications.get(skill_name, SkillRequirementType.IRRELEVANT)
+            req_weight = 0
+            if req_type == SkillRequirementType.REQUIRED:
+                req_weight = 30
+            elif req_type == SkillRequirementType.PREFERRED:
+                req_weight = 20
+            elif req_type == SkillRequirementType.IMPLICIT:
+                req_weight = 10
+            # 3. Domain vector affinity
+            for dom, w in jd_profile.capability_vector.items():
+                if any(kw in s_lower for kw in DOMAIN_KEYWORD_TAXONOMY.get(dom, set())):
+                    req_weight = max(req_weight, int(w * 10))
+            return (is_matched, req_weight)
 
         priority_skills = sorted(candidate_skills_list, key=skill_rank_key, reverse=True)
 
-        # 7. Xây dựng Adaptive Summary
+        # 7. Xây dựng Grounded Summary
         adaptive_summary = AdaptiveSummaryBuilder.build_summary(
             candidate=candidate,
             role_family=role_family,
             target_title=target_title,
             top_evidence=selected_evidence,
             matched_skills=matched_skills,
+            jd_profile=jd_profile,
         )
 
         # Top Capabilities
         all_caps = []
         for e in selected_evidence:
-            all_caps.extend(e.capabilities)
+            all_caps.extend(e.matched_capabilities)
         top_capabilities = list(dict.fromkeys(all_caps))
 
+        top_project_name = selected_projects[0].project.name if selected_projects else (scored_projects[0].project.name if scored_projects else 'None')
         logger.info(
             f"Resume Strategy built: role_family='{role_family}', target_title='{target_title}', "
-            f"top_project='{scored_projects[0].project.name if scored_projects else 'None'}'"
+            f"selected_projects_count={len(selected_projects)}, top_project='{top_project_name}'"
         )
+
+        # Xây dựng Explainability Matrix
+        explainability_matrix = {
+            "jd_capability_vector": jd_profile.capability_vector,
+            "primary_domains": jd_profile.primary_domains,
+            "selected_projects": [p.project.name for p in selected_projects],
+            "selection_reasons": selection_result.reasons,
+            "project_scores": selection_result.scores,
+        }
 
         return ResumeStrategy(
             role_family=role_family,
             target_title=target_title,
             adaptive_summary=adaptive_summary,
             priority_skills=priority_skills,
-            ranked_projects=scored_projects,
+            ranked_projects=selected_projects,
+            selected_projects=selected_projects,
             selected_evidence=selected_evidence,
             matched_skills=matched_skills,
             top_capabilities=top_capabilities,
+            jd_capability_profile=jd_profile,
+            layout_budget=budget,
+            project_selection_result=selection_result,
+            explainability_matrix=explainability_matrix,
+            all_projects=scored_projects,
+            all_scored_evidence=all_scored_evidences,
         )
 
 

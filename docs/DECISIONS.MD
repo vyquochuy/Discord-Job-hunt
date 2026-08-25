@@ -157,3 +157,24 @@
 
 **Consequences:** Web Frontend communicates with Backend REST API. Discord bot is purely an adapter.
 
+---
+
+## ADR-012 — JD-Agnostic Strategic Resume Intelligence & Multi-Dimensional Capabilities
+
+**Status:** Accepted
+
+**Context:** The initial resume tailoring engine used rigid 4-role branching (`backend`, `system`, `security`, `general`) and heuristic fuzzy text matching, which caused false keyword collisions (e.g. single-letter `"c"` matching across all Vietnamese JDs) and struggled with cross-domain / hybrid roles.
+
+**Decision:**
+1. **Typed Intermediate Representation (Single Source of Truth)**: Introduce `ResumeStrategy`, `FactNode`, `JDCapabilityProfile`, and `LayoutBudget` as immutable data contracts connecting selection, rendering, and verification.
+2. **Canonical Fact Graph & Metric Grounding**: Parse candidate profile into immutable fact nodes with structured `MetricFact` regex extraction to prevent phantom metrics.
+3. **Continuous Capability Profiling**: Model JD requirements as a continuous vector $[0.0, 1.0]$ across 10 technical domains using strict **Word-Boundary Taxonomy Matching** (`\bkw\b`).
+4. **Targeted MMR Project Selection**: Award diversity bonuses only for domains actively demanded by the JD ($\ge 0.20$), apply redundancy penalties for overlapping capabilities, and generate a transparent Selection Explainability Matrix.
+5. **Decoupled Physical Layout Budgeting**: Solve ATS 1-page constraints independently from semantic scoring (`min_projects = 2`, `max_projects = 3`, `max_bullets = 7`).
+6. **Deterministic Claim-Level Provenance Verifier**: Decompose bullet points into atomic claims (`DecomposedClaim`) and verify against the Fact Graph with 4 states (`VERIFIED`, `PARTIALLY_VERIFIED`, `UNVERIFIED`, `CONFLICTING`).
+
+**Reason:** Guarantees *Evidence-Locked + Zero-Hallucination + Strategic Positioning* across arbitrary tech stacks and bilingual job postings.
+
+**Consequences:** Complete elimination of false substring matches; dynamic and grounded multi-project selection tailored to any technical role.
+
+

@@ -229,14 +229,22 @@ class JobMatchService:
         )
 
         # 4. Tạo Snapshots
+        min_sal = cand_dto.preferences.get("minimum_salary") if cand_dto.preferences else None
+        if isinstance(min_sal, dict):
+            salary_curr = min_sal.get("currency") or cand_dto.preferences.get("currency", "VND")
+            min_sal_val = min_sal.get("value")
+        else:
+            salary_curr = cand_dto.preferences.get("currency", "VND") if cand_dto.preferences else "VND"
+            min_sal_val = min_sal
+
         cand_snapshot = CandidateSnapshot(
             skills=cand_dto.skills,
             target_roles=cand_dto.target_roles,
             target_locations=cand_dto.target_locations,
             location=cand_dto.location,
-            work_mode_preference=cand_dto.preferences.get("remote"),
-            minimum_salary=cand_dto.preferences.get("minimum_salary"),
-            salary_currency=cand_dto.preferences.get("currency", "VND"),
+            work_mode_preference=cand_dto.preferences.get("remote") if cand_dto.preferences else None,
+            minimum_salary=min_sal_val,
+            salary_currency=salary_curr,
             education_count=len(cand_dto.education),
             experience_count=len(cand_dto.experiences),
             project_count=len(cand_dto.projects),

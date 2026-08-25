@@ -225,3 +225,32 @@ class JobListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ==============================================================================
+# Manual Job Ingestion Schemas (Phase 2.5)
+# ==============================================================================
+
+class ManualJobIngestRequest(BaseModel):
+    mode: str = Field("text", description="Chế độ nhập: 'text' hoặc 'url'")
+    raw_text: Optional[str] = Field(None, description="Văn bản JD thô dán từ MXH/Email (tối thiểu 30 ký tự)")
+    url: Optional[str] = Field(None, description="Đường dẫn tuyển dụng từ web")
+    auto_match: bool = Field(True, description="Tự động tính điểm phù hợp 7 tín hiệu tất định ngay sau khi nạp")
+    use_llm: Optional[bool] = Field(None, description="Bật/Tắt tường minh LLM (None = tự động theo confidence)")
+
+
+class ExtractionMetadata(BaseModel):
+    method: str = Field(..., description="Phương pháp trích xuất: heuristic, llm, heuristic+llm")
+    overall_confidence: float = Field(..., ge=0.0, le=1.0)
+    extraction_status: str = Field(..., description="PARSED | PARTIAL | FAILED")
+    fields: List[dict[str, Any]] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class ManualJobIngestResponse(BaseModel):
+    status: str = Field(..., description="created | duplicate | partial | failed")
+    job: Optional[JobDetailResponse] = None
+    match: Optional[dict[str, Any]] = None
+    extraction_metadata: Optional[ExtractionMetadata] = None
+    message: str
+

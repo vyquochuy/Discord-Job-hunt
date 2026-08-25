@@ -22,6 +22,8 @@ from app.schemas.job import (
     JobDetailResponse,
     JobListResponse,
     JobResponse,
+    ManualJobIngestRequest,
+    ManualJobIngestResponse,
     SkillTaxonomyResponse,
 )
 from app.schemas.saved_job import SavedJobCreate, SavedJobResponse
@@ -31,6 +33,7 @@ from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
+from app.services.manual_ingestion_service import manual_ingestion_service
 
 router = APIRouter()
 
@@ -52,7 +55,13 @@ async def list_jobs(
     query = select(Job).options(selectinload(Job.raw_job)).where(Job.status == JobStatusEnum.ACTIVE)
 
     if source:
-        query = query.join(Job.raw_job).where(RawJob.source == source.strip().lower())
+        src = source.strip().lower()
+        if src == "other":
+            query = query.join(Job.raw_job).where(
+                ~RawJob.source.in_(["topcv", "itviec", "careerlink", "remotive", "mock", "manual"])
+            )
+        else:
+            query = query.join(Job.raw_job).where(RawJob.source == src)
 
 
     if keyword:
@@ -235,8 +244,20 @@ async def unsave_job(
     await db.commit()
 
     return {"status": "unsaved"}
-
-
+ 
+ 
+@router.post("/ingest-manual", response_model=ManualJobIngestResponse)
+async def ingest_manual_job(
+    payload: ManualJobIngestRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Nạp tin tuyển dụng thủ công từ Văn bản thô (Facebook/Zalo/Email) hoặc URL trực tiếp.
+    Chuẩn hóa tự động, kiểm tra trùng lặp 3 tầng, sinh embedding và tính điểm phù hợp 7 tín hiệu tức thì.
+    """
+    return await manual_ingestion_service.ingest(db=db, payload=payload)
+ 
+ 
 @router.get("/{job_id}", response_model=JobDetailResponse)
 async def get_job_detail(
     job_id: uuid.UUID,
@@ -306,7 +327,7 @@ async def trigger_collection(
 
 @router.post("/daily-batch")
 async def trigger_daily_batch(
-    limit_per_source: int = Query(50, ge=1, le=100, description="Số lượng tin tối đa mỗi nguồn"),
+    limit_per_source: int = Query(50, ge=1, le=500, description="Số lượng tin tối đa mỗi nguồn (hỗ trợ quét sâu 1 tháng lên đến 500 tin/nguồn)"),
     db: AsyncSession = Depends(get_db),
 ):
     """

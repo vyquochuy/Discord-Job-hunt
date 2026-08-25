@@ -180,7 +180,14 @@ def evaluate_hard_filters(
     # =========================================================================
     # 4. Salary Filter
     # =========================================================================
-    min_sal_pref = candidate.preferences.get("minimum_salary") if candidate.preferences else None
+    min_sal_raw = candidate.preferences.get("minimum_salary") if candidate.preferences else None
+    min_sal_pref = None
+    if isinstance(min_sal_raw, dict):
+        val = min_sal_raw.get("value")
+        if isinstance(val, (int, float)):
+            min_sal_pref = float(val)
+    elif isinstance(min_sal_raw, (int, float)):
+        min_sal_pref = float(min_sal_raw)
 
     if min_sal_pref is None or min_sal_pref <= 0:
         sal_status = FilterStatus.UNKNOWN

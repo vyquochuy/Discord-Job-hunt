@@ -160,7 +160,7 @@ async def test_relative_evidence_scoring_engine(setup_candidate_and_multirole_jo
     assert "backend" in strategy_be.adaptive_summary.lower() or "api" in strategy_be.adaptive_summary.lower()
 
     # Tìm điểm của từng loại evidence
-    all_be_evs = [ev for p in strategy_be.ranked_projects for ev in p.ranked_evidence]
+    all_be_evs = strategy_be.all_scored_evidence
     db_ev = next((e for e in all_be_evs if "database" in e.capabilities or "api" in e.capabilities), None)
     crypto_ev = next((e for e in all_be_evs if "crypto" in e.capabilities and "api" not in e.capabilities), None)
 
@@ -174,7 +174,7 @@ async def test_relative_evidence_scoring_engine(setup_candidate_and_multirole_jo
     assert strategy_sys.role_family == "system"
     assert "infrastructure" in strategy_sys.adaptive_summary.lower() or "linux" in strategy_sys.adaptive_summary.lower()
 
-    all_sys_evs = [ev for p in strategy_sys.ranked_projects for ev in p.ranked_evidence]
+    all_sys_evs = strategy_sys.all_scored_evidence
     infra_ev = next((e for e in all_sys_evs if "infra" in e.capabilities or "realtime" in e.capabilities), None)
     sec_ev = next((e for e in all_sys_evs if "crypto" in e.capabilities and "infra" not in e.capabilities), None)
 
@@ -188,7 +188,7 @@ async def test_relative_evidence_scoring_engine(setup_candidate_and_multirole_jo
     assert strategy_sec.role_family == "security"
     assert "cryptography" in strategy_sec.adaptive_summary.lower() or "pki" in strategy_sec.adaptive_summary.lower()
 
-    all_sec_evs = [ev for p in strategy_sec.ranked_projects for ev in p.ranked_evidence]
+    all_sec_evs = strategy_sec.all_scored_evidence
     pki_ev = next((e for e in all_sec_evs if "crypto" in e.capabilities or "system_programming" in e.capabilities), None)
     db_only_ev = next((e for e in all_sec_evs if "database" in e.capabilities and "crypto" not in e.capabilities), None)
 

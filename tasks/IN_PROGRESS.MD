@@ -1,32 +1,27 @@
 # In Progress
 
 ## Goal
-Phase 3 — Job Intelligence: Phân tích mô tả công việc (JD) và thực hiện so khớp ứng viên ↔ tin tuyển dụng (Candidate-Job Matching) với hệ thống tính điểm minh bạch (Deterministic Scoring).
+Phase 7 — Personalization & Advanced Outcome Tracking: Tối ưu hóa vòng lặp phản hồi từ kết quả ứng tuyển thực tế (Application Outcomes), học hỏi từ hành vi tương tác và hoàn thiện các tính năng nâng cao.
 
 ## Context
-Phase 1 (Candidate Profile) và Phase 2 (Job Collection) đã hoàn thành xuất sắc toàn bộ:
-- Đã có hồ sơ ứng viên chuẩn hóa với skills, experiences, projects.
-- Đã có cơ sở dữ liệu tin tuyển dụng với `raw_jobs` làm source of truth, `jobs` chuẩn hóa, từ điển `skills & skill_aliases` canonical dùng chung, deduplication 3 tầng và vector embeddings (`pgvector`).
-- Đã có các adapters thu thập thực tế từ ITViec, Remotive, CareerLink, TopCV.
-
-Hệ thống đã sẵn sàng 100% để bước vào Phase 3 (Matching Engine).
+Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắc và được kiểm chứng toàn diện (103/103 tests pass):
+- **Phase 1 (Candidate Profile)**: Hồ sơ ứng viên chuẩn hóa, đồng bộ ngữ cảnh 2 chiều.
+- **Phase 2 & 2.5 (Job Collection & Ad-hoc Ingestion)**: Thu thập đa nguồn tự động & nhập liệu thủ công URL/Text tức thì, deduplication 3 tầng, chuẩn hóa taxonomy.
+- **Phase 3 (Job Intelligence)**: Hard filters 3 trạng thái, thuật toán tính điểm deterministic 7 tín hiệu, giải thích minh bạch.
+- **Phase 4 & 4.5 (JD-Agnostic Strategic Resume Intelligence)**: Hệ thống định vị chiến lược độc lập với JD, Canonical Fact Graph, Capability Analyzer đa chiều, Targeted MMR Project Selection, 1-page ATS Layout Planner, Deterministic Provenance Verifier (Zero Hallucination).
+- **Phase 5 & 6 (API Boundaries & Web Application Workspace)**: Kiến trúc Web-First (Simple Blue UI), phân quyền User 1-1 Candidate, Saved Jobs, Notification Service, tích hợp đầy đủ quy trình từ Job Discovery đến Dispatch.
 
 ## Relevant Files
 - `docs/ROADMAP.MD`
 - `docs/AI_SYSTEM.MD`
 - `docs/ARCHITECTURE.MD`
-- `backend/app/models/candidate.py`
-- `backend/app/models/job.py`
-- `backend/app/services/normalization/skill_normalizer.py`
+- `docs/DECISIONS.MD`
+- `backend/app/services/tailoring/resume_intelligence.py`
+- `backend/app/services/tailoring/project_selector.py`
+- `backend/app/services/tailoring/provenance_verifier.py`
+- `backend/app/services/tailoring/jd_capability_analyzer.py`
 
-## Acceptance Criteria Phase 3
-- [ ] Trích xuất yêu cầu JD chuyên sâu (Job Requirements Structured Output)
-- [ ] Triển khai Hard Filters (Location, Work Mode, Target Roles, Minimum Salary)
-- [ ] Triển khai Match Signals (Exact Skill Overlap, Semantic Fit via pgvector)
-- [ ] Xây dựng Deterministic Scoring Algorithm với trọng số có thể cấu hình
-- [ ] Sinh giải thích điểm số minh bạch (Match Explanation)
-- [ ] Xếp hạng và phân loại độ phù hợp (Job Ranking & Recommendations)
-- [ ] Tích hợp Discord Slash Commands: `/jobs`, `/job <id>`, `/match <id>`
+## Next Steps
+1. Tiếp tục thu thập và kiểm thử chất lượng Resume trên các tin tuyển dụng thực tế (Live Ingestion Jobs).
+2. Xây dựng cơ chế theo dõi tiến trình phỏng vấn / phản hồi tuyển dụng (Phase 7).
 
-## Next Step
-Bắt đầu **Phase 3: Bước 3.1 (Thiết kế Matching Models, Hard Filters & Match Score Schemas)**.

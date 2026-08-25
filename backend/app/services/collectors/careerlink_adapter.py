@@ -36,7 +36,7 @@ class CareerLinkJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(10, max(1, (limit + 19) // 20))
+        max_pages = min(25, max(1, (limit + 19) // 20))
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:

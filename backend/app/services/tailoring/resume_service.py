@@ -249,6 +249,31 @@ class ResumeTailorService:
         return res.scalars().first()
 
     @classmethod
+    async def update_and_recompile_latex(
+        cls, session: AsyncSession, resume_id: uuid.UUID, new_latex_source: str
+    ) -> TailoredResume:
+        """
+        Cập nhật mã nguồn LaTeX đã chỉnh sửa và biên dịch lại tệp tin PDF.
+        """
+        resume = await cls.get_tailored_resume_by_id(session, resume_id)
+        if not resume:
+            raise ValueError(f"Tailored resume with ID {resume_id} not found.")
+
+        resume.latex_source = new_latex_source
+        compile_ok, pdf_path, comp_err = await latex_compiler.compile_tex(
+            tex_content=new_latex_source,
+            job_id=str(resume.job_id),
+            file_prefix=f"resume_{resume.job_id}",
+        )
+        if pdf_path:
+            resume.pdf_path = pdf_path
+        resume.status = ResumeStatusEnum.COMPILED if compile_ok else ResumeStatusEnum.FAILED
+        resume.compilation_error = comp_err
+        await session.commit()
+        await session.refresh(resume)
+        return await cls.get_tailored_resume_by_id(session, resume.id)
+
+    @classmethod
     async def get_tailored_resume_by_job_id(
         cls, session: AsyncSession, job_id: uuid.UUID, candidate_id: Optional[uuid.UUID] = None
     ) -> Optional[TailoredResume]:

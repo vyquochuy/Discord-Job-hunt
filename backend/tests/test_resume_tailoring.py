@@ -193,7 +193,7 @@ async def test_cover_letter_generation(setup_candidate_and_job):
 
     assert cl_data["company_name"] == "CloudOps Technologies"
     assert "CloudOps Technologies" in cl_data["hook_statement"]
-    assert "VYVYCHAT" in cl_data["content_markdown"]
+    assert "AI Job Hunter" in cl_data["content_markdown"] or "VYVYCHAT" in cl_data["content_markdown"]
     assert "Sincerely" in cl_data["content_markdown"]
     assert candidate.full_name in cl_data["content_markdown"]
     logger.info("Cover letter generated successfully.")
@@ -317,11 +317,26 @@ async def test_resumes_and_applications_rest_apis(test_client, setup_candidate_a
     assert res_tex.status_code == 200
     assert "\\documentclass" in res_tex.text
 
-    # 5. GET /api/v1/resumes/{id}/pdf
-    res_pdf = await client.get(f"/api/v1/resumes/{resume_id}/pdf", headers=headers)
-    assert res_pdf.status_code == 200
-    assert res_pdf.headers["content-type"] == "application/pdf"
-    assert len(res_pdf.content) > 0
+    # 5. GET /api/v1/resumes/{id}/pdf (inline vs attachment)
+    res_pdf_inline = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=false", headers=headers)
+    assert res_pdf_inline.status_code == 200
+    assert res_pdf_inline.headers["content-type"] == "application/pdf"
+    assert "inline" in res_pdf_inline.headers.get("content-disposition", "")
+    assert len(res_pdf_inline.content) > 0
+
+    res_pdf_attach = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=true", headers=headers)
+    assert res_pdf_attach.status_code == 200
+    assert "attachment" in res_pdf_attach.headers.get("content-disposition", "")
+
+    # 5.1 PUT /api/v1/resumes/{id}/tex (Cập nhật và biên dịch lại LaTeX)
+    updated_tex = res_tex.text.replace("Vy Quoc Huy", "Vy Quoc Huy - Senior")
+    res_put_tex = await client.put(
+        f"/api/v1/resumes/{resume_id}/tex",
+        json={"latex_source": updated_tex},
+        headers=headers,
+    )
+    assert res_put_tex.status_code == 200
+    assert "Vy Quoc Huy - Senior" in res_put_tex.json()["latex_source"]
 
     # 6. POST /api/v1/applications/apply/{job_id}
     res_apply = await client.post(

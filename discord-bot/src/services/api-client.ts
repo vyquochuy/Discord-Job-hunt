@@ -250,6 +250,49 @@ export interface JobCollectResult {
 }
 
 // ============================================================================
+// Phase 2.5: Manual & Ad-hoc Job Ingestion Interfaces
+// ============================================================================
+
+export interface ManualJobIngestPayload {
+  mode: 'text' | 'url';
+  raw_text?: string | null;
+  url?: string | null;
+  auto_match?: boolean;
+  use_llm?: boolean | null;
+}
+
+export interface ExtractionMetadataDetail {
+  method: string;
+  overall_confidence: number;
+  extraction_status: 'PARSED' | 'PARTIAL' | 'FAILED';
+  fields: Array<{
+    field: string;
+    detected: boolean;
+    confidence: number;
+    value?: any;
+    method?: string;
+  }>;
+  warnings: string[];
+}
+
+export interface ManualJobIngestResult {
+  status: 'created' | 'duplicate' | 'partial' | 'failed';
+  job?: JobDetail | null;
+  match?: {
+    score: number;
+    eligibility: string;
+    recommendation: string;
+    matched_skills: string[];
+    missing_required_skills: string[];
+    missing_preferred_skills: string[];
+    explanation?: string | null;
+    warnings?: string[];
+  } | null;
+  extraction_metadata?: ExtractionMetadataDetail | null;
+  message: string;
+}
+
+// ============================================================================
 // Phase 4: Resume Tailoring & Application Automation Interfaces
 // ============================================================================
 
@@ -777,6 +820,37 @@ class BackendApiClient {
         err.response?.data?.detail ||
         err.message ||
         `Lỗi khi tính toán match cho job ${jobId}`;
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Nạp tin tuyển dụng thủ công từ raw text hoặc URL (Phase 2.5)
+   */
+  public async ingestManualJob(
+    payload: ManualJobIngestPayload
+  ): Promise<{
+    success: boolean;
+    data?: ManualJobIngestResult;
+    error?: string;
+  }> {
+    try {
+      const response = await this.client.post<ManualJobIngestResult>(
+        '/api/v1/jobs/ingest-manual',
+        payload
+      );
+      return {
+        success: response.status === 200,
+        data: response.data,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.detail ||
+        err.message ||
+        'Lỗi khi nạp tin tuyển dụng thủ công';
       return {
         success: false,
         error: errorMsg,

@@ -1,6 +1,7 @@
 # Completed Work
 
 ## Phase 0 — Foundation (Completed)
+
 - [x] Initialize repository structure (`discord-bot/`, `backend/`, `workers/`, `database/`, `context/`, `docs/`, `tasks/`)
 - [x] Create project documentation system (AGENTS.md, PROJECT.md, ARCHITECTURE.md, AI_SYSTEM.md, ROADMAP.md, SECURITY.md, DECISIONS.md)
 - [x] Create candidate profile template (`context/candidate-profile.yaml`) and master resume (`context/master-resume.md`, `master-resume.tex`)
@@ -13,6 +14,7 @@
 ---
 
 ## Phase 1 — Candidate Profile (Completed)
+
 - [x] Implement SQLAlchemy ORM models (`Candidate`, `CandidateSkill`, `CandidateExperience`, `CandidateProject`, `CandidateCertification`)
 - [x] Implement Pydantic validation schemas (`CandidateDetailResponse`, `CandidateCreate`, `CandidateUpdate`, `CandidateSyncResponse`, etc.)
 - [x] Create Alembic migration script `002_candidate_profile_models.py`
@@ -26,6 +28,7 @@
 ---
 
 ## Phase 2 — Job Collection (Completed)
+
 - [x] Implement SQLAlchemy models: `RawJob` (Source of Truth), `Job` (Standardized), `Skill` & `SkillAlias` (Canonical Taxonomy), `JobSkill` (Metadata: `is_required`, `confidence`, `source`)
 - [x] Create Alembic migration script `003_job_collection_models.py`
 - [x] Implement `BaseJobCollector` abstract interface
@@ -45,6 +48,7 @@
 ---
 
 ## Phase 3 — Evidence-Based Job Intelligence (Completed & Refactored)
+
 - [x] **Data Models & 4-State Evidence Schema**:
   - `EvidenceStatus`: `NOT_REQUIRED`, `SUPPORTED`, `INSUFFICIENT_EVIDENCE`, `MISMATCH`
   - `RequirementType`: `COMPETENCY`, `DOMAIN_KNOWLEDGE`, `BEHAVIORAL`, `HARD_REQUIREMENT`
@@ -82,16 +86,16 @@
 
 ## 🐛 Bug Fixes & Architectural Hardening Log (Phase 3)
 
-| ID | Vấn đề / Lỗi | Nguyên nhân gốc rễ | Giải pháp đã áp dụng | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- |
-| **BUG-01** | False Negative trên JD năng lực (Score Cap $\le 50$) | Engine cũ phạt 0 điểm kỹ năng khi JD không có keyword tag kỹ thuật và áp trần 50 điểm. | Chuyển sang 4-state `EvidenceStatus`: nếu JD không có tech tags $\rightarrow$ `NOT_REQUIRED` (score `1.0`, không áp trần). | ✅ **FIXED** |
-| **BUG-02** | Phạt điểm ứng viên 0 năm kinh nghiệm cho vị trí Intern | Engine cũ mặc định chấm kinh nghiệm 0.5 (insufficient) cho mọi job không có kinh nghiệm. | Nếu JD là `INTERN` hoặc nêu rõ không yêu cầu kinh nghiệm $\rightarrow$ `NOT_REQUIRED` (score `1.0`). | ✅ **FIXED** |
-| **BUG-03** | Khách quan hóa khoảng cách Cosine Embedding | Cosine thô $\in [-1.0, 1.0]$ khiến điểm trừ âm khi so khớp ngữ nghĩa dự án. | Chuẩn hóa phạm vi Cosine về $[0.0, 1.0]$ bằng công thức $(cos + 1.0) / 2.0$. | ✅ **FIXED** |
-| **BUG-04** | Hiển thị Discord "100% Khớp 0/0" | Khi JD không có kỹ năng ưu tiên (`preferred_skills == []`), code in `100% (0/0)`. | Điều chỉnh UI hiển thị `N/A (Không yêu cầu)` và loại bỏ số đếm 0/0. | ✅ **FIXED** |
-| **BUG-05** | Format URL tin tuyển dụng thô | URL hiển thị nguyên link dài gây vỡ layout Discord. | Xây dựng hàm `formatJobLink` trích xuất tên miền hiển thị `[topcv.vn/viec-lam/...](url)` và nút Action Button. | ✅ **FIXED** |
-| **BUG-06** | `NameError: name 'EvidenceStatus' is not defined` | Thiếu import `EvidenceStatus` trong `explanation_service.py` khi sinh template giải thích. | Đã import `EvidenceStatus` và bổ sung unit test `test_explanation_generation_with_evidence`. | ✅ **FIXED** |
-| **BUG-07** | Lẫn chuỗi rác HTML tag vào `job.skills` | TopCV cào nhầm cụm text `Không yêu cầu kinh nghiệm soft...+3` thành required skill. | Thêm bộ lọc `noise_patterns` và hàm `is_known_skill` trong `SkillNormalizer` & `job_to_dto`. | ✅ **FIXED** |
-| **BUG-08** | Discord `CombinedPropertyError: length <= 1024` | Toàn bộ 7 tín hiệu và lý do dồn vào 1 embed field vượt quá 1024 ký tự. | Chia 7 tín hiệu thành 2 trường embed chuyên môn & bối cảnh, đồng thời áp dụng hàm bảo vệ `safeFieldVal` $\le 1000$ ký tự. | ✅ **FIXED** |
+| ID         | Vấn đề / Lỗi                                           | Nguyên nhân gốc rễ                                                                         | Giải pháp đã áp dụng                                                                                                       | Trạng thái   |
+| :--------- | :----------------------------------------------------- | :----------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------- | :----------- |
+| **BUG-01** | False Negative trên JD năng lực (Score Cap $\le 50$)   | Engine cũ phạt 0 điểm kỹ năng khi JD không có keyword tag kỹ thuật và áp trần 50 điểm.     | Chuyển sang 4-state `EvidenceStatus`: nếu JD không có tech tags $\rightarrow$ `NOT_REQUIRED` (score `1.0`, không áp trần). | ✅ **FIXED** |
+| **BUG-02** | Phạt điểm ứng viên 0 năm kinh nghiệm cho vị trí Intern | Engine cũ mặc định chấm kinh nghiệm 0.5 (insufficient) cho mọi job không có kinh nghiệm.   | Nếu JD là `INTERN` hoặc nêu rõ không yêu cầu kinh nghiệm $\rightarrow$ `NOT_REQUIRED` (score `1.0`).                       | ✅ **FIXED** |
+| **BUG-03** | Khách quan hóa khoảng cách Cosine Embedding            | Cosine thô $\in [-1.0, 1.0]$ khiến điểm trừ âm khi so khớp ngữ nghĩa dự án.                | Chuẩn hóa phạm vi Cosine về $[0.0, 1.0]$ bằng công thức $(cos + 1.0) / 2.0$.                                               | ✅ **FIXED** |
+| **BUG-04** | Hiển thị Discord "100% Khớp 0/0"                       | Khi JD không có kỹ năng ưu tiên (`preferred_skills == []`), code in `100% (0/0)`.          | Điều chỉnh UI hiển thị `N/A (Không yêu cầu)` và loại bỏ số đếm 0/0.                                                        | ✅ **FIXED** |
+| **BUG-05** | Format URL tin tuyển dụng thô                          | URL hiển thị nguyên link dài gây vỡ layout Discord.                                        | Xây dựng hàm `formatJobLink` trích xuất tên miền hiển thị `[topcv.vn/viec-lam/...](url)` và nút Action Button.             | ✅ **FIXED** |
+| **BUG-06** | `NameError: name 'EvidenceStatus' is not defined`      | Thiếu import `EvidenceStatus` trong `explanation_service.py` khi sinh template giải thích. | Đã import `EvidenceStatus` và bổ sung unit test `test_explanation_generation_with_evidence`.                               | ✅ **FIXED** |
+| **BUG-07** | Lẫn chuỗi rác HTML tag vào `job.skills`                | TopCV cào nhầm cụm text `Không yêu cầu kinh nghiệm soft...+3` thành required skill.        | Thêm bộ lọc `noise_patterns` và hàm `is_known_skill` trong `SkillNormalizer` & `job_to_dto`.                               | ✅ **FIXED** |
+| **BUG-08** | Discord `CombinedPropertyError: length <= 1024`        | Toàn bộ 7 tín hiệu và lý do dồn vào 1 embed field vượt quá 1024 ký tự.                     | Chia 7 tín hiệu thành 2 trường embed chuyên môn & bối cảnh, đồng thời áp dụng hàm bảo vệ `safeFieldVal` $\le 1000$ ký tự.  | ✅ **FIXED** |
 
 ---
 
@@ -141,6 +145,7 @@
 ## Phase 4.5 — Resume Intelligence Layer (Completed)
 
 ### 1. Kiến trúc Resume Intelligence Mới (`backend/app/services/tailoring/resume_intelligence.py`)
+
 - [x] **`RoleClassifier` (Phân loại Role Family tất định)**:
   - Phân loại tự động JD thành các nhóm mục tiêu: `backend`, `system`, `security`, `general` dựa trên Title và Responsibilities.
 - [x] **`EvidenceScorer` (Multi-Tier Evidence Scoring)**:
@@ -157,6 +162,7 @@
   - Cung cấp nguồn sự thật chiến lược duy nhất (Single Source of Strategic Truth) cho cả Resume Generator và Cover Letter Generator.
 
 ### 2. Refactoring Generators thành Pure Renderers
+
 - [x] **`latex_generator.py`**:
   - Chuyển thành Pure Renderer: nhận `ResumeStrategy` để render mã LaTeX hoàn chỉnh.
   - Tự động sắp xếp thứ tự các dự án (`ranked_projects`) và thứ tự các bullet points (`ranked_evidence`) theo điểm tương thích cao nhất với JD.
@@ -168,6 +174,7 @@
   - Tự động điều chỉnh các gạch đầu dòng Key Technical Alignment theo `role_family`.
 
 ### 3. Verification & Zero-Hallucination
+
 - [x] **Kiểm thử kiểm chứng đa vai trò (`backend/tests/test_resume_intelligence.py`)**:
   - Test Relative Evidence Scoring:
     - Backend JD: `db_evidence.score > crypto_evidence.score`
@@ -212,7 +219,7 @@
   - **Dashboard**: Thống kê số lượng, Top đề xuất, One-click Run Daily Batch.
   - **Job Explorer**: Bộ lọc đa tiêu chí (keyword, work mode, level, location), Job Cards, và Modal chi tiết hiển thị đầy đủ JD & biểu đồ 7-Signal Matching Score.
   - **AI Top Matches**: Bảng xếp hạng các vị trí phù hợp nhất kèm lập luận bằng chứng.
-  - **Resume Workspace**: May đo CV tức thì, xem trước file PDF trực tiếp, xem Cover Letter, và kiểm tra Provenance Evidence Map.
+  - **Resume Workspace**: tạo thiết kế CV tức thì, xem trước file PDF trực tiếp, xem Cover Letter, và kiểm tra Provenance Evidence Map.
   - **Applications Tracker**: Quản lý vòng đời đơn ứng tuyển (`DRAFT` $\rightarrow$ `READY` $\rightarrow$ `SENT` $\rightarrow$ `INTERVIEW` $\rightarrow$ `OFFER` $\rightarrow$ `REJECTED`).
   - **Candidate Profile**: Chỉnh sửa thông tin ứng viên trực tiếp lưu vào PostgreSQL và đồng bộ từ context file.
 - [x] **FastAPI Mount & Production Serving**:
@@ -221,6 +228,75 @@
   - Thêm `webAppUrl` vào `config.ts` và bổ sung thông báo chuyển hướng kèm link về Web App trong các slash commands.
   - TypeScript build `discord-bot` thành công (0 errors).
 - [x] **Kiểm thử hồi quy toàn diện**:
-  - **63/63 tests PASS 100%** trên toàn bộ test suite backend.
+  - **103/103 tests PASS 100%** trên toàn bộ test suite backend (bao gồm 10 scenario đa vai trò và adversarial test cases).
 
+---
+
+## Phase 4.5 — JD-Agnostic Strategic Resume Intelligence Engine (Completed)
+
+- [x] **Typed Intermediate Representation (Single Source of Truth)**:
+  - Bổ sung data contracts: `MetricFact`, `FactNode`, `JDCapabilityProfile`, `SkillRequirementType`, `ClaimVerificationStatus`, `ScoredEvidenceItem`, `DecomposedClaim`, `LayoutBudget`, `ScoredProjectCandidate`, `ProjectScoringDetail`, `ProjectSelectionResult`, `ResumeStrategy`.
+- [x] **Canonical Fact Graph Builder (`fact_graph.py`)**:
+  - Bóc tách phân cấp `fact_id` cho từng dự án, bullet, chứng chỉ, học vấn.
+  - Regex metric fact extraction (`MetricFact`) trích xuất chính xác các chỉ số (`45ms`, `200 req/min`, `3 tables`,...).
+  - Hàm `safe_get_relation` truy cập quan hệ SQLAlchemy an toàn trên cả attached và detached models ngoài session.
+- [x] **Multi-Dimensional JD Capability Analyzer (`jd_capability_analyzer.py`)**:
+  - Vector năng lực liên tục $[0.0, 1.0]$ trên 10 domain (`backend`, `systems`, `security`, `frontend`, `mobile`, `cloud`, `database`, `realtime`, `data_ai`, `automation`).
+  - Word-boundary matching taxonomy loại bỏ hoàn toàn hiện tượng false positive từ các ký tự ngắn (`"c"`, `"db"`, `"ui"`, `"ai"`).
+  - Phân loại kỹ năng 4 cấp độ: `REQUIRED`, `PREFERRED`, `IMPLICIT`, `IRRELEVANT`.
+- [x] **Strategic Project Selector & Targeted MMR (`project_selector.py`)**:
+  - Chấm điểm đa tín hiệu: Evidence Relevance (50%), Role Fit (30%), Direct Tech Overlap (20%), Irrelevance Penalty (-0.10).
+  - Thuật toán Targeted MMR: Thưởng Diversity ($\le 0.35$) khi domain được JD yêu cầu ($\ge 0.20$), Phạt Redundancy ($-0.25$) khi năng lực trùng lặp.
+  - Sinh Selection Explainability Matrix giải thích minh bạch lý do chọn/bỏ từng dự án.
+- [x] **Physical Layout Planner (`layout_planner.py`)**:
+  - Độc lập giải bài toán ngân sách hiển thị 1 trang A4 ATS (Max 3 dự án, Max 7 bullets tổng thể, Min 2 dự án, 1-3 bullets/dự án).
+- [x] **Deterministic Claim-Level Provenance Verifier (`provenance_verifier.py`)**:
+  - Phân rã bullet point thành các mệnh đề nguyên tử (`DecomposedClaim`), đối chiếu cấu trúc `FactNode` và xác thực định lượng `MetricFact`.
+- [x] **10-Scenario Multi-Role & Adversarial Test Suite (`backend/tests/test_jd_agnostic_tailoring.py`)**:
+  - 10 kịch bản kiểm thử: Backend FastAPI, Cybersecurity, C++ Systems, Frontend React, Mobile Flutter, Hybrid Fintech, General SWE Intern, Mismatched Java Spring Boot (Zero Hallucination), Unseen Rust/K8s (No Phantom Skills), Adversarial Metric Injection (Zero Metric Leakage).
+  - **103/103 tests PASS 100%** trong toàn bộ backend test suite.
+
+---
+
+## 🐛 Bug Fixes & Architectural Hardening Log (Phase 4.5)
+
+| ID         | Vấn đề / Lỗi                                                        | Nguyên nhân gốc rễ                                                                                                                                                          | Giải pháp đã áp dụng                                                                                               | Trạng thái   |
+| :--------- | :------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :----------- |
+| **BUG-09** | Chỉ chọn 1 dự án EAP-TLS trên mọi JD                                | Substring matching `"c"` trong `DOMAIN_KEYWORD_TAXONOMY["systems"]` khiến mọi JD tiếng Việt đều nhận `systems: 0.70`, cộng với `min_projects = 1` và ngưỡng cắt sớm `0.45`. | Chuyển sang **Word-Boundary Matching** (`\bkw\b`), thiết lập `min_projects = 2` và `min_project_threshold = 0.35`. | ✅ **FIXED** |
+| **BUG-10** | Lỗi chấm điểm tiếng Việt vs tiếng Anh (`responsibility_score` thấp) | So khớp fuzzy literal giữa JD tiếng Việt và Bullet tiếng Anh cho điểm thấp (~0.25).                                                                                         | Kết hợp trích xuất token kỹ thuật trực tiếp (`tech_overlap_score`) và tăng trọng số `capability_score`.            | ✅ **FIXED** |
+| **BUG-11** | Detached SQLAlchemy Model khi build FactGraph                       | Truy cập relationship trên model tách session gây lỗi `MissingGreenlet` trong môi trường async test.                                                                        | Triển khai `safe_get_relation` kiểm tra `__dict__` và thuộc tính an toàn trước khi truy cập relationship.          | ✅ **FIXED** |
+
+---
+
+## Phase 6.1 — Full-Stack SPA Routing, Profile Synchronization & English Resume Standardization (Completed)
+
+- [x] **Full-Stack SPA HTML5 History Routing (`frontend/js/app.js` & `backend/app/main.py`)**:
+  - Hỗ trợ URL trực quan và chuyên nghiệp cho toàn bộ 7 chức năng trên thanh Sidebar:
+    - 📊 Dashboard: `http://localhost:8000/dashboard` (hoặc `/`)
+    - 💼 Khám phá việc làm: `http://localhost:8000/jobs`
+    - ✨ Đề xuất phù hợp: `http://localhost:8000/recommendations`
+    - 📄 May đo CV: `http://localhost:8000/resume`
+    - 🚀 Quản lý đơn nộp: `http://localhost:8000/applications`
+    - 👤 Hồ sơ ứng viên: `http://localhost:8000/profile`
+    - ⚙️ Hệ thống & Dữ liệu: `http://localhost:8000/system`
+  - Chuyển tab mượt mà không reload trang qua `window.history.pushState`.
+  - Hỗ trợ đầy đủ nút **Back / Forward** của trình duyệt bằng bộ lắng nghe `window.onpopstate`.
+  - Hỗ trợ Deep Linking, Bookmark và **F5 (Refresh)** trực tiếp tại từng trang thông qua FastAPI route `serve_spa_view` (tránh lỗi 404).
+
+- [x] **Candidate Profile YAML Parser & Repository Hardening (`parser.py`, `candidate.py`, `hard_filters.py`, `match_service.py`)**:
+  - Nâng cấp `CandidateProfileParser.load_and_merge_context` và `CandidateRepository.sync_from_parsed_context` tương thích hoàn toàn với cấu trúc YAML nâng cao: `identity`, `professional_status`, `career_preferences`, phân loại `skills` dạng dictionary `{skill: {level: ...}}` và `period` dạng dictionary `{start: ..., end: ...}`.
+  - Xử lý an toàn trường `minimum_salary` khi ở dạng `int/float`, `None` hoặc dictionary `{value: ..., currency: ...}` trong `hard_filters.py` và `match_service.py`.
+  - Đồng bộ thành công 54 skills, 4 projects, 0 experiences vào PostgreSQL qua API `/api/v1/profile/sync`.
+
+- [x] **Resume Tailoring English Standardization (`resume_intelligence.py`, `latex_generator.py`, `cover_letter_generator.py`)**:
+  - Tích hợp hàm `normalize_target_title_to_english` tự động chuyển đổi chức danh tiếng Việt từ JD (ví dụ: *"Thực Tập Sinh Phát Triển Phần Mềm"*, *"Thực tập sinh Backend"*, *"Lập trình viên C++"*) sang chức danh tiếng Anh chuẩn (*"Software Engineer Intern"*, *"Backend Developer Intern"*, *"C++ Software Engineer Intern"*).
+  - Đảm bảo toàn bộ nội dung CV may đo (Header Title, Objective thích ứng, Bullet Points, Project Headings, Cover Letter) luôn được xuất ra **100% bằng tiếng Anh chuẩn**.
+  - Cập nhật Master Resume gốc ([context/master-resume.tex](file:///c:/Game/Job-Hunt/context/master-resume.tex), [context/master-resume.md](file:///c:/Game/Job-Hunt/context/master-resume.md)) với tiêu đề chuẩn **`Software Engineer Intern`** và biên dịch thành công [context/master-resume.pdf](file:///c:/Game/Job-Hunt/context/master-resume.pdf).
+
+- [x] **Docker Container Serving Unification (`docker-compose.yml`, `backend/app/main.py`)**:
+  - Gắn volume `./frontend:/frontend:ro` vào container `jobhunter_backend` để 1 container duy nhất phục vụ trọn gói cả Backend API, Database interaction, TeXLive LaTeX compilation và Web Frontend SPA.
+  - Bổ sung cơ chế phát hiện đường dẫn frontend linh hoạt (hỗ trợ cả môi trường Local lẫn Docker container).
+
+- [x] **Kiểm thử hồi quy toàn diện**:
+  - **103/103 tests PASS 100%** trên toàn bộ test suite backend.
 

@@ -23,6 +23,7 @@ import { recommendCommand } from './commands/recommend';
 import { collectCommand } from './commands/collect';
 import { resumeCommand } from './commands/resume';
 import { applyCommand } from './commands/apply';
+import { importCommand, buildImportResultEmbed } from './commands/import';
 import { apiClient } from './services/api-client';
 
 // 1. Kiểm tra cấu hình môi trường
@@ -48,6 +49,7 @@ commands.set(recommendCommand.data.name, recommendCommand);
 commands.set(collectCommand.data.name, collectCommand);
 commands.set(resumeCommand.data.name, resumeCommand);
 commands.set(applyCommand.data.name, applyCommand);
+commands.set(importCommand.data.name, importCommand);
 
 // 4. Sự kiện khi Bot sẵn sàng (Ready)
 client.once(Events.ClientReady, async (readyClient) => {
@@ -70,6 +72,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     collectCommand.data.toJSON(),
     resumeCommand.data.toJSON(),
     applyCommand.data.toJSON(),
+    importCommand.data.toJSON(),
   ];
 
 
@@ -168,6 +171,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
         content: '✨ **Đã cập nhật hồ sơ ứng viên thành công!**',
         embeds: [updatedEmbed],
         components: [buildProfileButtons()],
+      });
+    }
+
+    if (interaction.customId === 'modal_import_text') {
+      if (config.allowedUserId && interaction.user.id !== config.allowedUserId) {
+        await interaction.reply({
+          content: '⛔ Bạn không có quyền nạp tin tuyển dụng này.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: false });
+
+      const rawText = interaction.fields.getTextInputValue('input_raw_job_text').trim();
+      const result = await apiClient.ingestManualJob({
+        mode: 'text',
+        raw_text: rawText,
+        auto_match: true,
+      });
+
+      if (!result.success || !result.data) {
+        await interaction.editReply({
+          content: `❌ **Nạp tin tuyển dụng thất bại:** ${result.error}`,
+        });
+        return;
+      }
+
+      const { embed, components } = buildImportResultEmbed(result.data);
+      await interaction.editReply({
+        embeds: [embed],
+        components,
       });
     }
     return;

@@ -43,6 +43,18 @@
 
 ---
 
+## Phase 2.5 — Manual & Ad-hoc Job Ingestion (Completed)
+- [x] `url_fetcher.py`: Abstraction `FetchedDocument` with HTTP + HTML extraction and `JS_REQUIRED` detection
+- [x] `heuristic_extractor.py`: Rule-based parser + Canonical Taxonomy matching with per-field confidence (`FieldConfidence`) and overall confidence calculation
+- [x] `extraction_pipeline.py`: Orchestrator between Heuristic Extractor and LLM Structured Fallback (confidence threshold based)
+- [x] `manual_ingestion_service.py`: Complete orchestration (Input -> Extraction -> Normalization -> Lazy Dedup L1/L2 -> Persist RawJob with provenance -> Lazy Embedding -> Instant 7-signal deterministic match)
+- [x] REST API endpoint `POST /api/v1/jobs/ingest-manual` with `ManualJobIngestRequest` & `ManualJobIngestResponse`
+- [x] Web App Modal Dialog **"➕ Nhập JD thủ công"** with 2 tabs (Text & URL), confidence bar, field checklist, match score preview, and 1-click Tailor Resume action
+- [x] Discord Bot `/import url <link>` & `/import text` (Modal form) with rich embeds and action links
+- [x] Automated test suite `backend/tests/test_manual_ingestion.py` (9/9 PASS, 84/84 full suite PASS)
+
+---
+
 ## Phase 3 — Job Intelligence (Completed)
 
 ### Data Models & Schemas
@@ -97,6 +109,29 @@
 
 ---
 
+## Phase 4.5 — JD-Agnostic Strategic Resume Intelligence Engine (Completed)
+- [x] **Typed Intermediate Representation (Single Source of Truth)**:
+  - Added dataclasses & models: `MetricFact`, `FactNode`, `JDCapabilityProfile`, `SkillRequirementType`, `ClaimVerificationStatus`, `ScoredEvidenceItem`, `DecomposedClaim`, `LayoutBudget`, `ScoredProjectCandidate`, `ProjectScoringDetail`, `ProjectSelectionResult`, `ResumeStrategy`.
+- [x] **Canonical Fact Graph Builder**:
+  - Structured extraction of immutable fact nodes from Candidate Projects, Bullets, Experiences, Education, Certifications.
+  - Deterministic regex metric fact extraction (`MetricFact`).
+- [x] **Multi-Dimensional JD Capability Analyzer**:
+  - Continuous vector $[0.0, 1.0]$ across 10 capability domains (`backend`, `systems`, `security`, `frontend`, `mobile`, `cloud`, `database`, `realtime`, `data_ai`, `automation`).
+  - Word-boundary matching taxonomy eliminating false substring collisions (e.g. single-letter `"c"`).
+- [x] **Strategic Project Selector & Targeted MMR**:
+  - Multi-signal scoring: Relevance (50%), Role Fit (30%), Direct Tech Overlap (20%), Irrelevance Penalty (-0.10).
+  - Targeted MMR with capability diversity bonus ($\le 0.35$) and redundancy penalty ($-0.25$).
+  - Generation of Selection Explainability Matrix (`"Được chọn: ..."` / `"Loại bỏ: ..."`).
+- [x] **Physical Layout Planner (1-Page ATS)**:
+  - Decoupled physical budgeting: Max 3 projects, Max 7 bullets, Min 2 projects.
+- [x] **Claim-Level Provenance Verifier**:
+  - Decomposition of bullet points into atomic claims (`DecomposedClaim`) and exact metric grounding.
+- [x] **10-Scenario Multi-Role & Adversarial Test Suite**:
+  - 10 test scenarios covering Backend, Security, Systems, Frontend, Mobile, Hybrid, Intern, Mismatched roles, Unseen technologies, and Adversarial metric injection.
+  - 103/103 backend automated tests passing (100% pass rate).
+
+---
+
 ## Phase 5 — API Contract & Domain Boundary Layer (Completed)
 - [x] Data Models: `User` (1-1 với `Candidate`), `SavedJob`
 - [x] Alembic migration `007_user_and_saved_jobs_models.py`
@@ -114,7 +149,7 @@
 - [x] SPA View Controllers in `frontend/js/app.js` (Dashboard, Job Search, Job Details Modal with 7-Signal Score breakdown, Recommendations, Resume Workspace, Applications Tracker, Candidate Profile)
 - [x] FastAPI static mounting and serving at root `/`
 - [x] Discord Bot command deprecation notices and web redirect links
-- [x] 63/63 backend automated tests passing + Discord bot TypeScript build passing
+- [x] 103/103 backend automated tests passing + Discord bot TypeScript build passing
 
 ---
 

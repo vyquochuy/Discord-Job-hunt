@@ -49,8 +49,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Tìm thư mục frontend
+# Tìm thư mục frontend (hỗ trợ cả môi trường Local lẫn Docker volume /frontend)
 frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+if not frontend_dir.exists():
+    frontend_dir = Path("/frontend")
+if not frontend_dir.exists():
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 
@@ -136,4 +141,28 @@ async def health_check():
 
 # Gắn router API v1
 app.include_router(api_router, prefix="/api/v1")
+
+
+FRONTEND_ROUTES = {
+    "dashboard",
+    "jobs",
+    "recommendations",
+    "resume",
+    "applications",
+    "profile",
+    "system",
+}
+
+
+@app.get("/{view_name}", tags=["frontend"])
+async def serve_spa_view(view_name: str, request: Request):
+    """Phục vụ file index.html cho các route SPA frontend (dashboard, jobs, recommendations, resume, applications, profile, system)."""
+    if view_name.lower() in FRONTEND_ROUTES:
+        index_file = frontend_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": f"Route '/{view_name}' not found."}
+    )
 

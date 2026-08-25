@@ -1,425 +1,1043 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Job Hunter Platform — Autonomous Intelligence & Web Interface</title>
-  <meta name="description" content="AI Job Hunter Platform: Web Application for Autonomous Job Intelligence, Deterministic Matching, and Evidence-Locked Resume Tailoring.">
-  <link rel="stylesheet" href="/static/css/index.css">
-</head>
-<body>
-  <div class="app-layout">
-    <!-- Sidebar Navigation -->
-    <aside class="app-sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-icon">JH</div>
-        <div class="brand-text">
-          <h1>Job Hunter</h1>
-          <span>AI Intelligence Platform</span>
-        </div>
-      </div>
-
-      <nav class="sidebar-nav">
-        <a class="nav-link active" data-view="dashboard">
-          <span class="nav-icon">📊</span>
-          <span>Dashboard</span>
-        </a>
-        <a class="nav-link" data-view="jobs">
-          <span class="nav-icon">💼</span>
-          <span>Job Explorer</span>
-        </a>
-        <a class="nav-link" data-view="recommendations">
-          <span class="nav-icon">⭐</span>
-          <span>Top Matches</span>
-        </a>
-        <a class="nav-link" data-view="resume">
-          <span class="nav-icon">📄</span>
-          <span>Tailored Resumes</span>
-        </a>
-        <a class="nav-link" data-view="applications">
-          <span class="nav-icon">🚀</span>
-          <span>Applications</span>
-        </a>
-        <a class="nav-link" data-view="profile">
-          <span class="nav-icon">👤</span>
-          <span>Candidate Profile</span>
-        </a>
-        <a class="nav-link" data-view="system">
-          <span class="nav-icon">⚙️</span>
-          <span>System & Database</span>
-        </a>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="user-badge">
-          <div class="user-avatar">VY</div>
-          <div class="user-info">
-            <div class="user-name">Vy Quoc Huy</div>
-            <div class="user-email">quochuy@example.com</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Job Hunter — Nền tảng Tự động hóa Tuyển dụng & Khám phá Việc làm IT
+    </title>
+    <meta
+      name="description"
+      content="Nền tảng tìm kiếm việc làm IT, phân tích mức độ phù hợp bằng thuật toán tất định 7 chỉ số và tạo thiết kế hồ sơ ứng tuyển theo chuẩn ATS."
+    />
+    <link rel="stylesheet" href="/static/css/index.css" />
+    <!-- Lucide Vector Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Sidebar Navigation -->
+      <aside class="app-sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-icon">
+            <i data-lucide="layers" class="icon"></i>
+          </div>
+          <div class="brand-text">
+            <h1>Job Hunter</h1>
+            <span>Enterprise SaaS</span>
           </div>
         </div>
-      </div>
-    </aside>
 
-    <!-- Main Container -->
-    <main class="app-main">
-      <!-- App Header -->
-      <header class="app-header">
-        <div class="header-title">
-          <h2 id="header-title-text">Dashboard Overview</h2>
+        <nav class="sidebar-nav">
+          <div class="nav-section-title">Tổng quan</div>
+          <a
+            class="nav-link active"
+            data-view="dashboard"
+            role="button"
+            tabindex="0"
+          >
+            <i data-lucide="layout-dashboard" class="icon"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-link" data-view="jobs" role="button" tabindex="0">
+            <i data-lucide="briefcase" class="icon"></i>
+            <span>Khám phá việc làm</span>
+          </a>
+          <a
+            class="nav-link"
+            data-view="recommendations"
+            role="button"
+            tabindex="0"
+          >
+            <i data-lucide="sparkles" class="icon"></i>
+            <span>Đề xuất phù hợp</span>
+          </a>
+
+          <div class="nav-section-title">Ứng tuyển & Hồ sơ</div>
+          <a class="nav-link" data-view="resume" role="button" tabindex="0">
+            <i data-lucide="file-text" class="icon"></i>
+            <span>Hồ sơ tạo thiết kế</span>
+          </a>
+          <a
+            class="nav-link"
+            data-view="applications"
+            role="button"
+            tabindex="0"
+          >
+            <i data-lucide="send" class="icon"></i>
+            <span>Quản lý đơn nộp</span>
+          </a>
+          <a class="nav-link" data-view="profile" role="button" tabindex="0">
+            <i data-lucide="user" class="icon"></i>
+            <span>Hồ sơ ứng viên</span>
+          </a>
+
+          <div class="nav-section-title">Cấu hình</div>
+          <a class="nav-link" data-view="system" role="button" tabindex="0">
+            <i data-lucide="settings" class="icon"></i>
+            <span>Hệ thống & Dữ liệu</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-badge">
+            <div class="user-avatar">
+              <i data-lucide="user-check" class="icon-sm"></i>
+            </div>
+            <div class="user-info">
+              <div class="user-name" id="sidebar-user-name">Vy Quoc Huy</div>
+              <div class="user-email" id="sidebar-user-email">
+                quochuy@example.com
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="header-actions">
-          <button class="btn btn-outline btn-sm" onclick="syncProfileContext()">🔄 Sync Context Files</button>
-          <button class="btn btn-primary btn-sm" onclick="triggerDailyBatch()">⚡ Run Daily Batch</button>
+      </aside>
+
+      <!-- Main Container -->
+      <main class="app-main">
+        <!-- App Header -->
+        <header class="app-header">
+          <div class="header-title-container">
+            <h2 id="header-title-text" class="header-title">
+              Tổng quan Dashboard
+            </h2>
+          </div>
+          <div class="header-actions">
+            <button
+              class="btn btn-outline btn-sm"
+              onclick="openManualIngestModal()"
+              title="Nhập mô tả công việc hoặc liên kết ngoài"
+            >
+              <i data-lucide="plus-circle" class="icon-sm"></i>
+              <span>Nhập JD thủ công</span>
+            </button>
+            <button
+              class="btn btn-outline btn-sm"
+              onclick="syncProfileContext()"
+              title="Đồng bộ hồ sơ từ context file"
+            >
+              <i data-lucide="refresh-cw" class="icon-sm"></i>
+              <span>Đồng bộ Context</span>
+            </button>
+            <button
+              class="btn btn-primary btn-sm"
+              onclick="openScanJobsModal()"
+              title="Quét tin tuyển dụng từ các sàn đối tác"
+            >
+              <i data-lucide="search" class="icon-sm"></i>
+              <span>Quét tin tuyển dụng</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="content-container">
+          <!-- View 1: Dashboard -->
+          <section id="view-dashboard" class="view-section active">
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+              <div class="card metric-card">
+                <div class="metric-icon-box metric-icon-blue">
+                  <i data-lucide="briefcase" class="icon-lg"></i>
+                </div>
+                <div>
+                  <div id="metric-total-jobs" class="metric-value">0</div>
+                  <div class="metric-label">Tin tuyển dụng đang theo dõi</div>
+                </div>
+              </div>
+
+              <div class="card metric-card">
+                <div class="metric-icon-box metric-icon-green">
+                  <i data-lucide="award" class="icon-lg"></i>
+                </div>
+                <div>
+                  <div id="metric-top-recs" class="metric-value">0</div>
+                  <div class="metric-label">Vị trí đề xuất hàng đầu</div>
+                </div>
+              </div>
+
+              <div class="card metric-card">
+                <div class="metric-icon-box metric-icon-amber">
+                  <i data-lucide="bookmark" class="icon-lg"></i>
+                </div>
+                <div>
+                  <div id="metric-saved-jobs" class="metric-value">0</div>
+                  <div class="metric-label">Tin đã lưu</div>
+                </div>
+              </div>
+
+              <div class="card metric-card">
+                <div class="metric-icon-box metric-icon-purple">
+                  <i data-lucide="send" class="icon-lg"></i>
+                </div>
+                <div>
+                  <div id="metric-apps-count" class="metric-value">0</div>
+                  <div class="metric-label">Hồ sơ đã nộp</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section: Top Recommendations -->
+            <div class="section-header-row">
+              <div>
+                <h3 class="section-title">Đề xuất ứng tuyển hàng đầu</h3>
+                <p class="section-subtitle mb-0">
+                  Các cơ hội có điểm tương thích cao nhất dựa trên phân tích hồ
+                  sơ và thị trường
+                </p>
+              </div>
+              <button
+                class="btn btn-outline btn-sm"
+                onclick="navigateTo('recommendations')"
+              >
+                <span>Xem tất cả đề xuất</span>
+                <i data-lucide="arrow-right" class="icon-sm"></i>
+              </button>
+            </div>
+            <div id="dashboard-recs-list">
+              <!-- Dynamic Content or Skeleton -->
+            </div>
+          </section>
+
+          <!-- View 2: Job Explorer & Search -->
+          <section id="view-jobs" class="view-section">
+            <div class="filter-bar">
+              <div class="filter-col-search search-input-wrapper">
+                <i data-lucide="search" class="search-input-icon icon-sm"></i>
+                <input
+                  type="text"
+                  id="search-job-input"
+                  class="form-control"
+                  placeholder="Tìm theo chức danh, công ty hoặc kỹ năng (Golang, Python, React)..."
+                  title="Từ khóa tìm kiếm"
+                />
+              </div>
+              <div>
+                <select
+                  id="filter-work-mode"
+                  class="form-control"
+                  title="Chọn hình thức làm việc"
+                  aria-label="Chọn hình thức làm việc"
+                  onchange="loadJobs()"
+                >
+                  <option value="">Tất cả hình thức</option>
+                  <option value="REMOTE">Remote</option>
+                  <option value="HYBRID">Hybrid</option>
+                  <option value="ONSITE">Onsite</option>
+                </select>
+              </div>
+              <div>
+                <select
+                  id="filter-level"
+                  class="form-control"
+                  title="Chọn cấp bậc"
+                  aria-label="Chọn cấp bậc"
+                  onchange="loadJobs()"
+                >
+                  <option value="">Tất cả cấp bậc</option>
+                  <option value="INTERN">Intern</option>
+                  <option value="FRESHER">Fresher</option>
+                  <option value="JUNIOR">Junior</option>
+                  <option value="MID">Mid-level</option>
+                  <option value="SENIOR">Senior</option>
+                </select>
+              </div>
+              <div>
+                <select
+                  id="filter-source"
+                  class="form-control"
+                  title="Chọn nguồn dữ liệu"
+                  aria-label="Chọn nguồn dữ liệu"
+                  onchange="loadJobs()"
+                >
+                  <option value="">Tất cả nguồn tin</option>
+                  <option value="topcv">TopCV</option>
+                  <option value="itviec">ITViec</option>
+                  <option value="careerlink">CareerLink</option>
+                  <option value="remotive">Remotive</option>
+                  <option value="manual">Nhập thủ công</option>
+                  <option value="other">Khác</option>
+                </select>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  id="filter-location"
+                  class="form-control"
+                  placeholder="Địa điểm (HCM, HN, ĐN)"
+                  title="Địa điểm làm việc"
+                  onchange="loadJobs()"
+                />
+              </div>
+              <div>
+                <button
+                  class="btn btn-primary"
+                  onclick="loadJobs()"
+                  title="Áp dụng bộ lọc"
+                >
+                  <i data-lucide="filter" class="icon-sm"></i>
+                  <span>Lọc tin</span>
+                </button>
+              </div>
+              <div>
+                <button
+                  class="btn btn-outline"
+                  onclick="openManualIngestModal()"
+                  title="Thêm tin mới"
+                >
+                  <i data-lucide="plus" class="icon-sm"></i>
+                  <span>Thêm JD</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="jobs-grid" class="job-grid">
+              <!-- Dynamic Job Cards -->
+            </div>
+          </section>
+
+          <!-- View 3: Top Recommendations -->
+          <section id="view-recommendations" class="view-section">
+            <div class="section-subtitle">
+              Phân tích mức độ phù hợp dựa trên thuật toán 7 chỉ số tất định
+              (Deterministic 7-Signal Matching Engine) và bộ lọc điều kiện cứng.
+            </div>
+            <div id="recommendations-list">
+              <!-- Dynamic Recommendations List -->
+            </div>
+          </section>
+
+          <!-- View 4: Resume Workspace -->
+          <section id="view-resume" class="view-section">
+            <div id="resume-workspace-content">
+              <div class="card empty-state-card">
+                <div class="empty-state-icon-box">
+                  <i data-lucide="file-text" class="icon-lg"></i>
+                </div>
+                <h3 class="empty-state-title">
+                  Không gian làm việc Hồ sơ tạo thiết kế & Kiểm chứng Bằng chứng
+                </h3>
+                <p class="empty-state-text">
+                  Chọn một vị trí trong mục
+                  <strong>Khám phá việc làm</strong> hoặc
+                  <strong>Dashboard</strong> và nhấn
+                  <em>"tạo thiết kế hồ sơ"</em> để hệ thống khởi tạo bản CV
+                  LaTeX, biên dịch sang PDF và xây dựng Evidence Map kiểm chứng
+                  tính chính xác không ảo giác.
+                </p>
+                <button class="btn btn-primary" onclick="navigateTo('jobs')">
+                  <i data-lucide="search" class="icon-sm"></i>
+                  <span>Khám phá công việc ngay</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- View 5: Applications Tracker -->
+          <section id="view-applications" class="view-section">
+            <div class="card table-card">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Vị trí / Công việc</th>
+                    <th>Kênh nộp</th>
+                    <th>Người nhận</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày nộp</th>
+                    <th>Cập nhật trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="applications-table-body">
+                  <!-- Dynamic Application Rows -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- View 6: Candidate Profile -->
+          <section id="view-profile" class="view-section">
+            <div class="card mb-6">
+              <div class="mb-4">
+                <h3 class="section-title">
+                  Tải lên Hồ sơ gốc (PDF, TeX, YAML, Markdown)
+                </h3>
+                <p class="section-subtitle mb-0">
+                  Trích xuất tự động thông tin, kỹ năng, kinh nghiệm và dự án
+                  nạp vào Cơ sở dữ liệu ứng viên.
+                </p>
+              </div>
+              <div
+                id="resume-dropzone"
+                class="dropzone"
+                onclick="document.getElementById('resume-file-input').click()"
+              >
+                <input
+                  title="Tải lên Hồ sơ gốc (PDF, TeX, YAML)"
+                  type="file"
+                  id="resume-file-input"
+                  class="hidden-input"
+                  accept=".pdf,.tex,.yaml,.yml,.md,.txt"
+                  onchange="handleResumeFileUpload(event)"
+                />
+                <div class="dropzone-icon-box">
+                  <i data-lucide="upload-cloud" class="icon-lg"></i>
+                </div>
+                <div class="dropzone-title">
+                  Kéo thả tệp tin hồ sơ hoặc nhấn vào đây để chọn
+                </div>
+                <div class="dropzone-sub">
+                  Định dạng hỗ trợ:
+                  <strong>.PDF, .TeX, .YAML, .MD, .TXT</strong> (Dung lượng tối
+                  đa 15MB)
+                </div>
+                <div id="upload-status-text" class="upload-status-text"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="section-header-row">
+                <div>
+                  <h3 class="section-title">
+                    Thông tin Ứng viên (Single Source of Truth)
+                  </h3>
+                  <p class="section-subtitle mb-0">
+                    Dữ liệu lưu trữ tập trung và là nguồn tham chiếu duy nhất để
+                    hệ thống tạo CV tạo thiết kế chuẩn xác.
+                  </p>
+                </div>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="saveProfileChanges()"
+                >
+                  <i data-lucide="save" class="icon-sm"></i>
+                  <span>Lưu thay đổi</span>
+                </button>
+              </div>
+
+              <div class="profile-grid-2col">
+                <div class="form-group">
+                  <label class="form-label" for="prof-full-name"
+                    >Họ và tên</label
+                  >
+                  <input
+                    type="text"
+                    id="prof-full-name"
+                    class="form-control"
+                    placeholder="Họ và tên ứng viên"
+                    title="Họ và tên"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="prof-headline"
+                    >Chức danh / Định hướng chuyên môn</label
+                  >
+                  <input
+                    type="text"
+                    id="prof-headline"
+                    class="form-control"
+                    placeholder="Ví dụ: Backend Developer / DevOps Intern"
+                    title="Chức danh chuyên môn"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="prof-email"
+                    >Email liên hệ</label
+                  >
+                  <input
+                    type="email"
+                    id="prof-email"
+                    class="form-control"
+                    placeholder="example@domain.com"
+                    title="Email liên hệ"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="prof-phone"
+                    >Số điện thoại</label
+                  >
+                  <input
+                    type="text"
+                    id="prof-phone"
+                    class="form-control"
+                    placeholder="+84 901 234 567"
+                    title="Số điện thoại liên hệ"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="prof-location"
+                  >Địa điểm cư trú</label
+                >
+                <input
+                  type="text"
+                  id="prof-location"
+                  class="form-control"
+                  placeholder="Ho Chi Minh City, Vietnam"
+                  title="Địa điểm cư trú"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="prof-target-roles"
+                  >Vị trí mục tiêu (Phân cách bằng dấu phẩy)</label
+                >
+                <input
+                  type="text"
+                  id="prof-target-roles"
+                  class="form-control"
+                  placeholder="Backend Developer, DevOps Engineer, Golang Engineer"
+                  title="Vị trí mục tiêu"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="prof-target-locations"
+                  >Khu vực làm việc mong muốn (Phân cách bằng dấu phẩy)</label
+                >
+                <input
+                  type="text"
+                  id="prof-target-locations"
+                  class="form-control"
+                  placeholder="Ho Chi Minh City, Remote, Ha Noi"
+                  title="Khu vực mong muốn"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="prof-summary"
+                  >Tóm tắt năng lực & Mục tiêu nghề nghiệp</label
+                >
+                <textarea
+                  id="prof-summary"
+                  class="form-control"
+                  rows="4"
+                  placeholder="Tóm tắt ngắn gọn năng lực, định hướng và thế mạnh kỹ thuật..."
+                  title="Tóm tắt năng lực"
+                ></textarea>
+              </div>
+
+              <div class="profile-footer-actions">
+                <button class="btn btn-primary" onclick="saveProfileChanges()">
+                  <i data-lucide="check" class="icon-sm"></i>
+                  <span>Lưu thông tin hồ sơ</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- View 7: System & Database Management -->
+          <section id="view-system" class="view-section">
+            <div class="section-subtitle">
+              Quản trị cơ sở dữ liệu, dọn dẹp bộ nhớ đệm và các tệp tin tạm
+              (PDF, LaTeX) trên máy chủ.
+            </div>
+
+            <div class="system-grid">
+              <!-- Card 1: Tailoring Only -->
+              <div class="card system-card">
+                <div>
+                  <div class="system-card-header">
+                    <div class="system-card-icon system-card-icon-warning">
+                      <i data-lucide="file-x" class="icon"></i>
+                    </div>
+                    <div>
+                      <h4 class="system-card-title">
+                        Dọn dẹp Hồ sơ tạo thiết kế
+                      </h4>
+                      <span class="badge badge-amber"
+                        >Phạm vi: tailoring_only</span
+                      >
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Xóa toàn bộ bản CV tạo thiết kế, Cover Letter, Evidence Map
+                    và các tệp tin PDF/TeX trên ổ đĩa.
+                    <strong
+                      >Giữ nguyên tin tuyển dụng và hồ sơ ứng viên.</strong
+                    >
+                  </p>
+                </div>
+                <button
+                  class="btn btn-warning"
+                  onclick="
+                    confirmPurgeDatabase(
+                      'tailoring_only',
+                      'Xóa toàn bộ Resumes, Cover Letters và file tạm',
+                    )
+                  "
+                >
+                  <i data-lucide="trash-2" class="icon-sm"></i>
+                  <span>Dọn dẹp Tailoring Cache</span>
+                </button>
+              </div>
+
+              <!-- Card 2: Matches Only -->
+              <div class="card system-card">
+                <div>
+                  <div class="system-card-header">
+                    <div class="system-card-icon system-card-icon-info">
+                      <i data-lucide="rotate-ccw" class="icon"></i>
+                    </div>
+                    <div>
+                      <h4 class="system-card-title">Đặt lại Điểm phù hợp</h4>
+                      <span class="badge badge-blue"
+                        >Phạm vi: matches_only</span
+                      >
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Xóa bảng điểm 7 chỉ số để hệ thống tính toán lại từ đầu khi
+                    chạy tiến trình quét hoặc khi mở tin tuyển dụng.
+                  </p>
+                </div>
+                <button
+                  class="btn btn-primary"
+                  onclick="
+                    confirmPurgeDatabase(
+                      'matches_only',
+                      'Xóa bảng điểm Job Matches',
+                    )
+                  "
+                >
+                  <i data-lucide="refresh-cw" class="icon-sm"></i>
+                  <span>Đặt lại Điểm Matching</span>
+                </button>
+              </div>
+
+              <!-- Card 3: Jobs & Tailoring -->
+              <div class="card system-card">
+                <div>
+                  <div class="system-card-header">
+                    <div class="system-card-icon system-card-icon-danger">
+                      <i data-lucide="trash" class="icon"></i>
+                    </div>
+                    <div>
+                      <h4 class="system-card-title">
+                        Xóa Dữ liệu Việc làm & Hồ sơ
+                      </h4>
+                      <span class="badge badge-red"
+                        >Phạm vi: jobs_and_tailoring</span
+                      >
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Xóa toàn bộ tin tuyển dụng, điểm phù hợp, CV tạo thiết kế và
+                    thư xin việc.
+                    <strong
+                      >Giữ nguyên Hồ sơ ứng viên và Từ điển kỹ năng
+                      chuẩn.</strong
+                    >
+                  </p>
+                </div>
+                <button
+                  class="btn btn-danger"
+                  onclick="
+                    confirmPurgeDatabase(
+                      'jobs_and_tailoring',
+                      'Xóa toàn bộ Jobs, Matches và Resumes',
+                    )
+                  "
+                >
+                  <i data-lucide="alert-triangle" class="icon-sm"></i>
+                  <span>Xóa Tin tuyển dụng & Cache</span>
+                </button>
+              </div>
+
+              <!-- Card 4: Reset Demo -->
+              <div class="card system-card">
+                <div>
+                  <div class="system-card-header">
+                    <div class="system-card-icon system-card-icon-success">
+                      <i data-lucide="sparkles" class="icon"></i>
+                    </div>
+                    <div>
+                      <h4 class="system-card-title">
+                        Khôi phục Dữ liệu mẫu Demo
+                      </h4>
+                      <span class="badge badge-green">Re-seed All</span>
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Làm trống toàn bộ cơ sở dữ liệu, nạp lại Từ điển Canonical
+                    Skills (180+ kỹ năng) và đồng bộ lại Hồ sơ từ thư mục
+                    <code>context.example/</code>.
+                  </p>
+                </div>
+                <button class="btn btn-primary" onclick="confirmResetDemo()">
+                  <i data-lucide="refresh-cw" class="icon-sm"></i>
+                  <span>Khôi phục Trạng thái mẫu</span>
+                </button>
+              </div>
+
+              <!-- Card 5: Full Wipe -->
+              <div class="card system-card">
+                <div>
+                  <div class="system-card-header">
+                    <div class="system-card-icon system-card-icon-danger">
+                      <i data-lucide="alert-octagon" class="icon"></i>
+                    </div>
+                    <div>
+                      <h4 class="system-card-title">
+                        Xóa sạch toàn bộ Cơ sở dữ liệu
+                      </h4>
+                      <span class="badge badge-red"
+                        >Phạm vi: all (Wipe All)</span
+                      >
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Xóa sạch toàn bộ dữ liệu trong tất cả các bảng: Jobs,
+                    Candidates, Resumes, Applications, Skills. Thao tác không
+                    thể hoàn tác.
+                  </p>
+                </div>
+                <button
+                  class="btn btn-danger"
+                  onclick="
+                    confirmPurgeDatabase(
+                      'all',
+                      'LÀM TRỐNG HOÀN TOÀN CƠ SỞ DỮ LIỆU',
+                    )
+                  "
+                >
+                  <i data-lucide="flame" class="icon-sm"></i>
+                  <span>Xóa sạch Database (Purge All)</span>
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
-      </header>
+      </main>
+    </div>
 
-      <!-- Content Area -->
-      <div class="content-container">
-        
-        <!-- View 1: Dashboard -->
-        <section id="view-dashboard" class="view-section active">
-          <!-- Metrics Grid -->
-          <div class="metrics-grid">
-            <div class="card metric-card">
-              <div class="metric-icon-box metric-icon-blue">💼</div>
-              <div>
-                <div id="metric-total-jobs" class="metric-value">0</div>
-                <div class="metric-label">Active Jobs Tracked</div>
-              </div>
-            </div>
-
-            <div class="card metric-card">
-              <div class="metric-icon-box metric-icon-green">🎯</div>
-              <div>
-                <div id="metric-top-recs" class="metric-value">0</div>
-                <div class="metric-label">Top Recommendations</div>
-              </div>
-            </div>
-
-            <div class="card metric-card">
-              <div class="metric-icon-box metric-icon-amber">⭐</div>
-              <div>
-                <div id="metric-saved-jobs" class="metric-value">0</div>
-                <div class="metric-label">Saved Bookmarks</div>
-              </div>
-            </div>
-
-            <div class="card metric-card">
-              <div class="metric-icon-box metric-icon-purple">🚀</div>
-              <div>
-                <div id="metric-apps-count" class="metric-value">0</div>
-                <div class="metric-label">Applications Submitted</div>
-              </div>
-            </div>
+    <!-- Job Detail Modal Dialog -->
+    <div id="job-detail-modal" class="modal-backdrop">
+      <div class="modal-dialog modal-dialog-lg">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <i data-lucide="briefcase" class="icon icon-primary"></i>
+            <h3 id="modal-job-title">Chi tiết tuyển dụng</h3>
           </div>
-
-          <!-- Section: Top AI Recommendations -->
-          <div class="section-header-row">
-            <h3>🎯 Đề xuất ứng tuyển hàng đầu hôm nay</h3>
-            <button class="btn btn-outline btn-sm" onclick="navigateTo('recommendations')">Xem tất cả đề xuất →</button>
-          </div>
-          <div id="dashboard-recs-list">
-            <!-- Dynamic Content -->
-          </div>
-        </section>
-
-        <!-- View 2: Job Explorer & Search -->
-        <section id="view-jobs" class="view-section">
-          <div class="filter-bar">
-            <div class="filter-col-search">
-              <input type="text" id="search-job-input" class="form-control" placeholder="Tìm theo tiêu đề, công ty, hoặc kỹ năng (Golang, Python, DevOps)..." title="Từ khóa tìm kiếm công việc">
-            </div>
-            <div class="filter-col-select">
-              <select id="filter-work-mode" class="form-control" title="Chọn hình thức làm việc" aria-label="Chọn hình thức làm việc" onchange="loadJobs()">
-                <option value="">Tất cả hình thức</option>
-                <option value="REMOTE">Remote</option>
-                <option value="HYBRID">Hybrid</option>
-                <option value="ONSITE">Onsite</option>
-              </select>
-            </div>
-            <div class="filter-col-select">
-              <select id="filter-level" class="form-control" title="Chọn cấp bậc tuyển dụng" aria-label="Chọn cấp bậc tuyển dụng" onchange="loadJobs()">
-                <option value="">Tất cả cấp bậc</option>
-                <option value="INTERN">Intern</option>
-                <option value="FRESHER">Fresher</option>
-                <option value="JUNIOR">Junior</option>
-                <option value="MID">Mid-level</option>
-                <option value="SENIOR">Senior</option>
-              </select>
-            </div>
-            <div class="filter-col-select">
-              <select id="filter-source" class="form-control" title="Chọn nguồn tin tuyển dụng" aria-label="Chọn nguồn tin tuyển dụng" onchange="loadJobs()">
-                <option value="">Tất cả nguồn tin</option>
-                <option value="topcv">TopCV.vn</option>
-                <option value="itviec">ITViec</option>
-                <option value="careerlink">CareerLink.vn</option>
-                <option value="remotive">Remotive</option>
-              </select>
-            </div>
-            <div class="filter-col-select">
-              <input type="text" id="filter-location" class="form-control" placeholder="Địa điểm (HCM, HN)" title="Địa điểm làm việc" onchange="loadJobs()">
-            </div>
-            <div>
-              <button class="btn btn-primary" onclick="loadJobs()">Tìm kiếm</button>
-            </div>
-          </div>
-
-          <div id="jobs-grid" class="job-grid">
-            <!-- Dynamic Job Cards -->
-          </div>
-        </section>
-
-        <!-- View 3: Top Recommendations -->
-        <section id="view-recommendations" class="view-section">
-          <div class="section-subtitle">
-            <p>Các vị trí có điểm phù hợp cao nhất dựa trên bộ 7 tín hiệu tất định (Deterministic 7-Signal Matching Engine) và tri-state Hard Filter.</p>
-          </div>
-          <div id="recommendations-list">
-            <!-- Dynamic Recommendations List -->
-          </div>
-        </section>
-
-        <!-- View 4: Resume Workspace -->
-        <section id="view-resume" class="view-section">
-          <div id="resume-workspace-content">
-            <div class="card empty-state-card">
-              <div class="empty-state-icon">📄</div>
-              <h3>Không gian làm việc Resume May Đo & Xác minh Bằng chứng</h3>
-              <p class="empty-state-text">
-                Chọn một công việc trong mục <strong>Job Explorer</strong> hoặc <strong>Dashboard</strong> và nhấn <em>"Tailor Resume"</em> để hệ thống AI sinh bản CV LaTeX, biên dịch sang PDF và xây dựng Evidence Map kiểm chứng không ảo giác (Zero-Hallucination).
-              </p>
-              <button class="btn btn-primary" onclick="navigateTo('jobs')">Khám phá công việc ngay →</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- View 5: Applications Tracker -->
-        <section id="view-applications" class="view-section">
-          <div class="card table-card">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Tiêu đề / Công việc</th>
-                  <th>Kênh nộp</th>
-                  <th>Người nhận</th>
-                  <th>Trạng thái</th>
-                  <th>Ngày nộp</th>
-                  <th>Chuyển trạng thái</th>
-                </tr>
-              </thead>
-              <tbody id="applications-table-body">
-                <!-- Dynamic Application Rows -->
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- View 6: Candidate Profile -->
-        <section id="view-profile" class="view-section">
-          <div class="card profile-card" style="margin-bottom: 1.5rem;">
-            <div class="profile-header-row" style="margin-bottom: 1rem;">
-              <div>
-                <h3>📥 Tải lên CV / Profile (PDF, TeX, YAML, MD)</h3>
-                <p class="profile-subtitle">Tự động trích xuất thông tin, kỹ năng, kinh nghiệm và dự án nạp vào Database.</p>
-              </div>
-            </div>
-            <div id="resume-dropzone" class="dropzone" onclick="document.getElementById('resume-file-input').click()">
-              <input type="file" id="resume-file-input" style="display: none;" accept=".pdf,.tex,.yaml,.yml,.md,.txt" onchange="handleResumeFileUpload(event)">
-              <div class="dropzone-icon">📄</div>
-              <div class="dropzone-title">Kéo thả tệp tin CV hoặc nhấn vào đây để chọn</div>
-              <div class="dropzone-sub">Hỗ trợ: <strong>.PDF, .TeX, .YAML, .MD, .TXT</strong> (Tối đa 15MB)</div>
-              <div id="upload-status-text" style="margin-top: 0.75rem; font-weight: 500; font-size: 0.85rem; color: var(--primary-600);"></div>
-            </div>
-          </div>
-
-          <div class="card profile-card">
-            <div class="profile-header-row">
-              <div>
-                <h3>Hồ sơ Ứng viên (Single Source of Truth)</h3>
-                <p class="profile-subtitle">Dữ liệu tại đây được lưu trực tiếp trong Database và là cơ sở duy nhất để AI may đo Resume.</p>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="saveProfileChanges()">💾 Lưu thay đổi</button>
-            </div>
-
-            <div class="profile-grid-2col">
-              <div class="form-group">
-                <label class="form-label" for="prof-full-name">Họ và tên</label>
-                <input type="text" id="prof-full-name" class="form-control" placeholder="Họ và tên ứng viên" title="Họ và tên">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="prof-headline">Headline / Tiêu đề chuyên môn</label>
-                <input type="text" id="prof-headline" class="form-control" placeholder="Ví dụ: Backend Developer / DevOps Intern" title="Tiêu đề chuyên môn">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="prof-email">Email liên hệ</label>
-                <input type="email" id="prof-email" class="form-control" placeholder="example@domain.com" title="Email liên hệ">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="prof-phone">Số điện thoại</label>
-                <input type="text" id="prof-phone" class="form-control" placeholder="+84 901 234 567" title="Số điện thoại liên hệ">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="prof-location">Địa điểm / Nơi cư trú</label>
-              <input type="text" id="prof-location" class="form-control" placeholder="Ho Chi Minh City, Vietnam" title="Địa điểm cư trú">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="prof-target-roles">Mục tiêu nghề nghiệp (Target Roles - phân cách bằng dấu phẩy)</label>
-              <input type="text" id="prof-target-roles" class="form-control" placeholder="System Intern, Backend Developer, DevOps Engineer" title="Mục tiêu nghề nghiệp">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="prof-target-locations">Địa điểm mong muốn (Target Locations - phân cách bằng dấu phẩy)</label>
-              <input type="text" id="prof-target-locations" class="form-control" placeholder="Ho Chi Minh City, Remote" title="Địa điểm mong muốn">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="prof-summary">Tóm tắt tiểu sử (Professional Summary)</label>
-              <textarea id="prof-summary" class="form-control" rows="4" placeholder="Tóm tắt ngắn gọn năng lực, định hướng và thế mạnh kỹ thuật..." title="Tóm tắt tiểu sử"></textarea>
-            </div>
-
-            <div class="profile-footer-actions">
-              <button class="btn btn-primary" onclick="saveProfileChanges()">💾 Lưu hồ sơ vào Database</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- View 7: System & Database Management -->
-        <section id="view-system" class="view-section">
-          <div class="section-subtitle">
-            <p>Quản trị hệ thống, làm trống cơ sở dữ liệu và dọn dẹp các tệp tin tạm (PDF, LaTeX) trên máy chủ.</p>
-          </div>
-
-          <div class="system-grid">
-            <!-- Card 1: Tailoring Only -->
-            <div class="card system-card card-warning">
-              <div>
-                <div class="system-card-header">
-                  <div class="system-card-icon" style="color: var(--warning);">📄</div>
-                  <div>
-                    <h4>Xóa Tailored Resumes & Cover Letters</h4>
-                    <span class="badge badge-amber">Phạm vi: tailoring_only</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
-                  Xóa toàn bộ bản CV may đo, Cover Letter, Evidence Map và toàn bộ tệp tin PDF/TeX trên ổ đĩa. <strong>Giữ nguyên tin tuyển dụng và hồ sơ ứng viên.</strong>
-                </p>
-              </div>
-              <button class="btn btn-warning" onclick="confirmPurgeDatabase('tailoring_only', 'Xóa toàn bộ Resumes, Cover Letters và file tạm')">
-                🗑️ Dọn dẹp Tailoring Cache
-              </button>
-            </div>
-
-            <!-- Card 2: Matches Only -->
-            <div class="card system-card card-info">
-              <div>
-                <div class="system-card-header">
-                  <div class="system-card-icon" style="color: var(--primary-600);">🎯</div>
-                  <div>
-                    <h4>Xóa Bảng điểm Phù hợp (Matches)</h4>
-                    <span class="badge badge-blue">Phạm vi: matches_only</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
-                  Xóa bảng điểm 7-signal Matching để hệ thống tính điểm lại từ đầu khi chạy Daily Batch hoặc mở tin tuyển dụng.
-                </p>
-              </div>
-              <button class="btn btn-primary" onclick="confirmPurgeDatabase('matches_only', 'Xóa bảng điểm Job Matches')">
-                🔄 Reset Điểm Matching
-              </button>
-            </div>
-
-            <!-- Card 3: Jobs & Tailoring -->
-            <div class="card system-card card-danger">
-              <div>
-                <div class="system-card-header">
-                  <div class="system-card-icon" style="color: var(--danger);">💼</div>
-                  <div>
-                    <h4>Xóa Jobs & Tailoring Data</h4>
-                    <span class="badge badge-red">Phạm vi: jobs_and_tailoring</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
-                  Xóa toàn bộ Tin tuyển dụng (Jobs & Raw Jobs), Matches, Resumes và Cover Letters. <strong>Giữ nguyên Hồ sơ ứng viên & Từ điển Kỹ năng.</strong>
-                </p>
-              </div>
-              <button class="btn btn-danger" onclick="confirmPurgeDatabase('jobs_and_tailoring', 'Xóa toàn bộ Jobs, Matches và Resumes')">
-                ⚠️ Xóa Tin tuyển dụng & Cache
-              </button>
-            </div>
-
-            <!-- Card 4: Reset Demo -->
-            <div class="card system-card card-info">
-              <div>
-                <div class="system-card-header">
-                  <div class="system-card-icon" style="color: var(--primary-600);">✨</div>
-                  <div>
-                    <h4>Khôi phục Dữ liệu Mẫu (Reset Demo)</h4>
-                    <span class="badge badge-green">Re-seed All</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
-                  Làm trống toàn bộ Database, nạp lại Từ điển Canonical Skills (180+ kỹ năng) và đồng bộ Profile từ thư mục <code>context.example/</code>.
-                </p>
-              </div>
-              <button class="btn btn-primary" onclick="confirmResetDemo()">
-                🔄 Khôi phục Trạng thái Mẫu
-              </button>
-            </div>
-
-            <!-- Card 5: Full Wipe -->
-            <div class="card system-card card-danger">
-              <div>
-                <div class="system-card-header">
-                  <div class="system-card-icon" style="color: var(--danger);">💥</div>
-                  <div>
-                    <h4>Làm trống Hoàn toàn Database</h4>
-                    <span class="badge badge-red">Phạm vi: all (Wipe All)</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 1rem 0;">
-                  Xóa sạch toàn bộ dữ liệu trong tất cả các bảng: Jobs, Candidates, Resumes, Applications, Skills. Thao tác không thể hoàn tác!
-                </p>
-              </div>
-              <button class="btn btn-danger" onclick="confirmPurgeDatabase('all', 'LÀM TRỐNG HOÀN TOÀN CƠ SỞ DỮ LIỆU')">
-                💥 Xóa sạch Database (Purge All)
-              </button>
-            </div>
-          </div>
-        </section>
-
-
-      </div>
-    </main>
-  </div>
-
-  <!-- Job Detail Modal Dialog -->
-  <div id="job-detail-modal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-job-title">Job Details</h3>
-        <button class="btn-close" onclick="closeJobDetailModal()" title="Đóng cửa sổ">&times;</button>
-      </div>
-      <div id="modal-job-body" class="modal-body">
-        <!-- Dynamic Job Modal Content -->
-      </div>
-      <div id="modal-job-footer" class="modal-footer">
-        <!-- Dynamic Actions -->
+          <button
+            class="btn-close"
+            onclick="closeJobDetailModal()"
+            title="Đóng cửa sổ"
+          >
+            <i data-lucide="x" class="icon"></i>
+          </button>
+        </div>
+        <div id="modal-job-body" class="modal-body">
+          <!-- Dynamic Job Modal Content -->
+        </div>
+        <div id="modal-job-footer" class="modal-footer">
+          <!-- Dynamic Actions -->
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="toast-container"></div>
+    <!-- Modal: Job Ingestion Scanner (Quét tin tuyển dụng đa tầng) -->
+    <div id="scan-jobs-modal" class="modal-backdrop">
+      <div class="modal-dialog modal-dialog-md">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title-wrap">
+              <i data-lucide="zap" class="icon icon-primary"></i>
+              <h3 class="m-0">Quét tin tuyển dụng đa nguồn</h3>
+            </div>
+            <p class="modal-subtitle">
+              Thu thập tự động từ ITViec, TopCV, CareerLink, Remotive, xử lý
+              trùng lặp và tính điểm phù hợp 7 chỉ số.
+            </p>
+          </div>
+          <button
+            class="btn-close"
+            onclick="closeScanJobsModal()"
+            title="Đóng cửa sổ"
+          >
+            <i data-lucide="x" class="icon"></i>
+          </button>
+        </div>
 
-  <!-- Scripts -->
-  <script src="/static/js/api.js"></script>
-  <script src="/static/js/app.js"></script>
-</body>
+        <div class="modal-body" id="scan-jobs-body">
+          <!-- Scan Mode Selection Cards -->
+          <div class="scan-mode-list">
+            <!-- Mode 1: Daily Fast Scan -->
+            <label class="scan-mode-card">
+              <input
+                type="radio"
+                name="scan-depth-mode"
+                value="20"
+                checked
+                onchange="toggleCustomLimitInput(false)"
+                class="scan-radio"
+              />
+              <div class="flex-1">
+                <div class="flex-between">
+                  <strong class="scan-title"
+                    >Quét nhanh hàng ngày (Daily Fast Scan)</strong
+                  >
+                  <span class="badge badge-blue">~5 - 10s</span>
+                </div>
+                <p class="scan-desc">
+                  Thu thập khoảng <strong>20 tin/nguồn</strong> (1–2 trang). Tối
+                  ưu chạy mỗi sáng để cập nhật các tin mới đăng trong
+                  <strong>24h–48h qua</strong>.
+                </p>
+              </div>
+            </label>
+
+            <!-- Mode 2: Standard Scan -->
+            <label class="scan-mode-card">
+              <input
+                type="radio"
+                name="scan-depth-mode"
+                value="80"
+                onchange="toggleCustomLimitInput(false)"
+                class="scan-radio"
+              />
+              <div class="flex-1">
+                <div class="flex-between">
+                  <strong class="scan-title"
+                    >Quét mở rộng (1–2 tuần gần đây)</strong
+                  >
+                  <span class="badge badge-green">~15 - 25s</span>
+                </div>
+                <p class="scan-desc">
+                  Thu thập khoảng <strong>80 tin/nguồn</strong> (4–5 trang). Mở
+                  rộng phạm vi tìm kiếm các tin còn hạn nộp trong
+                  <strong>1–2 tuần qua</strong>.
+                </p>
+              </div>
+            </label>
+
+            <!-- Mode 3: Deep Scan -->
+            <label class="scan-mode-card selected">
+              <input
+                type="radio"
+                name="scan-depth-mode"
+                value="200"
+                onchange="toggleCustomLimitInput(false)"
+                class="scan-radio"
+              />
+              <div class="flex-1">
+                <div class="flex-between">
+                  <strong class="scan-title-primary"
+                    >Quét toàn diện 30 ngày (Deep Scan)</strong
+                  >
+                  <span class="badge badge-purple">~40 - 60s</span>
+                </div>
+                <p class="scan-desc">
+                  Thu thập lên tới <strong>200 tin/nguồn</strong> (10–15 trang).
+                  Quét vét tối đa toàn bộ tin tuyển dụng IT đang mở trong
+                  <strong>1 tháng qua</strong>.
+                </p>
+              </div>
+            </label>
+
+            <!-- Mode 4: Custom Limit -->
+            <label class="scan-mode-card">
+              <input
+                type="radio"
+                name="scan-depth-mode"
+                value="custom"
+                onchange="toggleCustomLimitInput(true)"
+                class="scan-radio"
+              />
+              <div class="flex-1">
+                <div class="flex-between">
+                  <strong class="scan-title"
+                    >Tùy chỉnh số lượng tin (Custom Limit)</strong
+                  >
+                </div>
+                <div id="custom-limit-container" class="custom-limit-box">
+                  <input
+                    type="number"
+                    id="custom-scan-limit"
+                    class="form-control custom-limit-input"
+                    value="150"
+                    min="1"
+                    max="500"
+                    placeholder="Số tin/nguồn (1 - 500)"
+                  />
+                  <span class="custom-limit-text"
+                    >tin cho mỗi nguồn (tối đa 500)</span
+                  >
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Progress Box (Hidden until scanning starts) -->
+          <div id="scan-progress-box" class="scan-progress-box">
+            <div class="scan-progress-header">
+              <div class="spinner spinner-primary"></div>
+              <strong id="scan-progress-status" class="scan-progress-status"
+                >Đang kết nối các cổng tuyển dụng...</strong
+              >
+            </div>
+            <div class="scan-progress-detail" id="scan-progress-detail">
+              Hệ thống đang duyệt phân trang ITViec, TopCV, CareerLink,
+              Remotive...
+            </div>
+          </div>
+
+          <!-- Result Box (Hidden until complete) -->
+          <div id="scan-result-box" class="scan-result-box"></div>
+        </div>
+
+        <div class="modal-footer" id="scan-jobs-footer">
+          <button class="btn btn-outline" onclick="closeScanJobsModal()">
+            Đóng
+          </button>
+          <button
+            id="btn-start-scan"
+            class="btn btn-primary"
+            onclick="startConfiguredJobScan()"
+          >
+            <i data-lucide="play" class="icon-sm"></i>
+            <span>Bắt đầu Quét dữ liệu</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Job Ingestion Modal Dialog -->
+    <div id="manual-ingest-modal" class="modal-backdrop">
+      <div class="modal-dialog modal-dialog-lg">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title-wrap">
+              <i data-lucide="file-plus" class="icon icon-primary"></i>
+              <h3 class="m-0">Nhập tin tuyển dụng thủ công</h3>
+            </div>
+            <p class="modal-subtitle">
+              Trích xuất thông tin tự động từ văn bản bài đăng hoặc đường dẫn
+              URL tuyển dụng trực tiếp.
+            </p>
+          </div>
+          <button
+            class="btn-close"
+            onclick="closeManualIngestModal()"
+            title="Đóng cửa sổ"
+          >
+            <i data-lucide="x" class="icon"></i>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Tab Switcher -->
+          <div class="tab-switcher">
+            <button
+              id="tab-btn-text"
+              class="tab-switcher-btn active"
+              onclick="switchManualIngestTab('text')"
+            >
+              <i data-lucide="file-text" class="icon-sm"></i>
+              <span>Dán nội dung JD thô</span>
+            </button>
+            <button
+              id="tab-btn-url"
+              class="tab-switcher-btn"
+              onclick="switchManualIngestTab('url')"
+            >
+              <i data-lucide="link" class="icon-sm"></i>
+              <span>Nhập link tuyển dụng (URL)</span>
+            </button>
+          </div>
+
+          <!-- Tab 1: Raw Text Input -->
+          <div id="tab-content-text" class="tab-pane active">
+            <div class="form-group">
+              <label class="form-label" for="manual-raw-text"
+                >Nội dung bài đăng tuyển dụng</label
+              >
+              <textarea
+                id="manual-raw-text"
+                class="form-control"
+                rows="8"
+                placeholder="Dán toàn bộ bài đăng tuyển dụng vào đây... Ví dụ:
+
+[Tuyển dụng] Senior Backend Developer (Golang/Python)
+Công ty: Tech Global Solution
+Địa điểm: Ho Chi Minh City / Hybrid
+Mức lương: $1,500 - $2,500
+Yêu cầu:
+- 2+ năm kinh nghiệm Golang hoặc Python
+- Thành thạo PostgreSQL, Redis, Docker, RESTful API
+- Ưu tiên biết Kubernetes, AWS
+Liên hệ: hr@techglobal.com"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Tab 2: Direct URL Input -->
+          <div id="tab-content-url" class="tab-pane">
+            <div class="form-group">
+              <label class="form-label" for="manual-url-input"
+                >Đường dẫn trang tuyển dụng (Direct URL)</label
+              >
+              <input
+                type="url"
+                id="manual-url-input"
+                class="form-control"
+                placeholder="https://topcv.vn/viec-lam/... hoặc https://company.com/careers/job/123"
+                title="URL tuyển dụng"
+              />
+              <div class="form-help-text">
+                Hệ thống sẽ tự động quét mã nguồn trang, trích xuất thông tin
+                chức danh, công ty, kỹ năng và mức lương.
+              </div>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div class="option-card">
+            <label class="option-label">
+              <input
+                type="checkbox"
+                id="manual-auto-match"
+                checked
+                class="option-checkbox"
+              />
+              <span
+                >Tự động tính điểm phù hợp 7 chỉ số tất định ngay sau khi
+                nạp</span
+              >
+            </label>
+          </div>
+
+          <!-- Result Box (Hidden by default) -->
+          <div id="manual-ingest-result" class="manual-ingest-result-box">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="modal-footer" id="manual-ingest-footer">
+          <button class="btn btn-outline" onclick="closeManualIngestModal()">
+            Hủy / Đóng
+          </button>
+          <button
+            id="btn-submit-manual-ingest"
+            class="btn btn-primary"
+            onclick="submitManualJobIngest()"
+          >
+            <i data-lucide="play" class="icon-sm"></i>
+            <span>Phân tích & Nạp JD</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+  </body>
 </html>

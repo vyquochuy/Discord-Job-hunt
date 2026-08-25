@@ -59,6 +59,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./frontend:/frontend:ro
       - ./context:/context:ro
     depends_on:
       postgres:

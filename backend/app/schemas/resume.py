@@ -85,6 +85,10 @@ class TailorResumeRequest(BaseModel):
     custom_tone: Optional[str] = Field("professional_and_humble", description="Văn phong: professional_and_humble, technical_detailed, concise")
 
 
+class UpdateLatexRequest(BaseModel):
+    latex_source: str = Field(..., description="Mã nguồn LaTeX đã được chỉnh sửa")
+
+
 class ApplicationLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

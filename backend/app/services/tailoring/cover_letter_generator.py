@@ -190,7 +190,9 @@ class CoverLetterGenerator:
         if company.lower() in ["none", "unknown", "n/a"]:
             company = "Hiring Team"
         
-        role = (job.title or "Software Engineer Intern").strip()
+        from app.services.tailoring.resume_intelligence import normalize_target_title_to_english
+        raw_role = (job.title or "Software Engineer Intern").strip()
+        role = normalize_target_title_to_english(raw_role)
         
         # Bóc tách core requirements từ matched_skills, description hoặc loaded relations
         core_reqs = []

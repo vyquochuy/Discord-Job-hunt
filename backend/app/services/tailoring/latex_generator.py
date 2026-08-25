@@ -81,13 +81,17 @@ class LaTeXGenerator:
         - Giữ 100% backward compatibility nếu gọi theo signature cũ.
         """
         # 1. Header Information & Title
+        from app.services.tailoring.resume_intelligence import normalize_target_title_to_english
+
         if strategy:
-            role_title = strategy.target_title
+            role_family = getattr(strategy, "role_family", "general")
+            role_title = normalize_target_title_to_english(strategy.target_title, role_family)
             effective_matched_skills = strategy.matched_skills
             objective_text = cls.sanitize_bullet(strategy.adaptive_summary)
             ranked_projects = strategy.ranked_projects
         else:
-            role_title = target_title or (job.title if job else None) or candidate.headline or "Software Engineer Intern"
+            raw_title = target_title or (job.title if job else None) or candidate.headline or "Software Engineer Intern"
+            role_title = normalize_target_title_to_english(raw_title)
             effective_matched_skills = matched_skills or []
             if custom_objective:
                 objective_text = cls.sanitize_bullet(custom_objective)

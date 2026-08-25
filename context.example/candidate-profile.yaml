@@ -92,7 +92,7 @@ skills:
 projects:
   - name: "AI Job Hunter: Autonomous Agent & Resume Intelligence System"
     role: "Author & Sole Developer"
-    summary: "Asynchronous backend platform for multi-source job ingestion, 7-signal deterministic matching, provenance-verified resume tailoring, and Discord Bot operations"
+    summary: "Asynchronous job intelligence platform for multi-source ingestion, deterministic matching, and evidence-grounded resume tailoring."
     period: "Jul 2026 -- Present"
     repository_url: "https://github.com"
     demo_url: ""
@@ -110,14 +110,12 @@ projects:
       - "LaTeX"
       - "RapidFuzz"
     evidence:
-      - title: "Asynchronous Microservices & Ingestion Engine"
-        detail: "Architected an asynchronous backend engine using FastAPI, SQLAlchemy 2.0 async, Redis, and PostgreSQL with pgvector; engineered a multi-source job ingestion pipeline across 5 collectors (ITViec, Remotive, TopCV, CareerLink, Mock) utilizing SHA-256 content hashing for zero-token redundant caching."
+      - title: "Autonomous Job Ingestion & Discord Operations"
+        detail: "Built an async job pipeline with FastAPI, PostgreSQL/pgvector, Redis, and a TypeScript Discord bot supporting automated daily runs, rich embeds, interactive actions, and PDF streaming."
       - title: "3-Tier Deduplication & 7-Signal Matching"
-        detail: "Designed a 3-tier deduplication pipeline (Exact Hash -> RapidFuzz -> Cosine pgvector) and a deterministic 7-signal job scoring engine with strict tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN) and invariant weight normalization, evaluating batches in under 6 seconds."
-      - title: "Zero-Hallucination Resume Tailoring & LaTeX Sandbox"
-        detail: "Engineered an evidence-grounded resume tailoring engine with RoleClassifier, MMR-style diverse evidence selection, and ProvenanceVerifier (partial and token set fuzzy checks), paired with automated LaTeX compilation sandbox (pdflatex) generating verifiable PDF resumes and markdown cover letters with >= 90% provenance confidence."
-      - title: "Discord Bot Automation & Full Observability"
-        detail: "Built an interactive Discord bot (TypeScript, discord.js v14) with rich embeds, action buttons, modals, and direct PDF streaming, orchestrating end-to-end autonomous daily batch runs across 58 automated unit and integration tests."
+        detail: "Implemented SHA-256, RapidFuzz, and pgvector deduplication with a deterministic 7-signal scoring engine and tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN), processing job batches in <6s."
+      - title: "Evidence-Grounded Resume Tailoring"
+        detail: "Engineered RoleClassifier, diverse evidence selection, and ProvenanceVerifier to generate zero-hallucination LaTeX resumes and Markdown cover letters, with automated pdflatex compilation and >= 90% provenance confidence."
 
   - name: "EAP-TLS Authentication Protocol Demo"
     role: "Sole Developer"

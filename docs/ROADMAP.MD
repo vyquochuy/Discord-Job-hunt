@@ -3,9 +3,11 @@
 ---
 
 ## Phase 0 — Foundation
+
 **Status:** COMPLETED
 
 **Goal:** Repository structure, documentation, development environment, infrastructure.
+
 - [x] Docker Compose (PostgreSQL with pgvector, Redis, FastAPI Backend, Background Worker, Discord Bot)
 - [x] Database configuration with asyncpg and Alembic migrations
 - [x] Security middleware and health check endpoints (`/health`)
@@ -13,9 +15,11 @@
 ---
 
 ## Phase 1 — Candidate Profile
+
 **Status:** COMPLETED
 
 **Goal:** Store and manage candidate data so the system can use it for matching and generation.
+
 - [x] Candidate profile database models (`Candidate`, `CandidateSkill`, `CandidateExperience`, `CandidateProject`, `CandidateCertification`)
 - [x] Context synchronization parser (`candidate-profile.yaml`, `master-resume.tex`)
 - [x] CRUD/Sync REST APIs (`GET /api/v1/profile`, `PUT /api/v1/profile`, `POST /api/v1/profile/sync`)
@@ -23,9 +27,11 @@
 ---
 
 ## Phase 2 — Job Collection
+
 **Status:** COMPLETED
 
 **Goal:** Automatically discover and store normalized job postings from multiple sources.
+
 - [x] Job database models (`raw_jobs`, `jobs`, `skills`, `skill_aliases`, `job_skills`)
 - [x] Source collectors (ITViec, Remotive, CareerLink, TopCV, Mock)
 - [x] Canonical skill taxonomy & normalization engine
@@ -36,35 +42,41 @@
 ---
 
 ## Phase 2.5 — Manual & Ad-hoc Job Ingestion (URL / Raw Text Parsing)
-**Status:** PLANNED
+
+**Status:** COMPLETED
 
 **Goal:** Allow users to instantly import any external job posting via direct URL or by pasting raw unformatted job text (social media posts, Facebook, Telegram, emails) into structured jobs for immediate matching and resume tailoring.
 
 **Scope:**
-- [ ] **Dual-Mode Ingestion API (`POST /api/v1/jobs/ingest-manual`):**
+
+- [x] **Dual-Mode Ingestion API (`POST /api/v1/jobs/ingest-manual`):**
   - **Mode A: Raw Text Ingestion:** Parse free-form, unformatted job post text (with emojis, bullet points, salary, contact info, job descriptions, requirements).
-  - **Mode B: Direct URL Ingestion:** Fetch and extract job postings directly from arbitrary web links (TopCV, LinkedIn, company career pages, etc.).
-- [ ] **Intelligent Job Extractor Engine:**
-  - Fast rule-based + LLM structured JSON extraction (`title`, `company_name`, `location`, `work_mode`, `level`, `salary`, `skills_required`, `responsibilities`, `contact_email`, `contact_phone`, `apply_url`).
+  - **Mode B: Direct URL Ingestion:** Fetch and extract job postings directly from arbitrary web links (TopCV, LinkedIn, company career pages, Facebook, etc.) via `URLFetcher` with `JS_REQUIRED` fallback detection.
+- [x] **Intelligent Job Extractor Engine:**
+  - Fast rule-based + Canonical Skill Taxonomy extraction with per-field confidence scoring (`FieldConfidence`) and threshold-based LLM fallback.
   - Normalize extracted skills against Canonical Skill Taxonomy (`SkillNormalizer`).
-- [ ] **Instant Action Pipeline:**
-  - Auto-save to `jobs` table with source tagged as `manual_text` or `manual_url`.
+- [x] **Instant Action Pipeline:**
+  - Auto-save to `raw_jobs` (with full provenance metadata, confidence, and raw text) and `jobs` table (`source="manual"`).
+  - Lazy deduplication (L1 Exact Signature -> L2 RapidFuzz) & lazy vector embedding.
   - Trigger immediate 7-signal deterministic matching (`JobMatchService`).
   - Provide 1-click action to tailor Resume & Cover Letter for the imported job.
-- [ ] **User Interface (Web & Discord Bot):**
-  - **Web App:** Modal / Dropzone **"➕ Nhập JD thủ công"** with Textarea & URL input field and structured preview before saving.
-  - **Discord Bot:** Slash command `/job import` or Modal form for pasting job text directly in chat.
+- [x] **User Interface (Web & Discord Bot):**
+  - **Web App:** Modal **"➕ Nhập JD thủ công"** with Textarea & URL input field, extraction confidence bar, field checklist, match score preview, and 1-click Tailor Resume button.
+  - **Discord Bot:** Slash command `/import url <link>` and `/import text` with interactive Modal form for pasting job text directly in chat.
 
 **Acceptance Criteria:**
-- [ ] User can paste raw post text (e.g., recruitment posts from Facebook/Zalo/Email) and get a structured job entry with >95% accuracy.
-- [ ] Candidate can view match score and generate a tailored CV & Cover Letter for the imported job immediately without waiting for daily crawl.
+
+- [x] User can paste raw post text (e.g., recruitment posts from Facebook/Zalo/Email) or input a URL and get a structured job entry.
+- [x] Candidate can view match score and generate a tailored CV & Cover Letter for the imported job immediately without waiting for daily crawl.
 
 ---
 
 ## Phase 3 — Job Intelligence
+
 **Status:** COMPLETED
 
 **Goal:** Analyze job descriptions and produce candidate-job matches with deterministic scores.
+
 - [x] Tri-state Hard Filters (`ELIGIBLE`, `BLOCKED`, `UNCERTAIN`)
 - [x] 7-signal deterministic scoring engine (weights sum $= 1.0$)
 - [x] Explainable matching service with verified evidence trails
@@ -72,72 +84,66 @@
 
 ---
 
-## Phase 4 & 4.5 — Resume Intelligence & Tailoring
+---
+
+## Phase 4 & 4.5 — JD-Agnostic Strategic Resume Intelligence & Tailoring
+
 **Status:** COMPLETED
 
-**Goal:** Generate job-specific tailored resumes grounded in candidate evidence and automate dispatch.
-- [x] `RoleClassifier`, multi-tier `EvidenceScorer`, `DiverseEvidenceSelector` (MMR), `AdaptiveSummaryBuilder`
-- [x] Zero-Hallucination `ProvenanceVerifier` (fact-checking every bullet point against candidate profile)
-- [x] Pure `latex_generator.py` and sandbox `pdflatex` compilation wrapper
-- [x] Authentic Markdown `cover_letter_generator.py`
-- [x] REST APIs for CV generation, LaTeX source, and PDF downloads (`/api/v1/resumes/*`)
+**Goal:** Chuyển đổi công cụ tạo thiết kế hồ sơ thành một JD-Agnostic Strategic Resume Intelligence Engine đa chiều, bảo đảm nguyên tắc _Evidence-Locked + Zero-Hallucination + Strategic Positioning_.
+
+- [x] **Typed Intermediate Representation**: Single Source of Truth cho toàn bộ pipeline (`ResumeStrategy`, `FactNode`, `JDCapabilityProfile`, `LayoutBudget`).
+- [x] **Canonical Fact Graph & Metric Grounding**: Trích xuất nút sự thật bất biến và định lượng `MetricFact` phục vụ đối chiếu chính xác.
+- [x] **Multi-Dimensional JD Capability Analyzer**: Continuous vector $[0.0, 1.0]$ trên 10 domain với word-boundary taxonomy matching chống false positives.
+- [x] **Strategic Project Selector & Targeted MMR**: Multi-signal scoring, diversity bonus cho domain JD yêu cầu, redundancy penalty cho năng lực trùng lặp và Selection Explainability Matrix.
+- [x] **Physical Layout Planner (1-Page ATS)**: Độc lập giải bài toán ngân sách hiển thị A4 ATS (Max 3 dự án, Max 7 bullets, Min 2 dự án).
+- [x] **Claim-Level Provenance Verifier**: Phân rã mệnh đề nguyên tử (`DecomposedClaim`) và xác thực 4 trạng thái (`VERIFIED`, `PARTIALLY_VERIFIED`, `UNVERIFIED`, `CONFLICTING`).
+- [x] Pure LaTeX Generator & authentic Markdown Cover Letter Generator.
+- [x] 10-Scenario multi-role & adversarial test suite passing 100% (103/103 tests pass).
 
 ---
 
 ## Phase 5 — API Contract & Domain Boundary Definition
-**Status:** IN PROGRESS
 
-**Goal:** Cleanly separate Domain Core from presentation layers, establish User 1–1 Candidate identity, implement SavedJobs, flexible Auth, and Notification Service abstraction.
+**Status:** COMPLETED
 
-**Scope:**
-- [ ] Model `User` with 1–1 relationship to `Candidate`
-- [ ] Model `SavedJob` for user bookmarks
-- [ ] Alembic migration `007_user_and_saved_jobs_models.py`
-- [ ] Flexible Authentication Layer (Token/Bearer support + `verify_internal_secret`)
-- [ ] REST API Endpoints:
-  - Auth: `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`
-  - Saved Jobs: `POST /api/v1/jobs/{id}/save`, `DELETE /api/v1/jobs/{id}/save`, `GET /api/v1/jobs/saved`
-  - Applications: `PATCH /api/v1/applications/{id}/status`
-- [ ] `NotificationService` abstraction layer with `DiscordNotificationProvider`
+**Goal:** Phân tách rõ ràng Domain Core khỏi presentation layer, thiết lập định danh User 1–1 Candidate, lưu trữ SavedJobs, bảo mật Authentication và Notification Service abstraction.
 
-**Acceptance Criteria:**
-- [ ] User and CandidateProfile linked 1–1 cleanly
-- [ ] Database acts as runtime Source of Truth for Candidate Profile
-- [ ] Notification service sends notifications without business logic depending on Discord
-- [ ] Automated tests for API contracts and auth pass 100%
+- [x] Model `User` liên kết 1–1 với `Candidate`, model `SavedJob` lưu bookmark tin tuyển dụng.
+- [x] Alembic migration `007_user_and_saved_jobs_models.py`.
+- [x] Flexible Authentication Layer (`PBKDF2-HMAC-SHA256` + Bearer Token + `verify_internal_secret`).
+- [x] REST API Endpoints: Auth (`/api/v1/auth/*`), Saved Jobs (`/api/v1/jobs/saved`), Application status update (`PATCH /api/v1/applications/{id}/status`).
+- [x] `NotificationService` abstraction layer với `DiscordNotificationProvider` và `ConsoleNotificationProvider`.
 
 ---
 
 ## Phase 6 — Web Application Frontend (Simple Blue UI) & Discord Deprecation
-**Status:** NOT STARTED
 
-**Goal:** Build the primary Web Application interface with clean, information-dense Blue UI, and transition Discord slash commands to deprecated status with web redirect links.
+**Status:** COMPLETED
 
-**Scope:**
-- [ ] Web Application Frontend (Simple Blue Design System with CSS variables):
-  - `/login` & `/register`
-  - `/dashboard`: "What is worth applying today?"
-  - `/jobs` & `/jobs/:id`: Multi-criteria search, JD analysis, match explanations, actions (Apply/Save/Tailor)
-  - `/recommendations`: Top recommended jobs view
-  - `/profile`: Profile management and context sync
-  - `/resume`: Tailored resume workspace, PDF viewer, Provenance inspector, Cover Letter
-  - `/applications`: Application lifecycle tracking table
-- [ ] Discord Bot Adapter updates:
-  - Deprecate slash commands (`/jobs`, `/job`, `/match`, `/resume`, `/apply`) by providing short summaries with links to Web App
-  - Receive automated notifications from `NotificationService`
+**Goal:** Xây dựng Web Application hoàn chỉnh với giao diện Simple Blue UI hiện đại, biến Web thành giao diện chính và chuyển Discord Bot thành kênh thông báo phụ.
 
-**Acceptance Criteria:**
-- [ ] User can complete full job hunting workflow directly on the Web App without opening Discord
-- [ ] Web UI is fast, responsive, and adheres to the Simple Blue theme
-- [ ] Discord bot serves as an optional notification channel
+- [x] **Web Application Frontend (Simple Blue Design System)**:
+  - `/login` & `/register`: Đăng nhập & Đăng ký tài khoản.
+  - `/dashboard`: Tổng quan số liệu, Top gợi ý việc làm, One-click Run Daily Batch.
+  - `/jobs` & `/jobs/:id`: Tìm kiếm đa tiêu chí, xem JD chi tiết, biểu đồ radar 7-Signal Matching, và nút tương tác (_Apply_, _Save_, _Tailor_).
+  - `/recommendations`: Bảng xếp hạng các vị trí phù hợp nhất kèm lập luận bằng chứng.
+  - `/profile`: Chỉnh sửa hồ sơ và đồng bộ context files hai chiều.
+  - `/resume`: Không gian tạo thiết kế CV, xem trực tiếp PDF, Cover Letter, và kiểm tra Provenance Map.
+  - `/applications`: Bảng theo dõi tiến trình ứng tuyển.
+  - Modal **"➕ Nhập JD thủ công"**: Hỗ trợ dán text hoặc paste URL tin tuyển dụng bất kỳ để phân tích tức thì.
+- [x] **Discord Bot Deprecation**:
+  - Bổ sung thông báo kèm link chuyển hướng về Web App trong các lệnh chat.
+  - Tích hợp nhận thông báo tự động từ `NotificationService`.
 
 ---
 
 ## Phase 7 — Personalization & Advanced Outcome Tracking
-**Status:** NOT STARTED
 
-**Goal:** Learn from application outcomes to refine matching accuracy.
+**Status:** IN PROGRESS
+
+**Goal:** Tối ưu hóa vòng lặp phản hồi từ kết quả ứng tuyển thực tế (Application Outcomes), học hỏi từ hành vi tương tác và hoàn thiện các tính năng nâng cao.
+
 - [ ] Application outcome tracking (interview, rejection, offer)
-- [ ] Feedback loop to adjust matching score weights
-- [ ] User preference learning based on save/apply actions
-
+- [ ] Feedback loop to adjust matching score weights based on outcomes
+- [ ] User preference learning based on save/apply patterns

@@ -1,5 +1,6 @@
 /**
- * Job Hunter Platform - REST API Client
+ * Job Hunter Platform — Enterprise REST API Client
+ * Manages authentication, job querying, deterministic matching, resume tailoring, and system operations.
  */
 
 const API_BASE = '/api/v1';
@@ -40,32 +41,30 @@ class ApiClient {
       });
 
       if (response.status === 401) {
-        // Token expired or invalid
-        console.warn('Unauthorized request - session may have expired.');
+        console.warn('Unauthorized request — user session might be expired or missing.');
       }
 
       if (!response.ok) {
         let errorMsg = `HTTP Error ${response.status}`;
         try {
           const errData = await response.json();
-          errorMsg = errData.detail || errorMsg;
+          errorMsg = errData.detail || errData.message || errorMsg;
         } catch (_) {}
         throw new Error(errorMsg);
       }
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
       return await response.text();
     } catch (err) {
-      console.error(`API Error on [${options.method || 'GET'} ${endpoint}]:`, err);
+      console.error(`API Error [${options.method || 'GET'} ${endpoint}]:`, err);
       throw err;
     }
   }
 
-  // --- Auth APIs ---
+  // --- Authentication ---
   async register(email, password, fullName) {
     return this.request('/auth/register', {
       method: 'POST',
@@ -84,7 +83,7 @@ class ApiClient {
     return this.request('/auth/me');
   }
 
-  // --- Jobs APIs ---
+  // --- Jobs Management ---
   async getJobs(params = {}) {
     const query = new URLSearchParams();
     if (params.keyword) query.append('keyword', params.keyword);
@@ -131,7 +130,14 @@ class ApiClient {
     });
   }
 
-  // --- Matches APIs ---
+  async ingestManualJob(payload) {
+    return this.request('/jobs/ingest-manual', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // --- Matching Engine ---
   async getTopRecommendations(limit = 10) {
     return this.request(`/matches/recommendations/top?limit=${limit}`);
   }
@@ -147,7 +153,7 @@ class ApiClient {
     });
   }
 
-  // --- Profile APIs ---
+  // --- Profile & Resume Upload ---
   async getProfile() {
     return this.request('/profile');
   }
@@ -192,7 +198,7 @@ class ApiClient {
     return await response.json();
   }
 
-  // --- Resumes & Applications APIs ---
+  // --- Tailored Resumes & Applications ---
   async getTailoredResume(jobId) {
     return this.request(`/resumes/job/${jobId}`);
   }
@@ -219,8 +225,15 @@ class ApiClient {
     });
   }
 
-  getResumePdfUrl(resumeId) {
-    return `${API_BASE}/resumes/${resumeId}/pdf`;
+  async updateResumeLatex(resumeId, latexSource) {
+    return this.request(`/resumes/${resumeId}/tex`, {
+      method: 'PUT',
+      body: JSON.stringify({ latex_source: latexSource }),
+    });
+  }
+
+  getResumePdfUrl(resumeId, download = false) {
+    return `${API_BASE}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
   }
 
   async getApplications(page = 1, pageSize = 20) {
@@ -241,7 +254,7 @@ class ApiClient {
     });
   }
 
-  // --- System Administration & Database APIs ---
+  // --- System Operations ---
   async purgeDatabase(scope = 'jobs_and_tailoring', cleanStorage = true) {
     return this.request('/system/purge-database', {
       method: 'POST',
@@ -261,4 +274,3 @@ class ApiClient {
 }
 
 window.api = new ApiClient();
-

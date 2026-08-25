@@ -35,7 +35,7 @@ class ITViecJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(10, max(1, (limit + 19) // 20))
+        max_pages = min(25, max(1, (limit + 19) // 20))
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -74,7 +74,7 @@ class ITViecJobCollector(BaseJobCollector):
                         url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
 
                         company_elem = card.select_one(
-                            "span.text-hover-underline, a.text-rich-grey, .job-card__company-name, .employer-name, a[href*='/companies/']"
+                            "div.imy-3, a[href*='/companies/'], span.text-hover-underline, .job-card__company-name, .employer-name"
                         )
                         company = company_elem.get_text(strip=True) if company_elem else "IT Company"
 
