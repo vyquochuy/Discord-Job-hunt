@@ -126,9 +126,12 @@
   - Decoupled physical budgeting: Max 3 projects, Max 7 bullets, Min 2 projects.
 - [x] **Claim-Level Provenance Verifier**:
   - Decomposition of bullet points into atomic claims (`DecomposedClaim`) and exact metric grounding.
-- [x] **10-Scenario Multi-Role & Adversarial Test Suite**:
-  - 10 test scenarios covering Backend, Security, Systems, Frontend, Mobile, Hybrid, Intern, Mismatched roles, Unseen technologies, and Adversarial metric injection.
-  - 103/103 backend automated tests passing (100% pass rate).
+- [x] **Project Evidence Model & Invariant Engine**:
+  - 3-Layer Mandatory Schema: `summary` (factual context), `core` (Primary USP / Protected Evidence), `technologies` (Ground Truth duy nhất), `supporting_evidence` (xếp hạng đa tín hiệu linh hoạt).
+  - Core Protection Invariant: `core` sống sót 100% qua mọi bộ lọc, không bao giờ bị drop vì low JD relevance.
+  - Relevance-Driven Dynamic Positioning: Thứ tự hiển thị của `core` và `supporting_evidence` được xếp theo relevance thực tế đối với JD.
+  - Compression-First Layout Budget: Nén wording $\to$ Bỏ supporting evidence ít liên quan $\to$ Nén tech $\to$ Giảm khoảng cách $\to$ Mới giảm project (Core không bao giờ bị xóa).
+  - 107/107 backend automated tests passing (100% pass rate).
 
 ---
 
@@ -158,6 +161,26 @@
 - [ ] Feedback loop to adjust matching score weights based on outcomes
 - [ ] User preference learning based on save/apply patterns
 
+---
 
-
-
+## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM) (Planned)
+- [ ] **8.1 Frontend Cloud-Ready & Cloudflare Pages Deployment (0đ)**:
+  - [ ] Dynamic `API_BASE` endpoint in `frontend/js/api.js` (support `window.ENV?.API_URL`, local fallback, and production cloud domain)
+  - [ ] Cloudflare Pages SPA Routing rule in `frontend/_redirects` (`/* /index.html 200`) to prevent 404 on page refresh
+  - [ ] Verify all static assets (CSS, JS, icons) use relative paths
+  - [ ] Deploy Frontend to **Cloudflare Pages** (Free CDN, unlimited bandwidth, automated Git builds, SSL)
+- [ ] **8.2 Cloud Database & Serverless Cache (0đ)**:
+  - [ ] Provision **Supabase PostgreSQL** (Free tier 500MB) with `pgvector` extension enabled
+  - [ ] Provision **Upstash Redis** (Free 10k commands/day) for queue and caching
+  - [ ] Configure cloud `DATABASE_URL` and `REDIS_URL` in environment variables
+- [ ] **8.3 Zero-Cost AI Engine Migration (Google Gemini & Groq Cloud)**:
+  - [ ] Implement adapter for **Google Gemini 2.0 Flash / 1.5 Flash** (Google AI Studio Free Tier)
+  - [ ] Implement adapter for **Groq API** (LLaMA 3.3 70B, DeepSeek R1/V3) for high-speed 0đ extraction and tailoring
+  - [ ] Configurable AI provider switch (`AI_PROVIDER=gemini|groq|openai`) in `backend/app/core/config.py`
+- [ ] **8.4 Backend & Discord Bot Deployment (0đ)**:
+  - [ ] Deploy FastAPI Backend to **Render.com** (Free Web Service) or **Koyeb** / **Hugging Face Spaces**
+  - [ ] Configure CORS middleware in `backend/app/main.py` to allow Cloudflare Pages domain
+  - [ ] Deploy Discord Bot to **Hugging Face Spaces (Docker Space)** or **Discloud** for 24/7 WebSocket Gateway connection
+  - [ ] Set up **UptimeRobot** keep-alive ping (5-minute interval) against `/api/v1/health` to prevent backend cold sleep
+- [ ] **8.5 Cloud Storage & Context Persistence Hardening**:
+  - [ ] Persist candidate profile & generated tailored resumes directly in PostgreSQL / Supabase Storage (handling ephemeral container filesystem)

@@ -109,13 +109,14 @@ projects:
       - "discord.js"
       - "LaTeX"
       - "RapidFuzz"
-    evidence:
+    core:
+      title: "Evidence-Grounded Resume Tailoring"
+      description: "Engineered RoleClassifier, diverse evidence selection, and ProvenanceVerifier to generate zero-hallucination LaTeX resumes and Markdown cover letters, with automated pdflatex compilation and >= 90% provenance confidence."
+    supporting_evidence:
       - title: "Autonomous Job Ingestion & Discord Operations"
         detail: "Built an async job pipeline with FastAPI, PostgreSQL/pgvector, Redis, and a TypeScript Discord bot supporting automated daily runs, rich embeds, interactive actions, and PDF streaming."
       - title: "3-Tier Deduplication & 7-Signal Matching"
         detail: "Implemented SHA-256, RapidFuzz, and pgvector deduplication with a deterministic 7-signal scoring engine and tri-state hard filters (ELIGIBLE/BLOCKED/UNCERTAIN), processing job batches in <6s."
-      - title: "Evidence-Grounded Resume Tailoring"
-        detail: "Engineered RoleClassifier, diverse evidence selection, and ProvenanceVerifier to generate zero-hallucination LaTeX resumes and Markdown cover letters, with automated pdflatex compilation and >= 90% provenance confidence."
 
   - name: "EAP-TLS Authentication Protocol Demo"
     role: "Sole Developer"
@@ -130,9 +131,10 @@ projects:
       - "RSA-2048"
       - "SHA-256"
       - "Visual Studio 2022"
-    evidence:
-      - title: "Protocol Simulation & Architecture"
-        detail: "Designed and implemented a complete simulation of the IEEE 802.1X EAP-TLS authentication protocol in C++17, developing a three-party architecture consisting of EAP Peer, Authenticator, and Authentication Server to emulate enterprise network authentication workflows."
+    core:
+      title: "Protocol Simulation & Architecture"
+      description: "Designed and implemented a complete simulation of the IEEE 802.1X EAP-TLS authentication protocol in C++17, developing a three-party architecture consisting of EAP Peer, Authenticator, and Authentication Server to emulate enterprise network authentication workflows."
+    supporting_evidence:
       - title: "PKI & Certificate Infrastructure"
         detail: "Implemented Public Key Infrastructure (PKI) components including Certificate Authority creation, X.509 certificate generation, certificate signing, and chain validation using OpenSSL."
       - title: "Mutual Authentication & Cryptography"
@@ -156,11 +158,12 @@ projects:
       - "IndexedDB"
       - "Cloudflare D1"
       - "Cloudflare KV"
-    evidence:
+    core:
+      title: "Stateful Real-Time Edge"
+      description: "Engineed a stateful WebSocket layer using Cloudflare Durable Objects to manage persistent edge connections, achieving a measured round-trip latency of ~45ms (tested from Vietnam to Cloudflare Asia-Pacific PoP) with stable presence tracking and typing indicators under concurrent load."
+    supporting_evidence:
       - title: "Cryptography & E2EE"
         detail: "Architected a zero-knowledge End-to-End Encryption (E2EE) system with secure ECDH P-256 key exchange, non-extractable local key storage, and recovery-based key rotation; verified correct decryption across 3 simultaneous device sessions with no key leakage."
-      - title: "Stateful Real-Time Edge"
-        detail: "Engineed a stateful WebSocket layer using Cloudflare Durable Objects to manage persistent edge connections, achieving a measured round-trip latency of ~45ms (tested from Vietnam to Cloudflare Asia-Pacific PoP) with stable presence tracking and typing indicators under concurrent load."
       - title: "Serverless Infrastructure & Rate-Limiting"
         detail: "Designed a relational data model on Cloudflare D1 (SQLite) and implemented token-bucket rate-limiting with Cloudflare KV to protect authentication and OTP flows; load-tested to sustain 200 req/min per user before throttling, blocking brute-force attempts within under 1 second."
 
@@ -180,11 +183,12 @@ projects:
       - "Hive"
       - "Argon2id"
       - "AES-256-GCM/CTR"
-    evidence:
+    core:
+      title: "Zero-Knowledge Key Recovery"
+      description: "Modeled a robust 9-table relational database schema in Cloudflare D1 (SQLite) supporting multi-tenant user metadata, device logs, and recovery blobs via Shamir's Secret Sharing (3-of-5 threshold); paired with Cloudflare KV Namespace for high-performance session caching."
+    supporting_evidence:
       - title: "Serverless API & Sync Architecture"
         detail: "Designed a highly scalable serverless synchronization backend using Cloudflare Workers and the Hono framework (TypeScript); API endpoints benchmarked at < 80ms average response time under simulated multi-device sync load (tested with 10 concurrent devices), handling only pre-encrypted Vault Chunks to guarantee zero server-side plaintext exposure."
-      - title: "Relational Database & Blind Storage Schema"
-        detail: "Modeled a robust 9-table relational database schema in Cloudflare D1 (SQLite) supporting multi-tenant user metadata, device logs, and recovery blobs via Shamir's Secret Sharing (3-of-5 threshold); paired with Cloudflare KV Namespace for high-performance session caching."
       - title: "Cryptographic & Anti-Enumeration Security"
         detail: "Implemented server-side authentication with client-side Argon2id password hashing (t=3, m=64MB) and deterministic fake salts to eliminate user enumeration; engineered dynamic token-bucket rate-limiting capable of sustaining legitimate traffic up to 100 req/min while auto-blocking anomalous bursts (>20 req/10s) within one KV write cycle; audit logging captures 100% of auth events."
 

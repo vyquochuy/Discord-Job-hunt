@@ -120,6 +120,45 @@ class CandidateRepository:
                 else:
                     period_str = str(period_val) if period_val else None
 
+                # Chuẩn hóa evidence_points: hỗ trợ schema mới (core + supporting_evidence) và schema cũ (evidence / evidence_points)
+                ev_points: List[dict[str, Any]] = []
+                if p.get("core") and isinstance(p["core"], dict):
+                    core_obj = p["core"]
+                    ev_points.append({
+                        "title": core_obj.get("title", "Core"),
+                        "detail": core_obj.get("description", "") or core_obj.get("detail", ""),
+                        "is_core": True,
+                        "technology_refs": core_obj.get("technology_refs", []),
+                    })
+                    for sup in p.get("supporting_evidence", []):
+                        if isinstance(sup, dict):
+                            ev_points.append({
+                                "title": sup.get("title", ""),
+                                "detail": sup.get("detail", "") or sup.get("description", ""),
+                                "is_core": False,
+                                "technologies": sup.get("technologies", []),
+                            })
+                elif p.get("evidence"):
+                    raw_ev = p["evidence"]
+                    for b_idx, item in enumerate(raw_ev):
+                        if isinstance(item, dict):
+                            ev_dict = dict(item)
+                            if "is_core" not in ev_dict and b_idx == 0:
+                                ev_dict["is_core"] = True
+                            ev_points.append(ev_dict)
+                        else:
+                            ev_points.append({"title": "", "detail": str(item), "is_core": (b_idx == 0)})
+                elif p.get("evidence_points"):
+                    raw_ev = p["evidence_points"]
+                    for b_idx, item in enumerate(raw_ev):
+                        if isinstance(item, dict):
+                            ev_dict = dict(item)
+                            if "is_core" not in ev_dict and b_idx == 0:
+                                ev_dict["is_core"] = True
+                            ev_points.append(ev_dict)
+                        else:
+                            ev_points.append({"title": "", "detail": str(item), "is_core": (b_idx == 0)})
+
                 new_projects.append(
                     CandidateProject(
                         name=p["name"],
@@ -129,7 +168,7 @@ class CandidateRepository:
                         repository_url=p.get("repository_url"),
                         demo_url=p.get("demo_url"),
                         technologies=p.get("technologies", []),
-                        evidence_points=p.get("evidence", []),
+                        evidence_points=ev_points,
                         order=idx,
                     )
                 )

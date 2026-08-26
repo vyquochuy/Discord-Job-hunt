@@ -44,30 +44,60 @@ class LayoutPlanner:
         total_bullets_used = 0
 
         for sp in projects_to_include:
-            valid_bullets = [
-                ev for ev in sp.ranked_evidence
+            all_evs = sp.ranked_evidence or []
+            if not all_evs:
+                allocated_projects.append(sp)
+                continue
+
+            # Tách riêng Core evidence và Supporting evidence
+            core_items = [
+                ev for ev in all_evs
+                if getattr(ev, "is_core", False) or getattr(ev, "is_protected", False)
+            ]
+            if not core_items and all_evs:
+                # Fallback: nếu không có bullet nào được gán is_core, coi bullet đầu tiên là core
+                core_items = [all_evs[0]]
+
+            core_ev = core_items[0]
+            supporting_evs = [ev for ev in all_evs if ev is not core_ev]
+
+            # Lọc supporting evidence theo ngưỡng chất lượng
+            valid_supporting = [
+                ev for ev in supporting_evs
                 if getattr(ev, "total_score", getattr(ev, "score", 0.5)) >= budget.min_bullet_threshold
             ]
-            
-            if not valid_bullets:
-                valid_bullets = sp.ranked_evidence[: budget.min_bullets_per_project]
+            if not valid_supporting and supporting_evs:
+                valid_supporting = supporting_evs
 
-            bullets_to_take = min(len(valid_bullets), budget.max_bullets_per_project)
-            
+            # Tính toán số lượng bullet cho project này
+            # Min: 1 (chính là slot bảo vệ cho core)
+            max_available = 1 + len(valid_supporting)
+            bullets_to_take = min(max_available, budget.max_bullets_per_project)
+
             remaining_quota = budget.max_total_bullets - total_bullets_used
             bullets_to_take = max(
                 budget.min_bullets_per_project,
                 min(bullets_to_take, remaining_quota)
             )
 
-            pruned_bullets = valid_bullets[:bullets_to_take]
-            total_bullets_used += len(pruned_bullets)
+            # Chọn (bullets_to_take - 1) supporting bullets có relevance cao nhất + 1 core bullet
+            supporting_quota = max(0, bullets_to_take - 1)
+            selected_supporting = valid_supporting[:supporting_quota]
+            final_project_bullets = [core_ev] + selected_supporting
+
+            # Sắp xếp hiển thị theo relevance score (total_score) giảm dần
+            final_project_bullets.sort(
+                key=lambda e: getattr(e, "total_score", getattr(e, "score", 0.5)),
+                reverse=True,
+            )
+
+            total_bullets_used += len(final_project_bullets)
 
             allocated_projects.append(
                 ScoredProjectCandidate(
                     project=sp.project,
                     project_score=sp.project_score,
-                    ranked_evidence=pruned_bullets,
+                    ranked_evidence=final_project_bullets,
                     capabilities=sp.capabilities,
                     matched_technologies=sp.matched_technologies,
                     diversity_bonus=sp.diversity_bonus,

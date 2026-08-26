@@ -170,6 +170,7 @@ class FactGraphBuilder:
                 )
 
             ev_points = getattr(proj, "evidence_points", []) or []
+            has_explicit_core = any(isinstance(x, dict) and x.get("is_core") is True for x in ev_points)
             if ev_points:
                 for b_idx, ev in enumerate(ev_points):
                     title = ev.get("title", "") if isinstance(ev, dict) else ""
@@ -179,6 +180,15 @@ class FactGraphBuilder:
                     full_text = f"{title}: {detail}" if title else detail
                     bullet_techs = ev.get("technologies", p_techs) if isinstance(ev, dict) else p_techs
                     
+                    is_core = False
+                    if isinstance(ev, dict):
+                        if ev.get("is_core") is True:
+                            is_core = True
+                        elif b_idx == 0 and not has_explicit_core:
+                            is_core = True
+                    elif b_idx == 0:
+                        is_core = True
+                    
                     fact_nodes[bullet_fact_id] = FactNode(
                         fact_id=bullet_fact_id,
                         entity_type="PROJECT",
@@ -187,6 +197,7 @@ class FactGraphBuilder:
                         technologies=bullet_techs or [],
                         capabilities=cls.infer_capabilities(full_text, bullet_techs or []),
                         metrics=cls.extract_metric_facts(full_text, bullet_fact_id),
+                        is_core=is_core,
                     )
 
         # 2. Experiences

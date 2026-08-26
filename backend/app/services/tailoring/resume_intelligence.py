@@ -295,6 +295,8 @@ class EvidenceScorer:
         final_score = (base_composite * jd_importance_weight) - irrelevance_penalty
         final_score = round(min(1.0, max(0.0, final_score)), 4)
 
+        is_core_flag = fact_node.is_core if fact_node else (isinstance(evidence_point, dict) and bool(evidence_point.get("is_core", False)))
+
         if not fact_node:
             p_slug = re.sub(r"[^a-zA-Z0-9_]", "_", project_name.lower()).strip("_")
             fact_node = FactNode(
@@ -305,6 +307,7 @@ class EvidenceScorer:
                 technologies=evidence_techs,
                 capabilities=capabilities,
                 metrics=[MetricFact(f"metric_{i}", 0.0, "", "", m) for i, m in enumerate(metrics)],
+                is_core=is_core_flag,
             )
 
         return ScoredEvidenceItem(
@@ -322,6 +325,7 @@ class EvidenceScorer:
             irrelevance_penalty=irrelevance_penalty,
             matched_capabilities=capabilities,
             metrics=metrics,
+            is_core=is_core_flag,
         )
 
 

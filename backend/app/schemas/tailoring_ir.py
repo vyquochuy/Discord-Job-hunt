@@ -40,6 +40,41 @@ class FactNode:
     technologies: List[str] = field(default_factory=list)
     capabilities: List[str] = field(default_factory=list)
     metrics: List[MetricFact] = field(default_factory=list)
+    is_core: bool = False             # Đánh dấu Core Evidence bất biến của dự án
+
+
+@dataclass
+class CoreEvidence:
+    """Primary Technical Differentiator / USP của dự án (Bắt buộc, duy nhất 1)."""
+    title: str
+    description: str
+    technology_refs: List[str] = field(default_factory=list)
+    is_core: bool = True
+
+
+@dataclass
+class SupportingEvidence:
+    """Minh chứng kỹ thuật bổ trợ (Tùy chọn, xếp hạng và chọn lọc linh hoạt theo JD)."""
+    title: str
+    detail: str
+    technologies: List[str] = field(default_factory=list)
+    capabilities: List[str] = field(default_factory=list)
+    metrics: List[str] = field(default_factory=list)
+    is_core: bool = False
+
+
+@dataclass
+class ProjectEvidenceModel:
+    """Mô hình minh chứng dự án 3 lớp chuẩn hóa + lớp mở rộng."""
+    name: str
+    summary: str                                        # 1 câu ngắn factual tổng quan
+    core: CoreEvidence                                  # 1 Core evidence bắt buộc
+    technologies: List[str]                             # Ground truth tech stack duy nhất
+    supporting_evidence: List[SupportingEvidence] = field(default_factory=list)
+    role: Optional[str] = None
+    period: Optional[str] = None
+    repository_url: Optional[str] = None
+    demo_url: Optional[str] = None
 
 
 @dataclass
@@ -72,6 +107,7 @@ class ScoredEvidenceItem:
     capabilities: List[str] = field(default_factory=list)
     metrics: List[str] = field(default_factory=list)
     fact_node: Optional[FactNode] = None
+    is_core: bool = False                     # Cờ đánh dấu minh chứng là Core USP bất biến
 
     def __init__(
         self,
@@ -91,11 +127,13 @@ class ScoredEvidenceItem:
         matched_capabilities: Optional[List[str]] = None,
         metrics: Optional[List[str]] = None,
         fact_node: Optional[FactNode] = None,
+        is_core: bool = False,
     ):
         self.project_name = project_name
         self.evidence_title = evidence_title
         self.evidence_detail = evidence_detail
         self.technologies = technologies or []
+        self.is_core = is_core or (fact_node.is_core if fact_node else False)
 
         # Xử lý linh hoạt cả positional và keyword arguments
         final_sc = 1.0
@@ -125,6 +163,11 @@ class ScoredEvidenceItem:
         self.capabilities = caps
         self.metrics = metrics or []
         self.fact_node = fact_node
+
+    @property
+    def is_protected(self) -> bool:
+        """Core evidence luôn được bảo vệ khỏi bị drop."""
+        return self.is_core
 
     @property
     def score(self) -> float:

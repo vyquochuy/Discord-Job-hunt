@@ -147,3 +147,30 @@
 - [ ] Application outcome tracking (interview, rejection, offer)
 - [ ] Feedback loop to adjust matching score weights based on outcomes
 - [ ] User preference learning based on save/apply patterns
+
+---
+
+## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM)
+
+**Status:** PLANNED
+
+**Goal:** Đưa toàn bộ hệ sinh thái AI Job Hunter lên môi trường Public Production với chi phí 0đ, tối ưu hiệu năng toàn cầu (Cloudflare CDN), đảm bảo tính sẵn sàng cao và giải quyết triệt để các rào cản về hạ tầng / AI Token.
+
+- [ ] **Cloudflare Pages Frontend (0đ)**:
+  - Cấu hình dynamic `API_BASE` endpoint trong [api.js](file:///frontend/js/api.js) (hỗ trợ `window.ENV?.API_URL`, local fallback và backend cloud domain).
+  - Thêm quy tắc định tuyến SPA `_redirects` (`/* /index.html 200`) cho Cloudflare Pages để loại bỏ hoàn toàn lỗi 404 khi người dùng tải lại trang.
+  - Chuẩn hóa toàn bộ đường dẫn static assets sang relative paths.
+- [ ] **Cloud Database & Serverless Cache (0đ)**:
+  - Khởi tạo **Supabase PostgreSQL** (Free Tier 500MB) có tích hợp sẵn extension `pgvector`.
+  - Khởi tạo **Upstash Redis** (Free 10,000 commands/ngày) phục vụ message queue và caching.
+- [ ] **Zero-Cost AI Engine Migration (Google Gemini & Groq Cloud)**:
+  - Tích hợp adapter cho **Google Gemini 2.0 Flash / 1.5 Flash** (Google AI Studio Free Tier) và **Groq API** (LLaMA 3.3 70B, DeepSeek R1/V3).
+  - Hỗ trợ chuyển đổi linh hoạt qua biến môi trường `AI_PROVIDER` để vận hành 100% không tốn chi phí token.
+- [ ] **Backend & Discord Bot 24/7 Deployment (0đ)**:
+  - Deploy FastAPI Backend lên **Render.com** (Free Web Service) hoặc **Koyeb** / **Hugging Face Spaces**.
+  - Cấu hình CORS cho phép domain Cloudflare Pages truy cập bảo mật.
+  - Deploy Discord Bot lên **Hugging Face Spaces (Docker Space)** hoặc **Discloud** để duy trì kết nối WebSocket Gateway liên tục.
+  - Thiết lập keep-alive ping (UptimeRobot 5 phút/lần) chống cold-sleep cho backend.
+- [ ] **Cloud Storage & Persistence Hardening**:
+  - Lưu trữ Profile và Tailored Resumes vào PostgreSQL / Supabase Storage để dữ liệu không bị mất khi container khởi động lại (ephemeral filesystem).
+

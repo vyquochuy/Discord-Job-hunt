@@ -94,7 +94,15 @@ class ProjectBase(BaseModel):
     repository_url: Optional[str] = Field(None, description="Link mã nguồn Git")
     demo_url: Optional[str] = Field(None, description="Link Demo / Production")
     technologies: List[str] = Field(
-        default_factory=list, description="Danh sách công nghệ sử dụng"
+        default_factory=list, description="Danh sách công nghệ sử dụng (Ground Truth duy nhất)"
+    )
+    core: Optional[dict[str, Any]] = Field(
+        None,
+        description="Core Technical Differentiator / USP của dự án (Bắt buộc 1, bất biến)",
+    )
+    supporting_evidence: Optional[List[dict[str, Any]]] = Field(
+        default_factory=list,
+        description="Danh sách các minh chứng kỹ thuật bổ trợ",
     )
     evidence_points: List[dict[str, Any]] = Field(
         default_factory=list,
@@ -115,6 +123,8 @@ class ProjectUpdate(BaseModel):
     repository_url: Optional[str] = None
     demo_url: Optional[str] = None
     technologies: Optional[List[str]] = None
+    core: Optional[dict[str, Any]] = None
+    supporting_evidence: Optional[List[dict[str, Any]]] = None
     evidence_points: Optional[List[dict[str, Any]]] = None
     order: Optional[int] = None
 
