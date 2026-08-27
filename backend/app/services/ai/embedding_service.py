@@ -14,7 +14,12 @@ class EmbeddingService:
     """
 
     def __init__(self):
-        self.api_key = getattr(settings, "OPENAI_API_KEY", None)
+        raw_key = getattr(settings, "OPENAI_API_KEY", None)
+        # Bỏ qua nếu là placeholder mặc định
+        if raw_key and ("your_openai" in raw_key.lower() or "example" in raw_key.lower() or raw_key.strip() == ""):
+            self.api_key = None
+        else:
+            self.api_key = raw_key
         self.client = AsyncOpenAI(api_key=self.api_key) if self.api_key else None
         self.model = getattr(settings, "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
@@ -26,7 +31,7 @@ class EmbeddingService:
         if not text or not text.strip():
             return None
 
-        if not self.client:
+        if not self.client or not self.api_key:
             return None
 
         try:

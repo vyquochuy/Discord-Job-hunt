@@ -300,3 +300,30 @@
 - [x] **Kiểm thử hồi quy toàn diện**:
   - **103/103 tests PASS 100%** trên toàn bộ test suite backend.
 
+---
+
+## Phase 6.2 — Evidence-Grounded Resume Tailoring Engine & Anti-Hallucination Architectural Refactor (Completed)
+
+- [x] **Pipeline Architecture Transition**:
+  - Chuyển đổi toàn diện kiến trúc Resume Tailoring sang mô hình:
+    `Candidate Profile` $\rightarrow$ `Evidence & Fact Extraction` $\rightarrow$ `JD Analysis & Gap Detection` $\rightarrow$ `Tailoring Strategy` $\rightarrow$ `Gemini Semantic Resume Writer` $\rightarrow$ `Claim-Level Evidence Validation & Anti-Hallucination` $\rightarrow$ `Structured Resume Model` $\rightarrow$ `Pure LaTeX Resume Renderer` $\rightarrow$ `PDF Output`.
+- [x] **Technology Alias Registry (`alias_registry.py`)**:
+  - Triển khai `TechnologyAliasRegistry` hỗ trợ trích xuất token theo word-boundary và chuẩn hóa canonical ID (50+ khái niệm công nghệ, loại bỏ triệt để regex false positives).
+- [x] **Fact Graph & Single Source of Truth (`fact_graph.py`)**:
+  - Triển khai `EvidenceRegistry` trích xuất các atomic `EvidenceFact` với danh sách canonical technologies và quantitative metrics có thật từ profile.
+- [x] **JD Capability & Gap Detection (`jd_capability_analyzer.py`)**:
+  - Tối ưu hóa bộ phân tích năng lực và phát hiện lỗ hổng ứng viên (`identify_candidate_gaps`), lọc bỏ các stop words miền chung (`server`, `cloud`, `infrastructure`...).
+- [x] **Gemini Semantic Resume Writer (`gemini_resume_writer.py` & `resume_prompts.py`)**:
+  - Tích hợp Google Gemini REST API với mô hình `gemini-3.6-flash` và cơ chế Pydantic Structured JSON Mode.
+  - Phân rã mỗi bullet thành danh sách `claims: list[GeneratedClaimFragment]` kèm `evidence_ids` cụ thể để đạt tính minh bạch tối đa (granular traceability).
+- [x] **Deterministic Resume Composer (`deterministic_composer.py`)**:
+  - Triển khai bộ lắp ráp CV tất định offline 100% Zero-Token Cost làm fallback khi mất mạng hoặc không có API key.
+- [x] **Claim-Level Validator & Unit Regeneration (`evidence_validator.py`)**:
+  - Xây dựng bộ kiểm định 6 tầng: `INVALID_EVIDENCE_ID`, `UNSUPPORTED_TECHNOLOGY`, `UNSUPPORTED_METRIC`, `EXPERIENCE_INFLATION`, `UNSUPPORTED_JD_FABRICATION`, và `ARCHITECTURAL_SCOPE_SHIFT` (bảo vệ tính toàn vẹn định ngữ kiến trúc như `client-side` vs `server-side`).
+  - Triển khai `UnitRegenerationOrchestrator` khóa chặt các unit hợp lệ (`locked_units`) và chỉ regenerate các unit vi phạm.
+- [x] **Pure LaTeX Generator (`latex_generator.py`)**:
+  - Cập nhật renderer chấp nhận trực tiếp `StructuredResumeDraft` và xuất ra mã nguồn LaTeX đạt chuẩn 1 trang A4 ATS.
+- [x] **Kiểm thử hồi quy toàn diện**:
+  - Xây dựng test suite `test_architectural_anti_hallucination.py` với 11 kịch bản kiểm thử nghiêm ngặt.
+  - **118/118 tests PASS (100% pass rate)** trên toàn bộ repository.
+

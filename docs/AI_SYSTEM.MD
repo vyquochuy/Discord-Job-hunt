@@ -439,50 +439,66 @@ Source (origin of the evidence)
 
 ---
 
-## Resume System
+## Resume System (Evidence-Grounded Tailoring Engine)
 
-### Pipeline
+### Architecture Pipeline
 
 ```
-Master Resume (context/master-resume.md)
-  ↓
-Job Requirements (structured, from JD analysis)
-  ↓
-Evidence Selection (filter relevant evidence)
-  ↓
-Resume Planning (AI: which sections, what emphasis)
-  ↓
-Resume Generation (AI: produce tailored content)
-  ↓
-Evidence Validation (verify claims against sources)
-  ↓
-Output (DOCX/PDF)
+Candidate Profile (PostgreSQL / candidate-profile.yaml / master-resume.tex)
+        ↓
+Evidence & Fact Extraction (fact_graph.py & TechnologyAliasRegistry)
+        ↓
+JD Analysis & Gap Detection (jd_capability_analyzer.py)
+        ↓
+Tailoring Strategy (resume_intelligence.py — Positioning, MMR Selection, Layout Budget)
+        ↓
+Gemini Semantic Resume Writer (gemini_resume_writer.py — JSON mode with atomic claims)
+        ↓  (Fallback: DeterministicResumeComposer if offline or AI call fails)
+Evidence Validation & Anti-Hallucination (ClaimLevelValidator — 6 Verification Stages)
+        ↓  (UnitRegenerationOrchestrator: locks valid units, regenerates invalid units)
+Structured Resume Model (StructuredResumeDraft — Pydantic typed IR)
+        ↓
+Pure LaTeX Resume Renderer (latex_generator.py — ATS 1-page compliance)
+        ↓
+LaTeX Compiler (latex_compiler.py — pdflatex) → Final Tailored PDF
 ```
 
-### Allowed Tailoring
+### Core Architecture Components
 
-- Reorder sections to emphasize relevance
-- Rewrite bullet points to use JD language
-- Emphasize skills matching the job requirements
-- Select the most relevant projects
-- Shorten or omit irrelevant sections
-- Adjust professional summary for the role
+1. **TechnologyAliasRegistry (`alias_registry.py`)**:
+   - Replaces naive regex matching with word-boundary token extraction and canonical alias resolution.
+   - Maps aliases (e.g. `AES GCM`, `AES-GCM` $\rightarrow$ `AES-256-GCM`; `CF Workers`, `Workers` $\rightarrow$ `cloudflare_workers`) across 50+ technology concepts to eliminate false positives in validation.
 
-### Forbidden Tailoring
+2. **Fact Graph & Evidence Registry (`fact_graph.py`)**:
+   - Single Source of Truth for allowed claims.
+   - Extracts atomic `EvidenceFact` items with structured categories, extracted canonical technologies, quantitative metrics, and source pointers.
 
-- Invent experience that did not happen
-- Invent metrics or numbers (e.g., "increased revenue by 40%")
-- Invent technologies the candidate hasn't used
-- Invent employment or roles
-- Invent certifications
-- Convert personal/academic projects into professional employment
-- Claim job titles not actually held
+3. **JD Capability Analyzer (`jd_capability_analyzer.py`)**:
+   - Identifies candidate capability gaps against JD requirements while filtering out generic domain stop words (`server`, `cloud`, `infrastructure`, etc.).
 
-### Master Resume
+4. **Gemini Semantic Resume Writer (`gemini_resume_writer.py`)**:
+   - Uses configurable model (`GEMINI_MODEL=gemini-3.6-flash`, no hardcoding).
+   - Generates structured JSON adhering strictly to `StructuredResumeDraft`.
+   - Produces granular atomic claim fragments (`GeneratedClaimFragment`) for every bullet with exact `evidence_ids`.
 
-`context/master-resume.md` is the comprehensive source. It contains **all** candidate evidence across all roles and projects.
+5. **Deterministic Resume Composer (`deterministic_composer.py`)**:
+   - 100% offline, zero-token cost fallback.
+   - Selects, reorders, and composes verified facts without semantic rewriting.
+   - Guaranteed 100% validity on first pass.
 
-Tailored resumes are **subsets** of the master resume, reorganized and rewritten for a specific job. They never contain information absent from the master resume.
+6. **Claim-Level Validator & Unit Regeneration (`evidence_validator.py`)**:
+   - **6 Verification Stages**:
+     1. `INVALID_EVIDENCE_ID`: Verification that cited IDs exist in the bundle.
+     2. `UNSUPPORTED_TECHNOLOGY`: Verification that technology terms are supported by cited facts via `TechnologyAliasRegistry`.
+     3. `UNSUPPORTED_METRIC`: Verification that quantitative numbers match cited facts exactly.
+     4. `EXPERIENCE_INFLATION`: Detection and rejection of exaggerated student/coursework scope.
+     5. `UNSUPPORTED_JD_FABRICATION`: Rejection of fabricated claims addressing JD gap requirements.
+     6. `ARCHITECTURAL_SCOPE_SHIFT`: Detection and rejection of dropped/swapped architectural modifiers (e.g., dropping `client-side` from `client-side Argon2id password hashing`).
+   - **Unit-Level Locking & Regeneration**: Valid units are locked in place; only invalid units are selectively rewritten with structured validation feedback.
+
+7. **Pure LaTeX Generator (`latex_generator.py`)**:
+   - Renders directly from validated `StructuredResumeDraft`.
+   - Enforces strict 1-page A4 ATS format, bullet counts, and dynamic metric formatting.
 
 ---
 

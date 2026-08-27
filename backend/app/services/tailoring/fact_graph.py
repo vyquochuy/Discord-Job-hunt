@@ -3,7 +3,8 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.models.candidate import Candidate
-from app.schemas.tailoring_ir import FactNode, MetricFact
+from app.schemas.tailoring_ir import EvidenceCategory, EvidenceFact, FactNode, MetricFact
+from app.services.tailoring.alias_registry import alias_registry
 
 logger = logging.getLogger("fact_graph")
 
@@ -270,5 +271,229 @@ class FactGraphBuilder:
 
         return fact_nodes
 
+    @classmethod
+    def build_evidence_registry(cls, candidate: Candidate) -> Dict[str, EvidenceFact]:
+        """
+        Xây dựng Evidence Registry hoàn chỉnh gồm tập các EvidenceFact nguyên tử:
+        - Đảm bảo mỗi claim đều có ID phân cấp duy nhất.
+        - Tự động chuẩn hóa công nghệ qua Canonical Alias Registry.
+        - Trích xuất metric định lượng và capabilities.
+        - Là Single Source of Truth tuyệt đối cho toàn bộ pipeline may đo.
+        """
+        evidence_facts: Dict[str, EvidenceFact] = {}
+
+        # 1. Projects & Bullets
+        candidate_projects = safe_get_relation(candidate, "projects")
+        for p_idx, proj in enumerate(candidate_projects):
+            p_name = getattr(proj, "name", f"Project_{p_idx+1}")
+            p_slug = re.sub(r"[^a-zA-Z0-9_]", "_", p_name.lower()).strip("_")
+            proj_fact_id = f"project.{p_slug}"
+            
+            p_summary = getattr(proj, "summary", "")
+            p_techs = getattr(proj, "technologies", []) or []
+            p_canonical_techs = [alias_registry.get_canonical_id(t) for t in p_techs]
+            
+            if p_summary:
+                p_summary_id = f"{proj_fact_id}.summary"
+                m_facts = cls.extract_metric_facts(p_summary, p_summary_id)
+                p_summary_canon = list(p_canonical_techs)
+                for _, canon in alias_registry.extract_technologies_from_text(p_summary):
+                    if canon not in p_summary_canon:
+                        p_summary_canon.append(canon)
+                evidence_facts[p_summary_id] = EvidenceFact(
+                    id=p_summary_id,
+                    category=EvidenceCategory.PROJECT,
+                    subject=p_name,
+                    claim=f"{p_name}: {p_summary}",
+                    technologies=p_techs,
+                    canonical_technologies=p_summary_canon,
+                    metrics=[m.raw_token for m in m_facts],
+                    source=f"candidate.projects.{p_slug}.summary",
+                    confidence="explicit",
+                    is_core=False,
+                    capabilities=cls.infer_capabilities(p_summary, p_techs),
+                )
+
+            ev_points = getattr(proj, "evidence_points", []) or []
+            has_explicit_core = any(isinstance(x, dict) and x.get("is_core") is True for x in ev_points)
+            if ev_points:
+                for b_idx, ev in enumerate(ev_points):
+                    title = ev.get("title", "") if isinstance(ev, dict) else ""
+                    detail = ev.get("detail", "") if isinstance(ev, dict) else str(ev)
+                    bullet_fact_id = f"{proj_fact_id}.bullet_{b_idx+1}"
+                    
+                    full_text = f"{title}: {detail}" if title else detail
+                    bullet_techs = ev.get("technologies", p_techs) if isinstance(ev, dict) else p_techs
+                    bullet_canonical_techs = [alias_registry.get_canonical_id(t) for t in (bullet_techs or [])]
+                    for _, canon in alias_registry.extract_technologies_from_text(full_text):
+                        if canon not in bullet_canonical_techs:
+                            bullet_canonical_techs.append(canon)
+                    
+                    is_core = False
+                    if isinstance(ev, dict):
+                        if ev.get("is_core") is True:
+                            is_core = True
+                        elif b_idx == 0 and not has_explicit_core:
+                            is_core = True
+                    elif b_idx == 0:
+                        is_core = True
+                    
+                    m_facts = cls.extract_metric_facts(full_text, bullet_fact_id)
+                    evidence_facts[bullet_fact_id] = EvidenceFact(
+                        id=bullet_fact_id,
+                        category=EvidenceCategory.PROJECT,
+                        subject=p_name,
+                        claim=full_text,
+                        technologies=bullet_techs or [],
+                        canonical_technologies=bullet_canonical_techs,
+                        metrics=[m.raw_token for m in m_facts],
+                        source=f"candidate.projects.{p_slug}.bullet_{b_idx+1}",
+                        confidence="explicit",
+                        is_core=is_core,
+                        capabilities=cls.infer_capabilities(full_text, bullet_techs or []),
+                    )
+
+        # 2. Experiences
+        candidate_experiences = safe_get_relation(candidate, "experiences")
+        for e_idx, exp in enumerate(candidate_experiences):
+            exp_company = getattr(exp, "company", "Company")
+            exp_role = getattr(exp, "role", "Role")
+            exp_slug = re.sub(r"[^a-zA-Z0-9_]", "_", exp_company.lower()).strip("_")
+            exp_fact_id = f"experience.{exp_slug}"
+            
+            exp_desc = getattr(exp, "description", "")
+            if exp_desc:
+                desc_id = f"{exp_fact_id}.desc"
+                m_facts = cls.extract_metric_facts(exp_desc, desc_id)
+                evidence_facts[desc_id] = EvidenceFact(
+                    id=desc_id,
+                    category=EvidenceCategory.EXPERIENCE,
+                    subject=f"{exp_company}:{exp_role}",
+                    claim=exp_desc,
+                    technologies=[],
+                    canonical_technologies=[],
+                    metrics=[m.raw_token for m in m_facts],
+                    source=f"candidate.experiences.{exp_slug}.desc",
+                    confidence="explicit",
+                    is_core=False,
+                    capabilities=cls.infer_capabilities(exp_desc, []),
+                )
+            
+            exp_achs = getattr(exp, "achievements", []) or []
+            for a_idx, ach in enumerate(exp_achs):
+                ach_id = f"{exp_fact_id}.ach_{a_idx+1}"
+                m_facts = cls.extract_metric_facts(str(ach), ach_id)
+                evidence_facts[ach_id] = EvidenceFact(
+                    id=ach_id,
+                    category=EvidenceCategory.ACHIEVEMENT,
+                    subject=f"{exp_company}:{exp_role}",
+                    claim=str(ach),
+                    technologies=[],
+                    canonical_technologies=[],
+                    metrics=[m.raw_token for m in m_facts],
+                    source=f"candidate.experiences.{exp_slug}.achievement_{a_idx+1}",
+                    confidence="explicit",
+                    is_core=False,
+                    capabilities=cls.infer_capabilities(str(ach), []),
+                )
+
+        # 3. Education
+        cand_edu = getattr(candidate, "education", None) or []
+        for edu_idx, edu in enumerate(cand_edu):
+            if isinstance(edu, dict):
+                edu_id = f"education.inst_{edu_idx+1}"
+                inst = edu.get("institution", "University")
+                field = edu.get("field", "")
+                gpa = edu.get("gpa", "")
+                coursework = ", ".join(edu.get("coursework", [])) if isinstance(edu.get("coursework"), list) else str(edu.get("coursework", ""))
+                edu_statement = f"{inst} | Major: {field} | GPA: {gpa} | Coursework: {coursework}"
+                m_facts = cls.extract_metric_facts(edu_statement, edu_id)
+                
+                evidence_facts[edu_id] = EvidenceFact(
+                    id=edu_id,
+                    category=EvidenceCategory.EDUCATION,
+                    subject=inst,
+                    claim=edu_statement,
+                    technologies=[],
+                    canonical_technologies=[],
+                    metrics=[m.raw_token for m in m_facts],
+                    source=f"candidate.education.{edu_idx+1}",
+                    confidence="explicit",
+                    is_core=False,
+                    capabilities=["education", "foundation"],
+                )
+
+        # 4. Candidate Skills
+        cand_skills = safe_get_relation(candidate, "skills")
+        for s_idx, skill in enumerate(cand_skills):
+            s_name = getattr(skill, "name", str(skill))
+            s_slug = re.sub(r"[^a-zA-Z0-9_]", "_", s_name.lower()).strip("_")
+            s_id = f"skill.{s_slug}"
+            canon_id = alias_registry.get_canonical_id(s_name)
+            evidence_facts[s_id] = EvidenceFact(
+                id=s_id,
+                category=EvidenceCategory.SKILL,
+                subject="Skills",
+                claim=f"Demonstrated proficiency in {s_name}",
+                technologies=[s_name],
+                canonical_technologies=[canon_id] if canon_id else [],
+                metrics=[],
+                source=f"candidate.skills.{s_slug}",
+                confidence="explicit",
+                is_core=False,
+                capabilities=cls.infer_capabilities(s_name, [s_name]),
+            )
+
+        # 5. Candidate Identity & Summary
+        cand_id_node = "candidate.identity"
+        cand_summary = getattr(candidate, "summary", "") or ""
+        cand_name = getattr(candidate, "full_name", "Candidate") or "Candidate"
+        m_facts = cls.extract_metric_facts(cand_summary, cand_id_node)
+        evidence_facts[cand_id_node] = EvidenceFact(
+            id=cand_id_node,
+            category=EvidenceCategory.EXPERIENCE,
+            subject=cand_name,
+            claim=cand_summary,
+            technologies=[],
+            canonical_technologies=[],
+            metrics=[m.raw_token for m in m_facts],
+            source="candidate.summary",
+            confidence="explicit",
+            is_core=False,
+            capabilities=cls.infer_capabilities(cand_summary, []),
+        )
+
+        return evidence_facts
+
+
+class EvidenceRegistry:
+    """Singleton facade quản lý Evidence Registry."""
+
+    @classmethod
+    def get_registry(cls, candidate: Candidate) -> Dict[str, EvidenceFact]:
+        return FactGraphBuilder.build_evidence_registry(candidate)
+
+    @classmethod
+    def get_allowed_canonical_technologies(cls, facts: List[EvidenceFact]) -> Set[str]:
+        """Thu thập tập tất cả canonical technology IDs được phép từ danh sách facts."""
+        allowed: Set[str] = set()
+        for f in facts:
+            allowed.update(f.canonical_technologies)
+            for t in f.technologies:
+                c_id = alias_registry.get_canonical_id(t)
+                if c_id:
+                    allowed.add(c_id)
+        return allowed
+
+    @classmethod
+    def get_allowed_metrics(cls, facts: List[EvidenceFact]) -> Set[str]:
+        """Thu thập tập tất cả metrics định lượng được phép từ danh sách facts."""
+        allowed: Set[str] = set()
+        for f in facts:
+            allowed.update(f.metrics)
+        return allowed
+
 
 fact_graph_builder = FactGraphBuilder()
+evidence_registry = EvidenceRegistry()
+

@@ -86,20 +86,23 @@
 
 ---
 
-## Phase 4 & 4.5 — JD-Agnostic Strategic Resume Intelligence & Tailoring
+## Phase 4 & 4.5 — Evidence-Grounded Strategic Resume Tailoring Engine & Anti-Hallucination Refactor
 
 **Status:** COMPLETED
 
-**Goal:** Chuyển đổi công cụ tạo thiết kế hồ sơ thành một JD-Agnostic Strategic Resume Intelligence Engine đa chiều, bảo đảm nguyên tắc _Evidence-Locked + Zero-Hallucination + Strategic Positioning_.
+**Goal:** Chuyển đổi toàn diện công cụ tạo thiết kế hồ sơ thành một **Evidence-Grounded Resume Tailoring Engine** đa chiều, bảo đảm nguyên tắc _Evidence-Locked + Zero-Hallucination + Strategic Positioning + Granular Claim-Level Traceability_.
 
-- [x] **Typed Intermediate Representation**: Single Source of Truth cho toàn bộ pipeline (`ResumeStrategy`, `FactNode`, `JDCapabilityProfile`, `LayoutBudget`).
-- [x] **Canonical Fact Graph & Metric Grounding**: Trích xuất nút sự thật bất biến và định lượng `MetricFact` phục vụ đối chiếu chính xác.
-- [x] **Multi-Dimensional JD Capability Analyzer**: Continuous vector $[0.0, 1.0]$ trên 10 domain với word-boundary taxonomy matching chống false positives.
-- [x] **Strategic Project Selector & Targeted MMR**: Multi-signal scoring, diversity bonus cho domain JD yêu cầu, redundancy penalty cho năng lực trùng lặp và Selection Explainability Matrix.
+- [x] **Typed Intermediate Representation**: Single Source of Truth cho toàn bộ pipeline (`ResumeStrategy`, `EvidenceFact`, `EvidenceBundle`, `StructuredResumeDraft`, `GeneratedClaimFragment`, `ValidationReport`, `LayoutBudget`).
+- [x] **Canonical Technology Alias Registry (`alias_registry.py`)**: Token boundary extraction và chuẩn hóa canonical ID (50+ tech terms, triệt tiêu regex false positives).
+- [x] **Fact Graph & Evidence Registry (`fact_graph.py`)**: Trích xuất các nút sự thật bất biến kèm canonical technologies và định lượng `MetricFact` phục vụ đối chiếu chính xác.
+- [x] **Multi-Dimensional JD Capability & Gap Analyzer (`jd_capability_analyzer.py`)**: Vector năng lực 10 domain, phát hiện lỗ hổng (`unsupported_requirements`) và lọc stop words miền chung.
+- [x] **Strategic Project Selector & Targeted MMR**: Multi-signal scoring, diversity bonus cho domain JD yêu cầu, redundancy penalty cho năng lực trùng lặp.
 - [x] **Physical Layout Planner (1-Page ATS)**: Độc lập giải bài toán ngân sách hiển thị A4 ATS (Max 3 dự án, Max 7 bullets, Min 2 dự án).
-- [x] **Claim-Level Provenance Verifier**: Phân rã mệnh đề nguyên tử (`DecomposedClaim`) và xác thực 4 trạng thái (`VERIFIED`, `PARTIALLY_VERIFIED`, `UNVERIFIED`, `CONFLICTING`).
-- [x] Pure LaTeX Generator & authentic Markdown Cover Letter Generator.
-- [x] 10-Scenario multi-role & adversarial test suite passing 100% (103/103 tests pass).
+- [x] **Gemini Semantic Resume Writer (`gemini_resume_writer.py`)**: Tích hợp Google Gemini REST API (`gemini-3.6-flash`) với Structured JSON Mode và phân rã atomic claims kèm `evidence_ids`.
+- [x] **Deterministic Resume Composer (`deterministic_composer.py`)**: Bộ lắp ráp tất định 100% offline fallback khi mất mạng hoặc không có API key.
+- [x] **Claim-Level Validator & Unit Regeneration (`evidence_validator.py`)**: Bộ kiểm tra 6 tầng (`INVALID_EVIDENCE_ID`, `UNSUPPORTED_TECHNOLOGY`, `UNSUPPORTED_METRIC`, `EXPERIENCE_INFLATION`, `UNSUPPORTED_JD_FABRICATION`, `ARCHITECTURAL_SCOPE_SHIFT`) và cơ chế `UnitRegenerationOrchestrator` khóa chặt các unit hợp lệ.
+- [x] **Pure LaTeX Generator & pdflatex Compiler**: Xuất bản PDF 1 trang A4 ATS và Markdown Cover Letter chuẩn mực.
+- [x] **11-Scenario Multi-Role & Adversarial Test Suite**: 118/118 tests pass 100% trên toàn bộ repository.
 
 ---
 

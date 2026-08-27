@@ -102,9 +102,18 @@ class ResumeTailorService:
             session=session, job_id=job.id, candidate_id=candidate.id
         )
 
-        # 5. Xây dựng Chiến lược Tinh chỉnh Hồ sơ (Resume Intelligence Strategy)
+        # 5. Xây dựng Chiến lược & Evidence Bundle
         from app.services.tailoring.resume_intelligence import resume_intelligence
-        logger.info("Building strategic positioning with Resume Intelligence Engine...")
+        from app.services.tailoring.gemini_resume_writer import resume_semantic_writer
+        from app.services.tailoring.evidence_validator import unit_regeneration_orchestrator
+
+        logger.info("Building strategic positioning & Evidence Bundle with Resume Intelligence Engine...")
+        evidence_bundle = resume_intelligence.build_evidence_bundle(
+            candidate=candidate,
+            job=job,
+            match_record=match_record,
+            custom_tone=custom_tone,
+        )
         strategy = resume_intelligence.build_strategy(
             candidate=candidate,
             job=job,
@@ -112,33 +121,48 @@ class ResumeTailorService:
             custom_tone=custom_tone,
         )
 
-        matched_skills = strategy.matched_skills
-        target_title = strategy.target_title
+        matched_skills = evidence_bundle.strategy.prioritized_skills
+        target_title = evidence_bundle.strategy.target_role
 
-        # 6. Sinh mã nguồn LaTeX từ ResumeStrategy
-        logger.info("Rendering tailored LaTeX source from strategy...")
+        # 6. Gọi Gemini Semantic Writer để sinh Structured Resume Draft
+        logger.info(f"Generating tailored resume draft with model '{resume_semantic_writer.model}'...")
+        raw_draft = await resume_semantic_writer.generate_resume_draft(evidence_bundle)
+
+        # 7. Kiểm chứng Claim-Level Anti-Hallucination và Closed-Loop Unit Regeneration
+        logger.info("Running Claim-Level Anti-Hallucination Validator with Unit Regeneration...")
+        validated_draft, validation_report = await unit_regeneration_orchestrator.validate_and_regenerate(
+            draft=raw_draft,
+            bundle=evidence_bundle,
+            max_retries=2,
+        )
+
+        provenance_score = validation_report.provenance_score
+        is_verified = validation_report.is_valid
+        logger.info(f"Final Validated Provenance Score: {provenance_score}% (Verified={is_verified})")
+
+        # 8. Sinh mã nguồn LaTeX từ validated_draft
+        logger.info("Rendering tailored LaTeX source from validated structured draft...")
         latex_source = latex_generator.generate_tailored_tex(
             candidate=candidate,
             strategy=strategy,
+            structured_draft=validated_draft,
         )
 
-        # 7. Kiểm chứng Provenance trên các nội dung thực sự được đưa vào CV
-        logger.info("Running Provenance Verification on claims...")
+        # 9. Kiểm chứng Provenance trên các nội dung thực sự được đưa vào CV để lưu EvidenceMap
         sections_dict = {
-            "SUMMARY": [strategy.adaptive_summary],
+            "SUMMARY": [validated_draft.professional_summary.text],
             "PROJECTS": [],
         }
-        for p in strategy.ranked_projects:
-            for ev in p.ranked_evidence:
-                sections_dict["PROJECTS"].append(ev.evidence_detail)
+        for p in validated_draft.projects:
+            for b in p.bullets:
+                sections_dict["PROJECTS"].append(b.text)
 
-        evidence_items, provenance_score, is_verified = provenance_verifier.verify_resume(
+        evidence_items, legacy_score, legacy_verified = provenance_verifier.verify_resume(
             candidate=candidate,
             tailored_sections=sections_dict,
         )
-        logger.info(f"Provenance Score: {provenance_score}% (Verified={is_verified})")
 
-        # 8. Biên dịch LaTeX thành PDF
+        # 10. Biên dịch LaTeX thành PDF
         logger.info("Compiling LaTeX to PDF...")
         compile_ok, pdf_path, comp_err = await latex_compiler.compile_tex(
             tex_content=latex_source,
@@ -148,7 +172,7 @@ class ResumeTailorService:
 
         resume_status = ResumeStatusEnum.COMPILED if compile_ok else ResumeStatusEnum.FAILED
 
-        # 9. Sinh Cover Letter động từ ResumeStrategy
+        # 11. Sinh Cover Letter động từ ResumeStrategy
         logger.info("Generating Tailored Cover Letter from strategy...")
         cover_letter_data = cover_letter_generator.generate_cover_letter(
             candidate=candidate,

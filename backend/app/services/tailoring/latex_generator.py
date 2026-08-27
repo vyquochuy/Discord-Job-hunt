@@ -73,22 +73,71 @@ class LaTeXGenerator:
         matched_skills: Optional[List[str]] = None,
         target_title: Optional[str] = None,
         custom_objective: Optional[str] = None,
+        structured_draft: Optional[Any] = None,
     ) -> str:
         """
-        Sinh toàn bộ văn bản LaTeX hoàn chỉnh cho Tailored Resume từ ResumeStrategy.
+        Sinh toàn bộ văn bản LaTeX hoàn chỉnh cho Tailored Resume từ StructuredResumeDraft hoặc ResumeStrategy.
         Hoạt động như một Pure Renderer:
-        - Sử dụng strategy để xác định objective, thứ tự dự án, thứ tự bullet points và ưu tiên kỹ năng.
+        - Nhận StructuredResumeDraft đã qua kiểm chứng (Zero-Hallucination) hoặc ResumeStrategy.
         - Giữ 100% backward compatibility nếu gọi theo signature cũ.
         """
         # 1. Header Information & Title
         from app.services.tailoring.resume_intelligence import normalize_target_title_to_english
 
-        if strategy:
+        candidate_proj_by_name = {p.name: p for p in (candidate.projects or [])}
+
+        if structured_draft:
+            role_title = normalize_target_title_to_english(structured_draft.target_title)
+            effective_matched_skills = structured_draft.priority_skills or (strategy.matched_skills if strategy else [])
+            objective_text = cls.sanitize_bullet(structured_draft.professional_summary.text)
+            
+            # Xây dựng danh sách projects từ StructuredResumeDraft
+            projects_data = []
+            for sp in structured_draft.projects:
+                cand_p = candidate_proj_by_name.get(sp.source_project_name)
+                bullets_text = [b.text for b in sp.bullets]
+                projects_data.append({
+                    "name": sp.source_project_name,
+                    "period": getattr(cand_p, "period", "2026") if cand_p else "2026",
+                    "summary": getattr(cand_p, "summary", "") if cand_p else "",
+                    "repo_url": getattr(cand_p, "repository_url", "") if cand_p else "",
+                    "demo_url": getattr(cand_p, "demo_url", "") if cand_p else "",
+                    "technologies": getattr(cand_p, "technologies", []) if cand_p else [],
+                    "bullets": bullets_text,
+                })
+        elif strategy:
             role_family = getattr(strategy, "role_family", "general")
             role_title = normalize_target_title_to_english(strategy.target_title, role_family)
             effective_matched_skills = strategy.matched_skills
             objective_text = cls.sanitize_bullet(strategy.adaptive_summary)
-            ranked_projects = strategy.ranked_projects
+            
+            projects_data = []
+            for scored_proj in strategy.ranked_projects:
+                p = scored_proj.project if hasattr(scored_proj, "project") else scored_proj
+                b_texts = []
+                ranked_evs = getattr(scored_proj, "ranked_evidence", [])
+                if ranked_evs:
+                    for scored_ev in ranked_evs:
+                        t = scored_ev.evidence_title
+                        d = scored_ev.evidence_detail
+                        b_texts.append(f"\\textbf{{{cls.sanitize_bullet(t)}:}} {cls.sanitize_bullet(d)}" if t else cls.sanitize_bullet(d))
+                elif p.evidence_points:
+                    for ev in p.evidence_points:
+                        if isinstance(ev, dict):
+                            t = ev.get("title", "")
+                            d = ev.get("detail", "")
+                            b_texts.append(f"\\textbf{{{cls.sanitize_bullet(t)}:}} {cls.sanitize_bullet(d)}" if t else cls.sanitize_bullet(d))
+                        else:
+                            b_texts.append(cls.sanitize_bullet(str(ev)))
+                projects_data.append({
+                    "name": p.name,
+                    "period": p.period or "2026",
+                    "summary": p.summary or "",
+                    "repo_url": p.repository_url or "",
+                    "demo_url": p.demo_url or "",
+                    "technologies": p.technologies or [],
+                    "bullets": b_texts,
+                })
         else:
             raw_title = target_title or (job.title if job else None) or candidate.headline or "Software Engineer Intern"
             role_title = normalize_target_title_to_english(raw_title)
@@ -97,30 +146,28 @@ class LaTeXGenerator:
                 objective_text = cls.sanitize_bullet(custom_objective)
             else:
                 objective_text = cls.sanitize_bullet(candidate.summary or "")
-            # Tạo default ranked projects từ candidate.projects
-            ranked_projects = []
+            
+            projects_data = []
             if candidate.projects:
                 for p in candidate.projects:
-                    # Tạo cấu trúc ScoredProject đơn giản
-                    from app.services.tailoring.resume_intelligence import ScoredEvidence, ScoredProject
-                    ev_list = []
+                    b_texts = []
                     if p.evidence_points:
                         for ev in p.evidence_points:
-                            t = ev.get("title", "") if isinstance(ev, dict) else ""
-                            d = ev.get("detail", "") if isinstance(ev, dict) else str(ev)
-                            ev_list.append(ScoredEvidence(
-                                project_name=p.name,
-                                evidence_title=t,
-                                evidence_detail=d,
-                                technologies=p.technologies or [],
-                                score=1.0,
-                                capabilities=[],
-                            ))
-                    ranked_projects.append(ScoredProject(
-                        project=p,
-                        project_score=1.0,
-                        ranked_evidence=ev_list,
-                    ))
+                            if isinstance(ev, dict):
+                                t = ev.get("title", "")
+                                d = ev.get("detail", "")
+                                b_texts.append(f"\\textbf{{{cls.sanitize_bullet(t)}:}} {cls.sanitize_bullet(d)}" if t else cls.sanitize_bullet(d))
+                            else:
+                                b_texts.append(cls.sanitize_bullet(str(ev)))
+                    projects_data.append({
+                        "name": p.name,
+                        "period": p.period or "2026",
+                        "summary": p.summary or "",
+                        "repo_url": p.repository_url or "",
+                        "demo_url": p.demo_url or "",
+                        "technologies": p.technologies or [],
+                        "bullets": b_texts,
+                    })
 
         full_name = candidate.full_name or "Vy Quoc Huy"
         phone = candidate.phone or "(+84) 384988934"
@@ -191,15 +238,14 @@ class LaTeXGenerator:
     \\item \\textbf{{Languages:}} {', '.join(lang_skills)}
 \\end{{itemize}}"""
 
-        # 4. Projects (Duyệt theo ranked_projects từ ResumeStrategy)
+        # 4. Projects (Duyệt theo projects_data)
         projects_latex_list = []
-        for scored_proj in ranked_projects:
-            p = scored_proj.project if hasattr(scored_proj, "project") else scored_proj
-            p_name = cls.sanitize_bullet(p.name)
-            repo_url = p.repository_url or ""
-            demo_url = p.demo_url or ""
-            period = cls.sanitize_bullet(p.period or "2026")
-            summary = cls.sanitize_bullet(p.summary or "")
+        for p_info in projects_data:
+            p_name = cls.sanitize_bullet(p_info["name"])
+            repo_url = p_info.get("repo_url", "")
+            demo_url = p_info.get("demo_url", "")
+            period = cls.sanitize_bullet(p_info.get("period", "2026"))
+            summary = cls.sanitize_bullet(p_info.get("summary", ""))
 
             links_part = ""
             if repo_url:
@@ -213,28 +259,15 @@ class LaTeXGenerator:
                 header_line = f"\\noindent \\textbf{{{p_name}}}{links_part} \\hfill {period}"
 
             bullet_items = []
-            # Duyệt các ranked_evidence đã được chấm điểm và xếp hạng
-            ranked_evs = getattr(scored_proj, "ranked_evidence", [])
-            if ranked_evs:
-                for scored_ev in ranked_evs:
-                    title = cls.sanitize_bullet(scored_ev.evidence_title)
-                    detail = cls.sanitize_bullet(scored_ev.evidence_detail)
-                    if title:
-                        bullet_items.append(f"    \\item \\textbf{{{title}:}} {detail}\n")
-                    else:
-                        bullet_items.append(f"    \\item {detail}\n")
-            elif p.evidence_points:
-                for ev in p.evidence_points:
-                    if isinstance(ev, dict):
-                        title = cls.sanitize_bullet(ev.get("title", ""))
-                        detail = cls.sanitize_bullet(ev.get("detail", ""))
-                        bullet_items.append(f"    \\item \\textbf{{{title}:}} {detail}\n")
-                    else:
-                        detail = cls.sanitize_bullet(str(ev))
-                        bullet_items.append(f"    \\item {detail}\n")
+            for b_str in p_info.get("bullets", []):
+                clean_b = b_str.strip()
+                if clean_b.startswith(r"\textbf"):
+                    bullet_items.append(f"    \\item {clean_b}\n")
+                else:
+                    bullet_items.append(f"    \\item {cls.sanitize_bullet(clean_b)}\n")
 
-            if p.technologies:
-                tech_str = ", ".join([cls.sanitize_bullet(t) for t in p.technologies])
+            if p_info.get("technologies"):
+                tech_str = ", ".join([cls.sanitize_bullet(t) for t in p_info["technologies"]])
                 tech_line = f"    \\item \\textbf{{Technologies:}} {tech_str}."
                 bullet_items.append(tech_line)
 

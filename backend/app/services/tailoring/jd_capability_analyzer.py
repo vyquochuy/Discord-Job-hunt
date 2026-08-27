@@ -199,5 +199,69 @@ class JDCapabilityAnalyzer:
             confidence=round(max([s for s in capability_vector.values()] or [0.5]), 2),
         )
 
+    @classmethod
+    def identify_candidate_gaps(
+        cls,
+        candidate_canonical_techs: Set[str],
+        candidate_capabilities: Set[str],
+        profile: JDCapabilityProfile,
+        job: Job,
+    ) -> List[str]:
+        """
+        Phát hiện các khoảng trống (Candidate Gaps / Unsupported Requirements):
+        Các kỹ năng / công nghệ cụ thể mà JD yêu cầu nhưng ứng viên hoàn toàn chưa có trong Evidence.
+        Danh sách này sẽ được cấm đoán nghiêm ngặt (Forbidden Boundaries) để LLM không bịa đặt.
+        """
+        from app.services.tailoring.alias_registry import alias_registry
+
+        GENERIC_DOMAINS = {
+            "backend", "frontend", "database", "systems", "system", "security", "cloud",
+            "realtime", "automation", "data_ai", "general", "mobile", "foundation",
+            "education", "other", "soft_skills", "rest", "api", "apis", "software engineer",
+            "server", "client", "service", "services", "platform", "platforms", "application",
+            "applications", "architecture", "infrastructure", "serverless", "framework",
+            "library", "network", "networks", "protocol", "protocols", "development",
+            "engineering", "technology", "technologies", "data", "web", "intern", "internship",
+            "developer", "engineer", "software", "code", "design", "performance", "optimization",
+            "scale", "scalable", "storage", "memory", "testing", "management"
+        }
+
+        def is_tech_covered(canon: str) -> bool:
+            if not canon:
+                return True
+            clean_c = canon.lower().strip().replace("_", " ")
+            if clean_c in GENERIC_DOMAINS or canon.lower() in GENERIC_DOMAINS:
+                return True
+            if canon in candidate_canonical_techs:
+                return True
+            # Kiểm tra quan hệ prefix / substring (ví dụ 'cloudflare' được cover bởi 'cloudflare_workers')
+            for cand_t in candidate_canonical_techs:
+                if canon in cand_t or cand_t in canon:
+                    return True
+            return False
+
+        unsupported: List[str] = []
+        for skill_name, req_type in profile.skill_classifications.items():
+            if req_type in (SkillRequirementType.REQUIRED, SkillRequirementType.PREFERRED):
+                s_clean = skill_name.lower().strip().replace("_", " ")
+                if s_clean in GENERIC_DOMAINS or s_clean in candidate_capabilities:
+                    continue
+                canon_id = alias_registry.get_canonical_id(skill_name)
+                if not is_tech_covered(canon_id):
+                    unsupported.append(skill_name)
+
+        # Kiểm tra thêm từ raw job requirements (chỉ xét các tech cụ thể như Kubernetes, Kafka, Cassandra, gRPC, Golang)
+        req_text = f"{getattr(job, 'requirements_summary', '') or ''} {getattr(job, 'description', '') or ''}".lower()
+        extracted_techs = alias_registry.extract_technologies_from_text(req_text)
+        for surface_token, canon_id in extracted_techs:
+            if not is_tech_covered(canon_id):
+                if surface_token.title() not in unsupported and surface_token not in unsupported:
+                    unsupported.append(surface_token)
+
+        # Giữ danh sách gọn gàng (unique)
+        unique_gaps = list(dict.fromkeys(unsupported))
+        return unique_gaps[:10]
+
 
 jd_capability_analyzer = JDCapabilityAnalyzer()
+

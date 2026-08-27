@@ -264,3 +264,150 @@ class ResumeStrategy:
     explainability_matrix: Dict[str, Any] = field(default_factory=dict)
     all_projects: List[ScoredProjectCandidate] = field(default_factory=list)
     all_scored_evidence: List[ScoredEvidenceItem] = field(default_factory=list)
+
+
+# ============================================================================
+# Architectural Refactor: Enhanced Evidence, Generation & Validation Models
+# ============================================================================
+
+class EvidenceCategory(str, enum.Enum):
+    """Phân loại danh mục của một bằng chứng / sự thật từ hồ sơ ứng viên."""
+    SKILL = "skill"
+    PROJECT = "project"
+    EXPERIENCE = "experience"
+    EDUCATION = "education"
+    ACHIEVEMENT = "achievement"
+
+
+@dataclass
+class EvidenceFact:
+    """
+    Đơn vị bằng chứng nguyên tử (Canonical Traceable Fact) trong Evidence Registry:
+    Mọi factual claim có thể tiếp cận bởi Gemini đều phải truy vết về một EvidenceFact.
+    """
+    id: str                                  # e.g., "project.vivychat.stateful_edge"
+    category: EvidenceCategory               # EvidenceCategory enum
+    subject: str                             # e.g., "VYVYCHAT", "VNUHCM-US", "Account Manager"
+    claim: str                               # Canonical factual claim text
+    technologies: List[str] = field(default_factory=list)
+    metrics: List[str] = field(default_factory=list)       # Raw tokens, e.g. ["~45ms", "200 req/min"]
+    source: str = ""                         # e.g., "candidate.projects.vyvychat.bullet_1"
+    confidence: str = "explicit"             # "explicit" | "verified"
+    is_core: bool = False                    # Core USP bất biến của dự án
+    capabilities: List[str] = field(default_factory=list)
+    canonical_technologies: List[str] = field(default_factory=list)  # Normalized alias IDs
+
+
+@dataclass
+class TailoringStrategy:
+    """
+    Chiến lược may đo CV định hình định vị và ranh giới nội dung cho Gemini:
+    - Quyết định dự án, kỹ năng, định vị chuyên môn.
+    - Xác định rõ ràng các khoảng trống (unsupported_requirements) để cấm Gemini bịa đặt.
+    """
+    target_role: str                         # e.g., "Backend Developer Intern"
+    positioning: str                         # e.g., "High-Throughput Serverless & Distributed APIs"
+    role_family: str                         # "backend" | "system" | "security" | "general"
+    prioritized_skills: List[str]
+    deprioritized_skills: List[str]
+    selected_projects: List[str]             # Project names
+    selected_evidence_ids: List[str]         # Evidence IDs permitted for generation
+    jd_keywords_to_target: List[str]
+    unsupported_requirements: List[str]      # Gaps in candidate profile relative to JD
+    allowed_technologies: List[str]          # All tech tokens supported by selected evidence
+    allowed_metrics: List[str]               # All metric tokens supported by selected evidence
+    allowed_claims: List[str] = field(default_factory=list)     # Factual claim strings
+    forbidden_claims: List[str] = field(default_factory=list)   # Unsupported claims / buzzwords candidate lacks
+    explainability_matrix: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class EvidenceBundle:
+    """
+    Tập hợp thông tin có cấu trúc được chuyển cho Gemini:
+    Chỉ chứa bằng chứng liên quan đã qua chọn lọc, Evidence IDs, JD requirements và constraints.
+    """
+    strategy: TailoringStrategy
+    evidence_facts: List[EvidenceFact]
+    target_jd_summary: Dict[str, Any]
+    layout_budget: LayoutBudget
+
+
+# ----------------------------------------------------------------------------
+# Pydantic Schemas for Structured Gemini Output with Granular Claims
+# ----------------------------------------------------------------------------
+from pydantic import BaseModel, Field
+
+
+class GeneratedClaimFragment(BaseModel):
+    """Mảnh mệnh đề hạt nhân (Atomic Claim Fragment) gắn liền với Evidence ID cụ thể."""
+    claim: str = Field(..., description="Atomic claim phrase or technology component")
+    evidence_ids: List[str] = Field(default_factory=list, description="Evidence IDs supporting this specific fragment")
+
+
+class GeneratedBullet(BaseModel):
+    """Một bullet point được may đo hoàn chỉnh kèm danh sách claim fragments phân rã."""
+    text: str = Field(..., description="Full synthesized bullet text tailored for the JD")
+    evidence_ids: List[str] = Field(default_factory=list, description="Aggregated Evidence IDs supporting this bullet")
+    claims: List[GeneratedClaimFragment] = Field(default_factory=list, description="Granular claim fragments")
+
+
+class GeneratedProject(BaseModel):
+    """Cấu trúc dự án may đo trong Resume."""
+    source_project_name: str = Field(..., description="Exact name of the source project")
+    bullets: List[GeneratedBullet] = Field(default_factory=list, description="List of generated bullets")
+
+
+class GeneratedSummary(BaseModel):
+    """Tóm tắt mục tiêu / định vị nghề nghiệp may đo."""
+    text: str = Field(..., description="Adaptive professional summary statement")
+    evidence_ids: List[str] = Field(default_factory=list, description="Evidence IDs supporting the summary")
+    claims: List[GeneratedClaimFragment] = Field(default_factory=list, description="Granular claim fragments")
+
+
+class StructuredResumeDraft(BaseModel):
+    """
+    Mô hình Resume có cấu trúc sinh bởi Gemini Semantic Writer.
+    Phải qua Claim-Level Validator trước khi đưa vào Renderer.
+    """
+    target_title: str = Field(..., description="Target job title in English")
+    professional_summary: GeneratedSummary
+    priority_skills: List[str] = Field(default_factory=list)
+    projects: List[GeneratedProject] = Field(default_factory=list)
+
+
+# ----------------------------------------------------------------------------
+# Validation Violation and Report Models
+# ----------------------------------------------------------------------------
+
+class ValidationViolationType(str, enum.Enum):
+    INVALID_EVIDENCE_ID = "INVALID_EVIDENCE_ID"               # Evidence ID không tồn tại trong Evidence Bundle
+    UNSUPPORTED_TECHNOLOGY = "UNSUPPORTED_TECHNOLOGY"         # Công nghệ lạ không có trong evidence
+    UNSUPPORTED_METRIC = "UNSUPPORTED_METRIC"                 # Số liệu, %, latency, scale bịa đặt
+    EXPERIENCE_INFLATION = "EXPERIENCE_INFLATION"             # Nâng cấp sinh viên/bài tập thành production/lead
+    UNSUPPORTED_JD_FABRICATION = "UNSUPPORTED_JD_FABRICATION" # Tự chế kinh nghiệm cho yêu cầu JD mà ứng viên không có
+    ARCHITECTURAL_SCOPE_SHIFT = "ARCHITECTURAL_SCOPE_SHIFT"   # Trôi dời định ngữ kiến trúc (client-side vs server-side)
+    SCHEMA_ERROR = "SCHEMA_ERROR"                             # Lỗi cấu trúc JSON
+    SEMANTIC_ALIGNMENT_FAILURE = "SEMANTIC_ALIGNMENT_FAILURE" # Lệch nghĩa so với sự thật gốc
+
+
+@dataclass
+class ValidationViolation:
+    violation_type: ValidationViolationType
+    section: str                             # "summary" | "project.<name>.bullet_<idx>"
+    unit_id: str                             # Unique ID of the bullet or summary
+    offending_text: str
+    reason: str
+    suggested_correction: Optional[str] = None
+
+
+@dataclass
+class ValidationReport:
+    is_valid: bool
+    provenance_score: float
+    violations: List[ValidationViolation] = field(default_factory=list)
+    accepted_units_count: int = 0
+    total_units_count: int = 0
+    locked_units: Dict[str, Any] = field(default_factory=dict)
+    feedback_for_regeneration: Optional[str] = None
+

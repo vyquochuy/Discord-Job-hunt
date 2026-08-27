@@ -7,6 +7,8 @@ from app.models.candidate import Candidate, CandidateProject
 from app.models.job import Job
 from app.models.match import JobMatch
 from app.schemas.tailoring_ir import (
+    EvidenceBundle,
+    EvidenceFact,
     FactNode,
     JDCapabilityProfile,
     LayoutBudget,
@@ -15,6 +17,7 @@ from app.schemas.tailoring_ir import (
     ScoredEvidenceItem,
     ScoredProjectCandidate,
     SkillRequirementType,
+    TailoringStrategy,
 )
 from app.services.tailoring.fact_graph import CAPABILITY_TAXONOMY, fact_graph_builder
 from app.services.tailoring.jd_capability_analyzer import (
@@ -653,5 +656,125 @@ class ResumeIntelligenceEngine:
             all_scored_evidence=all_scored_evidences,
         )
 
+    @classmethod
+    def build_evidence_bundle(
+        cls,
+        candidate: Candidate,
+        job: Job,
+        match_record: Optional[JobMatch] = None,
+        custom_tone: str = "professional_and_humble",
+        layout_budget: Optional[LayoutBudget] = None,
+    ) -> EvidenceBundle:
+        """
+        Xây dựng EvidenceBundle có cấu trúc hoàn chỉnh để chuyển giao cho Gemini Semantic Writer:
+        - Trích xuất toàn bộ EvidenceFact[] từ EvidenceRegistry.
+        - Lập chiến lược TailoringStrategy xác định rõ:
+          + Allowed Technologies & Allowed Metrics
+          + Selected Evidence IDs
+          + Candidate Gaps (unsupported_requirements) cấm AI chế biến
+        - Đóng gói cùng LayoutBudget và JD summary.
+        """
+        from app.schemas.tailoring_ir import EvidenceBundle, TailoringStrategy
+        from app.services.tailoring.fact_graph import evidence_registry
+        from app.services.tailoring.alias_registry import alias_registry
+
+        # 1. Sinh ResumeStrategy nền tảng (chọn dự án, ranking bullets)
+        resume_strat = cls.build_strategy(
+            candidate=candidate,
+            job=job,
+            match_record=match_record,
+            custom_tone=custom_tone,
+            layout_budget=layout_budget,
+        )
+        budget = resume_strat.layout_budget or (layout_budget or LayoutBudget())
+        jd_profile = resume_strat.jd_capability_profile or jd_capability_analyzer.analyze_job(job)
+
+        # 2. Toàn bộ Evidence Facts từ Evidence Registry
+        all_evidence_facts = evidence_registry.get_registry(candidate)
+
+        # 3. Thu thập các Evidence IDs được phép đưa vào Resume
+        selected_evidence_ids: List[str] = []
+        selected_facts: List[Any] = []
+
+        # Thêm facts của các projects đã được tuyển chọn
+        for sp in resume_strat.selected_projects:
+            for ev_item in sp.ranked_evidence:
+                f_node = ev_item.fact_node
+                if f_node and f_node.fact_id in all_evidence_facts:
+                    selected_evidence_ids.append(f_node.fact_id)
+                    selected_facts.append(all_evidence_facts[f_node.fact_id])
+                elif ev_item.fact_node:
+                    fid = ev_item.fact_node.fact_id
+                    if fid not in selected_evidence_ids:
+                        selected_evidence_ids.append(fid)
+
+        # Thêm facts của education & skills & identity
+        for fid, fact in all_evidence_facts.items():
+            if fid.startswith("education.") or fid.startswith("skill.") or fid == "candidate.identity":
+                if fid not in selected_evidence_ids:
+                    selected_evidence_ids.append(fid)
+                    selected_facts.append(fact)
+
+        # 4. Xác định Allowed Technologies & Allowed Metrics
+        all_cand_canonical_techs = evidence_registry.get_allowed_canonical_technologies(list(all_evidence_facts.values()))
+        allowed_techs = list(evidence_registry.get_allowed_canonical_technologies(selected_facts))
+        allowed_metrics = list(evidence_registry.get_allowed_metrics(selected_facts))
+
+        all_cand_caps: Set[str] = set()
+        for f in all_evidence_facts.values():
+            all_cand_caps.update(f.capabilities)
+
+        # 5. Phát hiện Candidate Gaps (Unsupported Requirements)
+        unsupported_reqs = jd_capability_analyzer.identify_candidate_gaps(
+            candidate_canonical_techs=all_cand_canonical_techs,
+            candidate_capabilities=all_cand_caps,
+            profile=jd_profile,
+            job=job,
+        )
+
+        # 6. Định vị chuyên môn (Positioning statement)
+        positioning_map = {
+            "backend": "High-Throughput Distributed Backend & Serverless Architecture",
+            "system": "Systems Engineering, Low-Latency Protocols & Cloud Infrastructure",
+            "security": "Applied Cryptography, PKI Infrastructure & Zero-Knowledge Architecture",
+            "general": "Core Software Engineering, System Architecture & Modular Design",
+        }
+        positioning = positioning_map.get(resume_strat.role_family, "Software Engineering & Applied Architecture")
+
+        tailoring_strategy = TailoringStrategy(
+            target_role=resume_strat.target_title,
+            positioning=positioning,
+            role_family=resume_strat.role_family,
+            prioritized_skills=resume_strat.priority_skills,
+            deprioritized_skills=[s for s in resume_strat.priority_skills[6:]] if len(resume_strat.priority_skills) > 6 else [],
+            selected_projects=[p.project.name for p in resume_strat.selected_projects],
+            selected_evidence_ids=selected_evidence_ids,
+            jd_keywords_to_target=resume_strat.matched_skills,
+            unsupported_requirements=unsupported_reqs,
+            allowed_technologies=allowed_techs,
+            allowed_metrics=allowed_metrics,
+            allowed_claims=[f.claim for f in selected_facts],
+            forbidden_claims=[f"Experience with {req}" for req in unsupported_reqs],
+            explainability_matrix=resume_strat.explainability_matrix,
+        )
+
+        target_jd_summary = {
+            "title": job.title,
+            "company": job.company_name,
+            "primary_domains": jd_profile.primary_domains,
+            "core_problems": jd_profile.core_problem_statements,
+            "required_skills": [s for s, t in jd_profile.skill_classifications.items() if t == SkillRequirementType.REQUIRED],
+            "preferred_skills": [s for s, t in jd_profile.skill_classifications.items() if t == SkillRequirementType.PREFERRED],
+            "seniority": jd_profile.seniority_level,
+        }
+
+        return EvidenceBundle(
+            strategy=tailoring_strategy,
+            evidence_facts=selected_facts,
+            target_jd_summary=target_jd_summary,
+            layout_budget=budget,
+        )
+
 
 resume_intelligence = ResumeIntelligenceEngine()
+

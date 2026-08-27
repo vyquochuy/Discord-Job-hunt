@@ -127,11 +127,16 @@
 - [x] **Claim-Level Provenance Verifier**:
   - Decomposition of bullet points into atomic claims (`DecomposedClaim`) and exact metric grounding.
 - [x] **Project Evidence Model & Invariant Engine**:
-  - 3-Layer Mandatory Schema: `summary` (factual context), `core` (Primary USP / Protected Evidence), `technologies` (Ground Truth duy nhất), `supporting_evidence` (xếp hạng đa tín hiệu linh hoạt).
-  - Core Protection Invariant: `core` sống sót 100% qua mọi bộ lọc, không bao giờ bị drop vì low JD relevance.
-  - Relevance-Driven Dynamic Positioning: Thứ tự hiển thị của `core` và `supporting_evidence` được xếp theo relevance thực tế đối với JD.
-  - Compression-First Layout Budget: Nén wording $\to$ Bỏ supporting evidence ít liên quan $\to$ Nén tech $\to$ Giảm khoảng cách $\to$ Mới giảm project (Core không bao giờ bị xóa).
-  - 107/107 backend automated tests passing (100% pass rate).
+## Phase 4 & 4.5 — Evidence-Grounded Resume Tailoring Engine & Anti-Hallucination Refactor (Completed)
+- [x] Refactored Pipeline: `Candidate Profile` $\rightarrow$ `Fact Graph & Evidence Registry` $\rightarrow$ `JD Capability Analyzer` $\rightarrow$ `Tailoring Strategy` $\rightarrow$ `Gemini Semantic Resume Writer` $\rightarrow$ `Claim-Level Evidence Validation` $\rightarrow$ `Structured Resume Model` $\rightarrow$ `Pure LaTeX Renderer` $\rightarrow$ `PDF Output`.
+- [x] Canonical Technology Alias Registry (`alias_registry.py`) with word-boundary token matching (50+ tech terms, preventing regex false positives).
+- [x] `fact_graph.py` Single Source of Truth extracting atomic `EvidenceFact`s with canonical technologies and quantitative metrics.
+- [x] `jd_capability_analyzer.py` capability scoring and candidate gap detection filtering domain stop words.
+- [x] `gemini_resume_writer.py` calling Gemini REST API (`gemini-3.6-flash`) with Structured JSON Mode and `claims: list[GeneratedClaimFragment]`.
+- [x] `deterministic_composer.py` 100% offline, zero-hallucination fallback composer.
+- [x] `evidence_validator.py` 6-stage validation (`INVALID_EVIDENCE_ID`, `UNSUPPORTED_TECHNOLOGY`, `UNSUPPORTED_METRIC`, `EXPERIENCE_INFLATION`, `UNSUPPORTED_JD_FABRICATION`, `ARCHITECTURAL_SCOPE_SHIFT`) with unit-level locking and selective regeneration.
+- [x] `latex_generator.py` direct rendering from `StructuredResumeDraft` for ATS 1-page compliance.
+- [x] Automated test suite `backend/tests/test_architectural_anti_hallucination.py` (11/11 PASS, full suite 118/118 PASS).
 
 ---
 

@@ -102,7 +102,18 @@ graph TD
   - `services/`:
     - `candidate.py`: Candidate profile management and context sync.
     - `matching/`: Tri-state hard filters, 7-signal deterministic scoring engine, explainable evidence generator.
-    - `tailoring/`: `RoleClassifier`, `EvidenceScorer`, `DiverseEvidenceSelector`, `AdaptiveSummaryBuilder`, `ProvenanceVerifier`, `latex_generator.py`, `latex_compiler.py`, `cover_letter_generator.py`.
+    - `tailoring/` (Evidence-Grounded Resume Tailoring Engine):
+      - `alias_registry.py`: Canonical technology alias registry with token boundary matching.
+      - `fact_graph.py`: Fact graph and EvidenceRegistry extracting atomic facts with canonical tools and metrics.
+      - `jd_capability_analyzer.py`: JD capability extraction and candidate gap analysis.
+      - `resume_intelligence.py`: Strategic positioning, MMR project selection, and layout budgeting.
+      - `gemini_resume_writer.py`: Semantic resume writer calling Google Gemini REST API (`gemini-3.6-flash`) with structured JSON claims output.
+      - `deterministic_composer.py`: 100% offline deterministic composer fallback.
+      - `evidence_validator.py`: `ClaimLevelValidator` (6-stage claim checking) & `UnitRegenerationOrchestrator` (locked-unit selective regeneration).
+      - `provenance_verifier.py`: Quantitative claim-level provenance verification.
+      - `latex_generator.py`: Pure LaTeX generator rendering directly from `StructuredResumeDraft`.
+      - `latex_compiler.py`: PDF compilation via `pdflatex`.
+      - `cover_letter_generator.py`: Contextualized cover letter composer.
     - `ingestion_pipeline.py` & `deduplication/`: Multi-source collection, SHA-256 hash caching, 3-tier deduplication.
     - `notifications/`: `NotificationService` and notification provider abstractions.
 
