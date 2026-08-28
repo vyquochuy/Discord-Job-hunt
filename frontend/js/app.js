@@ -108,6 +108,8 @@ function navigateTo(viewName, pushState = true) {
   if (targetView === 'recommendations') loadRecommendations();
   if (targetView === 'profile') loadProfile();
   if (targetView === 'applications') loadApplications();
+  if (targetView === 'resume' && state.selectedResume) renderResumeWorkspace(state.selectedResume);
+  if (targetView === 'system') loadSystemView();
 
   refreshIcons();
 }
@@ -732,15 +734,221 @@ function copyResumeLatex() {
   }
 }
 
-function copyCoverLetterText() {
-  const textEl = document.getElementById('cover-letter-text');
-  if (textEl) {
-    navigator.clipboard.writeText(textEl.textContent.trim());
-    showToast('Đã sao chép Cover Letter vào Clipboard!', 'success');
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function convertMarkdownToCleanEmail(md, candidateName = '', jobTitle = '', companyName = '') {
+  if (!md) return { subject: '', body: '' };
+
+  let text = md;
+  // Xóa tiêu đề Cover Letter ở đầu
+  text = text.replace(/^#\s+Cover Letter\s*\n+/i, '');
+
+  let emailSubject = `Ứng tuyển vị trí ${jobTitle || 'Vị trí'} tại ${companyName || 'Công ty'} - ${candidateName || 'Ứng viên'}`;
+
+  // Bóc tách metadata nếu có khối --- ở đầu
+  const metaDividerIdx = text.indexOf('---');
+  if (metaDividerIdx !== -1 && metaDividerIdx < 450) {
+    const metaBlock = text.slice(0, metaDividerIdx);
+    const posMatch = metaBlock.match(/\*\*Position:\*\*\s*(.+)/i);
+    const compMatch = metaBlock.match(/\*\*Company:\*\*\s*(.+)/i);
+    if (posMatch && compMatch) {
+      emailSubject = `Ứng tuyển vị trí ${posMatch[1].trim()} tại ${compMatch[1].trim()} - ${candidateName || 'Ứng viên'}`;
+    }
+    text = text.slice(metaDividerIdx + 3).trim();
+  } else {
+    // Xóa các dòng metadata thô nếu không có divider ---
+    text = text.replace(/^\*\*Candidate:\*\*.*$/gim, '')
+      .replace(/^\*\*Email:\*\*.*$/gim, '')
+      .replace(/^\*\*Location:\*\*.*$/gim, '')
+      .replace(/^\*\*Date:\*\*.*$/gim, '')
+      .replace(/^\*\*To:\*\*.*$/gim, '')
+      .replace(/^\*\*Company:\*\*.*$/gim, '')
+      .replace(/^\*\*Position:\*\*.*$/gim, '')
+      .trim();
+  }
+
+  // Chuyển đổi Markdown Headers thành đề mục chuẩn
+  text = text.replace(/^###?\s*(.+)$/gm, '$1:');
+
+  // Chuyển đổi Markdown links [Text](URL) -> Text (URL)
+  text = text.replace(/\[(.*?)\]\((.*?)\)/g, '$1: $2');
+
+  // Chuyển đổi bullet points - text / * text -> • text
+  text = text.replace(/^[-*]\s+/gm, '• ');
+
+  // Loại bỏ Markdown bold **text** và italic *text*
+  text = text.replace(/\*\*(.*?)\*\*/g, '$1');
+  text = text.replace(/\*(.*?)\*/g, '$1');
+  text = text.replace(/_(.*?)_/g, '$1');
+
+  // Chuẩn hóa dòng trống
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+
+  return {
+    subject: emailSubject,
+    body: text,
+  };
+}
+
+function renderCoverLetterHtml(md) {
+  if (!md) return '<p style="color: var(--text-muted); padding: 0.5rem 0;">Chưa có dữ liệu Cover Letter.</p>';
+
+  let text = md;
+  // Bỏ phần header metadata nếu có
+  const metaDividerIdx = text.indexOf('---');
+  if (metaDividerIdx !== -1 && metaDividerIdx < 450) {
+    text = text.slice(metaDividerIdx + 3).trim();
+  } else {
+    text = text.replace(/^#\s+Cover Letter\s*\n+/i, '').trim();
+    text = text.replace(/^\*\*Candidate:\*\*.*$/gim, '')
+      .replace(/^\*\*Email:\*\*.*$/gim, '')
+      .replace(/^\*\*Location:\*\*.*$/gim, '')
+      .replace(/^\*\*Date:\*\*.*$/gim, '')
+      .replace(/^\*\*To:\*\*.*$/gim, '')
+      .replace(/^\*\*Company:\*\*.*$/gim, '')
+      .replace(/^\*\*Position:\*\*.*$/gim, '')
+      .trim();
+  }
+
+  // Phân tích từng dòng để xử lý Header, Bullet list, Paragraphs
+  const lines = text.split('\n');
+  const htmlParts = [];
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (!line) {
+      if (inList) {
+        htmlParts.push('</ul>');
+        inList = false;
+      }
+      continue;
+    }
+
+    // Header đề mục (### hoặc ## hoặc #)
+    if (line.startsWith('#')) {
+      if (inList) {
+        htmlParts.push('</ul>');
+        inList = false;
+      }
+      const headerText = line.replace(/^#+\s*/, '').replace(/:$/, '');
+      htmlParts.push(`<h5>${escapeHtml(headerText)}</h5>`);
+      continue;
+    }
+
+    // Bullet point (- hoặc * hoặc •)
+    if (/^[-*•]\s+/.test(line)) {
+      if (!inList) {
+        htmlParts.push('<ul>');
+        inList = true;
+      }
+      const itemText = line.replace(/^[-*•]\s+/, '');
+      const formatted = escapeHtml(itemText)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color: var(--primary-600); text-decoration: underline;">$1</a>');
+      htmlParts.push(`<li>${formatted}</li>`);
+      continue;
+    }
+
+    // Normal text paragraph
+    if (inList) {
+      htmlParts.push('</ul>');
+      inList = false;
+    }
+
+    const formatted = escapeHtml(line)
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color: var(--primary-600); text-decoration: underline;">$1</a>');
+
+    if (line.startsWith('Dear') || line.startsWith('Kính gửi') || line.startsWith('Sincerely') || line.startsWith('Trân trọng')) {
+      htmlParts.push(`<p style="font-weight: 500; margin: 0.5rem 0;">${formatted}</p>`);
+    } else {
+      htmlParts.push(`<p>${formatted}</p>`);
+    }
+  }
+
+  if (inList) {
+    htmlParts.push('</ul>');
+  }
+
+  return htmlParts.join('');
+}
+
+function copyCoverLetterCleanEmail() {
+  const resume = state.selectedResume;
+  if (!resume || !resume.cover_letter || !resume.cover_letter.content_markdown) {
+    showToast('Chưa có dữ liệu Thư xin việc để sao chép!', 'warning');
+    return;
+  }
+
+  const candidateName = state.candidateProfile ? state.candidateProfile.full_name : '';
+  const targetTitle = resume.target_title || '';
+  const companyName = resume.cover_letter.company_name || '';
+
+  const { body } = convertMarkdownToCleanEmail(
+    resume.cover_letter.content_markdown,
+    candidateName,
+    targetTitle,
+    companyName
+  );
+
+  navigator.clipboard.writeText(body).then(() => {
+    showToast('✅ Đã sao chép nội dung thư sạch (sẵn sàng dán trực tiếp vào Email)!', 'success');
+  }).catch(() => {
+    const textarea = document.createElement('textarea');
+    textarea.value = body;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('✅ Đã sao chép nội dung thư sạch!', 'success');
+  });
+}
+
+function copyCoverLetterSubject() {
+  const subjectEl = document.getElementById('cover-letter-subject-text');
+  if (subjectEl) {
+    const text = subjectEl.textContent.trim();
+    navigator.clipboard.writeText(text);
+    showToast('✅ Đã sao chép Tiêu đề Email vào Clipboard!', 'success');
   }
 }
 
-function renderResumeWorkspace(resume) {
+function openCoverLetterInMailClient() {
+  const resume = state.selectedResume;
+  if (!resume || !resume.cover_letter || !resume.cover_letter.content_markdown) {
+    showToast('Chưa có dữ liệu Thư xin việc!', 'warning');
+    return;
+  }
+
+  const candidateName = state.candidateProfile ? state.candidateProfile.full_name : '';
+  const targetTitle = resume.target_title || '';
+  const companyName = resume.cover_letter.company_name || '';
+
+  const { subject, body } = convertMarkdownToCleanEmail(
+    resume.cover_letter.content_markdown,
+    candidateName,
+    targetTitle,
+    companyName
+  );
+
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(mailtoUrl, '_blank');
+}
+
+async function renderResumeWorkspace(resume) {
   const container = document.getElementById('resume-workspace-content');
   if (!container) return;
 
@@ -748,15 +956,112 @@ function renderResumeWorkspace(resume) {
   const pdfInlineUrl = api.getResumePdfUrl(resume.id, false);
   const jobId = resume.job_id;
 
+  // Lấy chi tiết thông tin Job mục tiêu
+  let job = (state.jobs || []).find(j => j.id === jobId);
+  if (!job && jobId) {
+    try {
+      job = await api.getJobDetail(jobId);
+    } catch (e) {
+      console.warn('Không thể tải chi tiết job cho workspace header:', e);
+    }
+  }
+
+  const jobTitle = (job && job.title) || resume.target_title || 'Vị trí Ứng tuyển';
+  const companyName = (job && job.company_name) || (resume.cover_letter && resume.cover_letter.company_name) || 'Công ty Tuyển dụng';
+  const location = (job && job.location) || 'Việt Nam';
+  const workMode = (job && job.work_mode) || 'Full-time';
+  const level = (job && job.level) || 'All Levels';
+  const monogram = getCompanyMonogram(companyName);
+
+  const hasSalary = job && (job.min_salary || job.max_salary);
+  const salaryText = hasSalary
+    ? `${formatCurrency(job.min_salary, job.salary_currency)} - ${formatCurrency(job.max_salary, job.salary_currency)}`
+    : 'Mức lương: Thỏa thuận';
+
+  const sourceBadge = job ? formatSourceBadge(job.source, job.source_url) : '';
+  const sourceUrl = job ? job.source_url : null;
+
+  const matchedSkillsList = (resume.matched_skills && resume.matched_skills.length > 0)
+    ? resume.matched_skills
+    : (job && job.skills_required ? job.skills_required : []);
+
+  const candidateName = state.candidateProfile ? state.candidateProfile.full_name : '';
+  const coverLetterMarkdown = resume.cover_letter ? resume.cover_letter.content_markdown : '';
+  const { subject: emailSubject } = convertMarkdownToCleanEmail(
+    coverLetterMarkdown,
+    candidateName,
+    jobTitle,
+    companyName
+  );
+  const coverLetterHtml = renderCoverLetterHtml(coverLetterMarkdown);
+
   container.innerHTML = `
-    <!-- Top Action Toolbar -->
+    <!-- Top Job Details Banner (Thay thế hoàn toàn phần Mục tiêu) -->
+    <div class="card" style="margin-bottom: 1rem; padding: 1.25rem 1.5rem; border-left: 4px solid var(--primary-600); background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-muted) 100%);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; gap: 0.85rem; align-items: center; min-width: 0; flex: 1;">
+          <div class="company-avatar" style="width: 48px; height: 48px; font-size: 1.2rem; font-weight: 700; border-radius: var(--radius-md); flex-shrink: 0;">${monogram}</div>
+          <div style="min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <h2 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main); line-height: 1.3;">${escapeHtml(jobTitle)}</h2>
+              ${sourceBadge}
+            </div>
+            <div style="font-size: 0.95rem; font-weight: 600; color: var(--primary-700); margin-top: 0.2rem;">
+              ${escapeHtml(companyName)}
+            </div>
+          </div>
+        </div>
+
+          <button class="btn btn-outline btn-sm" onclick="openJobDetailModal('${jobId}')" title="Xem toàn bộ nội dung bản mô tả công việc (JD)">
+            <i data-lucide="file-text" class="icon-sm"></i>
+            <span>Xem chi tiết JD</span>
+          </button>
+          <a href="${pdfDownloadUrl}" target="_blank" class="btn btn-primary btn-sm" title="Tải tệp tin PDF về máy">
+            <i data-lucide="download" class="icon-sm"></i>
+            <span>Tải PDF CV</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Job Meta Tags & Attributes -->
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--border-default);">
+        <span class="badge badge-gray" style="font-size: 0.78rem;">
+          <i data-lucide="map-pin" class="icon-sm"></i>
+          <span>${escapeHtml(location)}</span>
+        </span>
+        <span class="badge badge-blue" style="font-size: 0.78rem;">
+          <i data-lucide="briefcase" class="icon-sm"></i>
+          <span>${escapeHtml(workMode)}</span>
+        </span>
+        <span class="badge badge-gray" style="font-size: 0.78rem;">
+          <i data-lucide="layers" class="icon-sm"></i>
+          <span>${escapeHtml(level)}</span>
+        </span>
+        <span class="badge badge-green" style="font-size: 0.78rem;">
+          <i data-lucide="dollar-sign" class="icon-sm"></i>
+          <span>${escapeHtml(salaryText)}</span>
+        </span>
+        <span class="badge badge-green" style="font-size: 0.78rem;">
+          <i data-lucide="shield-check" class="icon-sm"></i>
+          <span>Xác thực bằng chứng: ${(resume.provenance_score ?? 100).toFixed(0)}%</span>
+        </span>
+      </div>
+
+      ${matchedSkillsList && matchedSkillsList.length > 0 ? `
+        <div style="margin-top: 0.65rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-size: 0.8rem;">
+          <span style="color: var(--text-muted); font-weight: 500;">Kỹ năng:</span>
+          ${matchedSkillsList.slice(0, 8).map(sk => `
+            <span class="badge badge-blue" style="font-size: 0.74rem; font-weight: 500;">${escapeHtml(sk)}</span>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- Action Toolbar (Tái tạo, Xóa, Nộp ứng tuyển) -->
     <div class="card" style="margin-bottom: 1rem; padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
       <div style="display: flex; align-items: center; gap: 0.5rem;">
         <span class="badge badge-blue">Job ID: ${jobId ? jobId.slice(0, 8) : 'N/A'}</span>
-        <span class="badge badge-green">
-          <i data-lucide="shield-check" class="icon-sm"></i>
-          <span>Xác thực không ảo giác: ${(resume.provenance_score ?? 100).toFixed(0)}%</span>
-        </span>
+        <span style="font-size: 0.82rem; color: var(--text-muted);">Phiên bản CV: v${resume.version || 1}</span>
       </div>
 
       <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -780,98 +1085,116 @@ function renderResumeWorkspace(resume) {
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
-      <!-- Left: LaTeX Source & PDF Preview -->
-      <div>
-        <div class="card" style="margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-            <div>
-              <h3 style="margin: 0; font-size: 1.05rem;">${resume.target_title || 'Hồ sơ Ứng tuyển'}</h3>
-              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0.2rem 0 0 0;">
-                Mục tiêu: ${resume.summary_objective || 'N/A'}
-              </p>
-            </div>
-            <a href="${pdfDownloadUrl}" target="_blank" class="btn btn-primary btn-sm" title="Tải tệp tin PDF về máy">
-              <i data-lucide="download" class="icon-sm"></i>
-              <span>Tải file PDF</span>
-            </a>
+    <!-- Main 2-Column Grid (Căn chỉnh đối xứng ngang và rộng bằng nhau 50% - 50%) -->
+    <div class="ws-two-column-grid">
+      <!-- Left Column: Single Unified Card for LaTeX Editor & PDF Preview -->
+      <div class="card ws-col" style="display: flex; flex-direction: column;">
+        <!-- Header & Action Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+          <h4 style="font-size: 0.95rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+            <i data-lucide="file-text" class="icon-sm" style="color: var(--primary-600);"></i>
+            <span>Hồ sơ CV (ATS LaTeX)</span>
+          </h4>
+          <div style="display: flex; gap: 0.35rem;">
+            <button class="btn btn-outline btn-sm" onclick="copyResumeLatex()" title="Sao chép toàn bộ TeX">
+              <i data-lucide="copy" class="icon-sm"></i>
+              <span>Sao chép TeX</span>
+            </button>
+            <button class="btn btn-warning btn-sm" onclick="saveAndRecompileResume('${resume.id}')" title="Lưu và biên dịch lại PDF">
+              <i data-lucide="save" class="icon-sm"></i>
+              <span>Lưu & Biên dịch lại</span>
+            </button>
           </div>
+        </div>
 
-          <!-- View Switcher Tabs -->
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-default); padding-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-            <div style="display: flex; gap: 0.35rem;">
-              <button id="btn-tab-tex" class="btn btn-primary btn-sm" onclick="switchResumePreviewTab('tex')">
-                <i data-lucide="code" class="icon-sm"></i>
-                <span>Mã nguồn LaTeX (.tex)</span>
-              </button>
-              <button id="btn-tab-pdf" class="btn btn-outline btn-sm" onclick="switchResumePreviewTab('pdf')">
-                <i data-lucide="eye" class="icon-sm"></i>
-                <span>Xem trước PDF</span>
-              </button>
-            </div>
-            <div style="display: flex; gap: 0.35rem;">
-              <button class="btn btn-outline btn-sm" onclick="copyResumeLatex()" title="Sao chép toàn bộ TeX">
-                <i data-lucide="copy" class="icon-sm"></i>
-                <span>Sao chép TeX</span>
-              </button>
-              <button class="btn btn-warning btn-sm" onclick="saveAndRecompileResume('${resume.id}')" title="Lưu và biên dịch lại PDF">
-                <i data-lucide="save" class="icon-sm"></i>
-                <span>Lưu & Biên dịch lại</span>
-              </button>
-            </div>
+        <!-- Tab Switcher Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border-default);">
+          <div style="display: flex; gap: 0.35rem;">
+            <button id="btn-tab-tex" class="btn btn-primary btn-sm" onclick="switchResumePreviewTab('tex')">
+              <i data-lucide="code" class="icon-sm"></i>
+              <span>Mã nguồn LaTeX (.tex)</span>
+            </button>
+            <button id="btn-tab-pdf" class="btn btn-outline btn-sm" onclick="switchResumePreviewTab('pdf')">
+              <i data-lucide="eye" class="icon-sm"></i>
+              <span>Xem trước PDF</span>
+            </button>
           </div>
+          <span class="badge badge-blue" style="font-size: 0.72rem;">LaTeX ATS Mode</span>
         </div>
 
         <!-- Tab 1: LaTeX Editor View (Default) -->
-        <div id="resume-tab-tex" class="card" style="padding: 0.75rem; margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.78rem; color: var(--text-muted);">
-            <span>Chỉnh sửa trực tiếp mã nguồn LaTeX và nhấn <strong>Lưu & Biên dịch lại</strong></span>
-            <span class="badge badge-blue">LaTeX ATS Mode</span>
-          </div>
-          <textarea id="resume-tex-editor" style="width: 100%; height: 520px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.5; padding: 0.75rem; border-radius: var(--radius-md); background: var(--bg-muted); color: var(--text-main); border: 1px solid var(--border-default); resize: vertical; white-space: pre;" spellcheck="false">${(resume.latex_source || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+        <div id="resume-tab-tex">
+          <textarea id="resume-tex-editor" style="width: 100%; height: 560px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.5; padding: 0.75rem; border-radius: var(--radius-md); background: var(--bg-muted); color: var(--text-main); border: 1px solid var(--border-default); resize: vertical; white-space: pre;" spellcheck="false">${(resume.latex_source || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
         </div>
 
         <!-- Tab 2: PDF Preview (Hidden by default) -->
-        <div id="resume-tab-pdf" class="card" style="height: 560px; padding: 0; overflow: hidden; display: none; margin-bottom: 1rem;">
+        <div id="resume-tab-pdf" style="height: 560px; border-radius: var(--radius-md); overflow: hidden; display: none; border: 1px solid var(--border-default);">
           <iframe src="${pdfInlineUrl}" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
       </div>
 
-      <!-- Right: Cover Letter & Provenance -->
-      <div>
-        <div class="card" style="margin-bottom: 1.25rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+      <!-- Right Column: Cover Letter & Evidence Map -->
+      <div class="ws-col" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <!-- Enhanced Cover Letter Card (Clean Formatted View Only) -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
             <h4 style="font-size: 0.95rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
-              <i data-lucide="mail" class="icon-sm"></i>
+              <i data-lucide="mail" class="icon-sm" style="color: var(--primary-600);"></i>
               <span>Thư xin việc (Cover Letter)</span>
             </h4>
-            <button class="btn btn-outline btn-sm" onclick="copyCoverLetterText()">
-              <i data-lucide="copy" class="icon-sm"></i>
-              <span>Sao chép</span>
+            
+            <div style="display: flex; gap: 0.35rem; align-items: center;">
+              <button class="btn btn-primary btn-sm" onclick="copyCoverLetterCleanEmail()" title="Sao chép nội dung thư sạch không có mã Markdown để dán thẳng vào Email">
+                <i data-lucide="copy" class="icon-sm"></i>
+                <span>Sao chép gửi Email</span>
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openCoverLetterInMailClient()" title="Mở ứng dụng gửi Email mặc định">
+                <i data-lucide="send" class="icon-sm"></i>
+                <span>Gửi Mail</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Suggested Email Subject Banner -->
+          <div class="cover-letter-subject-box">
+            <div style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <strong style="color: var(--primary-800);">Tiêu đề Email:</strong>
+              <span id="cover-letter-subject-text" style="color: var(--primary-900); font-weight: 500; margin-left: 0.3rem;">${escapeHtml(emailSubject)}</span>
+            </div>
+            <button class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; flex-shrink: 0;" onclick="copyCoverLetterSubject()" title="Sao chép riêng Tiêu đề Email">
+              <i data-lucide="copy" class="icon-sm" style="width: 12px; height: 12px;"></i>
+              <span>Chép Tiêu đề</span>
             </button>
           </div>
-          <div id="cover-letter-text" style="background-color: var(--bg-muted); padding: 1rem; border-radius: var(--radius-md); font-size: 0.84rem; line-height: 1.6; max-height: 250px; overflow-y: auto; white-space: pre-wrap; font-family: inherit; border: 1px solid var(--border-default);">
-            ${resume.cover_letter ? resume.cover_letter.content_markdown : 'Chưa có dữ liệu Cover Letter.'}
+
+          <!-- Clean Formatted Letter Content -->
+          <div id="cl-view-formatted" class="cover-letter-paper" style="max-height: 290px;">
+            ${coverLetterHtml}
           </div>
         </div>
 
+        <!-- Evidence Map Card -->
         <div class="card">
-          <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
-            <i data-lucide="shield-check" class="icon-sm" style="color: var(--success-600);"></i>
-            <span>Fact-Checking Evidence Map</span>
-          </h4>
-          <div style="max-height: 280px; overflow-y: auto;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+              <i data-lucide="shield-check" class="icon-sm" style="color: var(--success-600);"></i>
+              <span>Fact-Checking Evidence Map</span>
+            </h4>
+            <span class="badge badge-green" style="font-size: 0.72rem;">Độ tin cậy: ${(resume.provenance_score ?? 100).toFixed(0)}%</span>
+          </div>
+
+          <div style="max-height: 200px; overflow-y: auto;">
             ${(resume.evidence_items || []).map((ev, idx) => {
               const score = ev.similarity_score != null ? (ev.similarity_score <= 1.0 ? ev.similarity_score * 100 : ev.similarity_score) : 100;
               return `
                 <div style="padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--border-default); font-size: 0.82rem;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                    <strong style="color: var(--primary-700);">[${ev.section || 'KHẲNG ĐỊNH'}] #${idx + 1}</strong>
+                    <strong style="color: var(--primary-700);">[${escapeHtml(ev.section || 'KHẲNG ĐỊNH')}] #${idx + 1}</strong>
                     <span class="badge badge-green" style="font-size: 0.72rem;">Độ tin cậy: ${score.toFixed(0)}%</span>
                   </div>
-                  <div style="color: var(--text-main); font-weight: 500;">${ev.claim_text}</div>
+                  <div style="color: var(--text-main); font-weight: 500;">${escapeHtml(ev.claim_text)}</div>
                   <div style="color: var(--text-muted); font-size: 0.76rem; margin-top: 0.25rem;">
-                    <em>Căn cứ gốc: "${ev.original_fact || 'Hồ sơ ứng viên'}"</em>
+                    <em>Căn cứ gốc: "${escapeHtml(ev.original_fact || 'Hồ sơ ứng viên')}"</em>
                   </div>
                 </div>
               `;
@@ -1509,6 +1832,116 @@ function renderManualIngestError(res) {
 }
 
 // --- 10. System Administration Controllers ---
+function loadSystemView() {
+  const currentBase = api.getBaseUrl();
+  const currentSource = api.getResolutionSource();
+
+  const inputEl = document.getElementById('custom-api-base-input');
+  if (inputEl) {
+    inputEl.value = currentBase;
+  }
+
+  const sourceBadge = document.getElementById('api-source-badge');
+  if (sourceBadge) {
+    sourceBadge.textContent = `Nguồn: ${currentSource}`;
+  }
+
+  refreshIcons();
+}
+
+function saveCustomApiEndpoint() {
+  const inputEl = document.getElementById('custom-api-base-input');
+  const val = inputEl ? inputEl.value.trim() : '';
+
+  if (!val) {
+    showToast('Vui lòng nhập API URL hợp lệ (hoặc bấm Mặc định để xóa tùy biến).', 'warning');
+    return;
+  }
+
+  api.setBaseUrl(val);
+  showToast(`Đã lưu cấu hình API: ${api.getBaseUrl()}`, 'success');
+  loadSystemView();
+  testApiConnection();
+}
+
+function resetApiEndpoint() {
+  api.resetBaseUrl();
+  showToast(`Đã khôi phục API Endpoint về cấu hình mặc định: ${api.getBaseUrl()}`, 'info');
+  loadSystemView();
+  testApiConnection();
+}
+
+function setApiPreset(url) {
+  const inputEl = document.getElementById('custom-api-base-input');
+  if (inputEl) {
+    inputEl.value = url;
+  }
+  saveCustomApiEndpoint();
+}
+
+async function testApiConnection() {
+  const statusBadge = document.getElementById('api-health-status-badge');
+  const resultBox = document.getElementById('api-health-result');
+  const pingBtn = document.getElementById('btn-ping-api');
+
+  if (statusBadge) {
+    statusBadge.className = 'badge badge-outline';
+    statusBadge.innerHTML = `<i data-lucide="loader" class="icon-spin"></i> Đang ping...`;
+  }
+  if (pingBtn) {
+    pingBtn.disabled = true;
+  }
+  refreshIcons();
+
+  const health = await api.checkHealth();
+
+  if (pingBtn) {
+    pingBtn.disabled = false;
+  }
+
+  if (health.healthy) {
+    if (statusBadge) {
+      statusBadge.className = 'badge badge-green';
+      statusBadge.textContent = `Online (${health.latencyMs} ms)`;
+    }
+
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      resultBox.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+          <div><strong style="color: var(--color-text-primary);">Trạng thái API:</strong> <span style="color: var(--color-success); font-weight: 600;">Sẵn sàng (200 OK)</span></div>
+          <div><strong style="color: var(--color-text-primary);">Độ trễ (Latency):</strong> <span>${health.latencyMs} ms</span></div>
+          <div><strong style="color: var(--color-text-primary);">PostgreSQL DB:</strong> <span style="color: ${health.data?.components?.database === 'connected' ? 'var(--color-success)' : 'var(--color-danger)'}; font-weight: 600;">${health.data?.components?.database || 'connected'}</span></div>
+          <div><strong style="color: var(--color-text-primary);">Redis Cache/Queue:</strong> <span style="color: ${health.data?.components?.redis === 'connected' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight: 600;">${health.data?.components?.redis || 'connected'}</span></div>
+          <div><strong style="color: var(--color-text-primary);">Phiên bản Backend:</strong> <span>v${health.data?.version || '1.0.0'}</span></div>
+          <div><strong style="color: var(--color-text-primary);">Môi trường:</strong> <span>${health.data?.environment || 'production'}</span></div>
+        </div>
+      `;
+    }
+    showToast(`Kết nối Backend thành công (${health.latencyMs} ms)`, 'success');
+  } else {
+    if (statusBadge) {
+      statusBadge.className = 'badge badge-red';
+      statusBadge.textContent = `Mất kết nối`;
+    }
+
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      resultBox.innerHTML = `
+        <div style="color: var(--color-danger);">
+          <strong>Lỗi kết nối:</strong> ${health.error || 'Không thể liên lạc với máy chủ API.'}
+          <div style="margin-top: 6px; font-size: 0.75rem; color: var(--color-text-muted);">
+            Vui lòng kiểm tra lại URL API, trạng thái máy chủ Backend (Render/Koyeb/Localhost) hoặc cấu hình CORS.
+          </div>
+        </div>
+      `;
+    }
+    showToast(`Không thể kết nối Backend: ${health.error}`, 'error');
+  }
+
+  refreshIcons();
+}
+
 async function confirmPurgeDatabase(scope, description) {
   const promptMessage = `XÁC NHẬN THỰC THI:\n"${description}" (Phạm vi: ${scope})\n\nThao tác này sẽ xóa dữ liệu và không thể hoàn tác. Bạn có chắc chắn muốn tiếp tục?`;
   if (!confirm(promptMessage)) return;

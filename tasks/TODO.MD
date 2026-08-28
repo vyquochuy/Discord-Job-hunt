@@ -168,20 +168,22 @@
 
 ---
 
-## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM) (Planned)
-- [ ] **8.1 Frontend Cloud-Ready & Cloudflare Pages Deployment (0đ)**:
-  - [ ] Dynamic `API_BASE` endpoint in `frontend/js/api.js` (support `window.ENV?.API_URL`, local fallback, and production cloud domain)
-  - [ ] Cloudflare Pages SPA Routing rule in `frontend/_redirects` (`/* /index.html 200`) to prevent 404 on page refresh
-  - [ ] Verify all static assets (CSS, JS, icons) use relative paths
-  - [ ] Deploy Frontend to **Cloudflare Pages** (Free CDN, unlimited bandwidth, automated Git builds, SSL)
+## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM) (In Progress)
+- [x] **8.1 Frontend Cloud-Ready & Cloudflare Pages Deployment (0đ)**:
+  - [x] Dynamic `API_BASE` endpoint in `frontend/js/api.js` (support `window.ENV?.API_URL`, local fallback, and production cloud domain)
+  - [x] Cloudflare Pages SPA Routing rule in `frontend/_redirects` (`/* /index.html 200`) to prevent 404 on page refresh
+  - [x] Verify all static assets (CSS, JS, icons) use relative paths
+  - [x] Live API Endpoint management & Ping Health Check controller in System View
+  - [x] Create comprehensive deployment guide in `docs/CLOUDFLARE_PAGES_GUIDE.md`
 - [ ] **8.2 Cloud Database & Serverless Cache (0đ)**:
   - [ ] Provision **Supabase PostgreSQL** (Free tier 500MB) with `pgvector` extension enabled
   - [ ] Provision **Upstash Redis** (Free 10k commands/day) for queue and caching
   - [ ] Configure cloud `DATABASE_URL` and `REDIS_URL` in environment variables
-- [ ] **8.3 Zero-Cost AI Engine Migration (Google Gemini & Groq Cloud)**:
-  - [ ] Implement adapter for **Google Gemini 2.0 Flash / 1.5 Flash** (Google AI Studio Free Tier)
-  - [ ] Implement adapter for **Groq API** (LLaMA 3.3 70B, DeepSeek R1/V3) for high-speed 0đ extraction and tailoring
-  - [ ] Configurable AI provider switch (`AI_PROVIDER=gemini|groq|openai`) in `backend/app/core/config.py`
+- [ ] **8.3 Provider-Agnostic AI Architecture, Task-Based Routing & Quality Fallback**:
+  - [ ] Standardized `AIProvider` Protocol with `generate_structured(prompt, schema, temperature)`
+  - [ ] Provider Adapters: `GeminiProvider` (Gemini 3.6/2.0 Flash), `GroqProvider` (LLaMA 3.3 70B, DeepSeek Distill), `DeepSeekProvider` (DeepSeek V3/R1), `OpenAIProvider`
+  - [ ] Task-Based `AIRouter` (`AITask`: `jd_extraction`, `jd_analysis`, `resume_generation`, `resume_unit_regeneration`, `cover_letter`, `explanation`) with configurable provider/model mappings
+  - [ ] Multi-tiered Quality Fallback Chain: `LLM Output` $\rightarrow$ `Schema Validation` $\rightarrow$ `ClaimLevelValidator` (Anti-Hallucination) $\rightarrow$ `Unit Regeneration` $\rightarrow$ `Fallback Provider` $\rightarrow$ `Deterministic Composer` (Offline Guaranteed)
 - [ ] **8.4 Backend & Discord Bot Deployment (0đ)**:
   - [ ] Deploy FastAPI Backend to **Render.com** (Free Web Service) or **Koyeb** / **Hugging Face Spaces**
   - [ ] Configure CORS middleware in `backend/app/main.py` to allow Cloudflare Pages domain
@@ -189,3 +191,18 @@
   - [ ] Set up **UptimeRobot** keep-alive ping (5-minute interval) against `/api/v1/health` to prevent backend cold sleep
 - [ ] **8.5 Cloud Storage & Context Persistence Hardening**:
   - [ ] Persist candidate profile & generated tailored resumes directly in PostgreSQL / Supabase Storage (handling ephemeral container filesystem)
+
+---
+
+## Phase 9 — Comprehensive Responsive Design & Multi-Device SaaS Experience (Planned)
+- [ ] **Mobile & Tablet Layouts (320px – 1024px)**:
+  - [ ] Off-canvas sliding Drawer Navigation for Mobile / Tablet screens
+  - [ ] Resume Workspace: Responsive single-column stacked cards layout for small screens
+  - [ ] Mobile-optimized PDF preview & LaTeX code editor views
+- [ ] **Touch & Accessibility Optimization**:
+  - [ ] Swipe gestures for tab navigation & job card actions
+  - [ ] Touch-friendly tap targets (minimum 44x44px per WCAG guidelines)
+- [ ] **Dark Mode & Large Screens**:
+  - [ ] Full Dark Mode color palette & toggle
+  - [ ] Max-width containment for Ultra-Wide (2K/4K) monitors
+

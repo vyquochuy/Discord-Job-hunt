@@ -1650,4 +1650,113 @@ select.form-control {
   }
 }
 
+/* ==========================================================================
+   Cover Letter & Tailoring Workspace Enhancements
+   ========================================================================== */
+.cover-letter-paper {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--text-body);
+  box-shadow: var(--shadow-xs);
+  max-height: 380px;
+  overflow-y: auto;
+}
 
+.cover-letter-paper p {
+  margin-bottom: 0.85rem;
+}
+
+.cover-letter-paper ul {
+  margin: 0.4rem 0 0.85rem 1.25rem;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.cover-letter-paper li {
+  margin-bottom: 0.35rem;
+}
+
+.cover-letter-paper h5 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--primary-700);
+  margin: 0.95rem 0 0.45rem 0;
+}
+
+.cover-letter-subject-box {
+  background: var(--primary-50);
+  border: 1px solid var(--primary-200);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.9rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.cover-letter-plain-box {
+  background-color: var(--bg-muted);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  max-height: 380px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: inherit;
+  border: 1px solid var(--border-default);
+  color: var(--text-main);
+}
+
+.tab-btn-pill {
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tab-btn-pill:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.tab-btn-pill.active {
+  background: var(--primary-600);
+  color: #ffffff;
+  border-color: var(--primary-600);
+}
+
+/* Equal-Width Two-Column Workspace Layout (Strict 50% - 50%) */
+.ws-two-column-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  width: 100%;
+}
+
+.ws-col {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .ws-two-column-grid {
+    grid-template-columns: 1fr;
+  }
+}

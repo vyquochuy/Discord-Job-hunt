@@ -58,6 +58,19 @@ if not frontend_dir.exists():
 
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
+    if (frontend_dir / "css").exists():
+        app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
+    if (frontend_dir / "js").exists():
+        app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+
+
+@app.get("/env.js", include_in_schema=False)
+async def serve_env_js():
+    """Phục vụ file cấu hình môi trường runtime frontend nếu tồn tại."""
+    env_file = frontend_dir / "env.js"
+    if env_file.exists():
+        return FileResponse(str(env_file), media_type="application/javascript")
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": "env.js not found"})
 
 
 @app.exception_handler(Exception)

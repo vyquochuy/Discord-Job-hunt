@@ -1,7 +1,7 @@
 # In Progress
 
 ## Goal
-Phase 7 — Personalization & Advanced Outcome Tracking: Tối ưu hóa vòng lặp phản hồi từ kết quả ứng tuyển thực tế (Application Outcomes), học hỏi từ hành vi tương tác và hoàn thiện các tính năng nâng cao.
+Phase 8.2 — Cloud Database & Serverless Cache (0đ): Khởi tạo Supabase PostgreSQL (pgvector) & Upstash Redis Serverless phục vụ môi trường Production không chi phí.
 
 ## Context
 Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắc và được kiểm chứng toàn diện (118/118 tests pass):
@@ -10,18 +10,17 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 - **Phase 3 (Job Intelligence)**: Hard filters 3 trạng thái, thuật toán tính điểm deterministic 7 tín hiệu, giải thích minh bạch.
 - **Phase 4 & 4.5 & 6.2 (Evidence-Grounded Resume Tailoring Engine & Anti-Hallucination Refactor)**: Fact Graph & Evidence Registry, Canonical Technology Alias Registry, Gemini Semantic Writer (`gemini-3.6-flash`), ClaimLevelValidator (6-stage validation + Architectural Scope Shift protection), Deterministic Composer Fallback, Pure LaTeX Renderer.
 - **Phase 5 & 6 (API Boundaries & Web Application Workspace)**: Kiến trúc Web-First (Simple Blue UI), phân quyền User 1-1 Candidate, Saved Jobs, Notification Service, tích hợp đầy đủ quy trình từ Job Discovery đến Dispatch.
+- **Phase 8.1 (Frontend Cloud-Ready & Cloudflare Pages Deployment 0đ)**: Hoàn thành cấu hình SPA routing `_redirects`, multi-tier dynamic `API_BASE` resolution (`window.ENV`, `localStorage`, meta-tag, port fallback), chuẩn hóa relative asset paths, bộ điều khiển quản lý và test Ping kết nối Cloud Backend trên giao diện System, tài liệu hướng dẫn triển khai `docs/CLOUDFLARE_PAGES_GUIDE.md`.
 
 ## Relevant Files
+- `frontend/_redirects`
+- `frontend/env.js.example` & `frontend/env.js`
+- `frontend/js/api.js` & `frontend/js/app.js`
+- `frontend/index.html`
+- `backend/app/main.py`
+- `docs/CLOUDFLARE_PAGES_GUIDE.md`
 - `docs/ROADMAP.MD`
-- `docs/AI_SYSTEM.MD`
-- `docs/ARCHITECTURE.MD`
-- `docs/DECISIONS.MD`
-- `backend/app/services/tailoring/resume_intelligence.py`
-- `backend/app/services/tailoring/project_selector.py`
-- `backend/app/services/tailoring/provenance_verifier.py`
-- `backend/app/services/tailoring/jd_capability_analyzer.py`
 
 ## Next Steps
-1. Tiếp tục thu thập và kiểm thử chất lượng Resume trên các tin tuyển dụng thực tế (Live Ingestion Jobs).
-2. Xây dựng cơ chế theo dõi tiến trình phỏng vấn / phản hồi tuyển dụng (Phase 7).
-
+1. Tiếp tục triển khai Phase 8.2 (Cloud Database Supabase + Upstash Redis) hoặc Phase 8.3 (Zero-Cost AI Engine Migration).
+2. Kiểm thử luồng ứng dụng trên live Cloudflare Pages.

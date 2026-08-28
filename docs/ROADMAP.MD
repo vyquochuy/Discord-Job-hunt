@@ -155,20 +155,24 @@
 
 ## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM)
 
-**Status:** PLANNED
+**Status:** IN PROGRESS
 
 **Goal:** Đưa toàn bộ hệ sinh thái AI Job Hunter lên môi trường Public Production với chi phí 0đ, tối ưu hiệu năng toàn cầu (Cloudflare CDN), đảm bảo tính sẵn sàng cao và giải quyết triệt để các rào cản về hạ tầng / AI Token.
 
-- [ ] **Cloudflare Pages Frontend (0đ)**:
-  - Cấu hình dynamic `API_BASE` endpoint trong [api.js](file:///frontend/js/api.js) (hỗ trợ `window.ENV?.API_URL`, local fallback và backend cloud domain).
+- [x] **Phase 8.1: Cloudflare Pages Frontend Deployment (0đ)**:
+  - Cấu hình dynamic `API_BASE` endpoint đa tầng trong [api.js](file:///frontend/js/api.js) (hỗ trợ `window.ENV?.API_URL`, `localStorage`, meta-tag, port fallback và relative `/api/v1`).
   - Thêm quy tắc định tuyến SPA `_redirects` (`/* /index.html 200`) cho Cloudflare Pages để loại bỏ hoàn toàn lỗi 404 khi người dùng tải lại trang.
   - Chuẩn hóa toàn bộ đường dẫn static assets sang relative paths.
-- [ ] **Cloud Database & Serverless Cache (0đ)**:
+  - Bổ sung bộ điều khiển cấu hình Cloud API Endpoint và kiểm tra độ trễ (Ping Health Check) trên giao diện Web.
+  - Tài liệu hướng dẫn chi tiết tại [CLOUDFLARE_PAGES_GUIDE.md](file:///docs/CLOUDFLARE_PAGES_GUIDE.md).
+- [ ] **Phase 8.2: Cloud Database & Serverless Cache (0đ)**:
   - Khởi tạo **Supabase PostgreSQL** (Free Tier 500MB) có tích hợp sẵn extension `pgvector`.
   - Khởi tạo **Upstash Redis** (Free 10,000 commands/ngày) phục vụ message queue và caching.
-- [ ] **Zero-Cost AI Engine Migration (Google Gemini & Groq Cloud)**:
-  - Tích hợp adapter cho **Google Gemini 2.0 Flash / 1.5 Flash** (Google AI Studio Free Tier) và **Groq API** (LLaMA 3.3 70B, DeepSeek R1/V3).
-  - Hỗ trợ chuyển đổi linh hoạt qua biến môi trường `AI_PROVIDER` để vận hành 100% không tốn chi phí token.
+- [ ] **Phase 8.3: Provider-Agnostic AI Architecture, Task-Based Routing & Quality Fallback**:
+  - Xây dựng chuẩn giao tiếp `AIProvider` (Protocol) thống nhất với phương thức `generate_structured(prompt, schema, temperature)`.
+  - Triển khai các Provider Adapters: `GeminiProvider` (Gemini 3.6/2.0 Flash), `GroqProvider` (LLaMA 3.3 70B, DeepSeek R1/V3 Distill), `DeepSeekProvider` (DeepSeek Chat/Reasoner), `OpenAIProvider`.
+  - Xây dựng trung tâm điều phối `AIRouter`: Định tuyến động theo năng lực tác vụ (`AITask`: `jd_extraction`, `jd_analysis`, `resume_generation`, `resume_unit_regeneration`, `cover_letter`, `explanation`) với chính sách Retry, Circuit Breaker và Provider Fallback Chain.
+  - Chuỗi kiểm định chất lượng (Validation-First Fallback): `LLM Output` $\rightarrow$ `JSON Schema Validation` $\rightarrow$ `ClaimLevelValidator` (Anti-Hallucination) $\rightarrow$ `Unit Regeneration` $\rightarrow$ `Fallback Provider` $\rightarrow$ `Deterministic Composer` (Offline Guaranteed).
 - [ ] **Backend & Discord Bot 24/7 Deployment (0đ)**:
   - Deploy FastAPI Backend lên **Render.com** (Free Web Service) hoặc **Koyeb** / **Hugging Face Spaces**.
   - Cấu hình CORS cho phép domain Cloudflare Pages truy cập bảo mật.
@@ -177,3 +181,21 @@
 - [ ] **Cloud Storage & Persistence Hardening**:
   - Lưu trữ Profile và Tailored Resumes vào PostgreSQL / Supabase Storage để dữ liệu không bị mất khi container khởi động lại (ephemeral filesystem).
 
+---
+
+## Phase 9 — Comprehensive Responsive Design & Multi-Device SaaS Experience
+
+**Status:** PLANNED (Backlog)
+
+**Goal:** Tối ưu hóa trải nghiệm giao diện người dùng trên toàn bộ các thiết bị (Mobile, Tablet, Desktop, Ultra-Wide) và màn hình cảm ứng:
+
+- [ ] **Mobile & Tablet Adaptability (320px – 1024px)**:
+  - Sidebar dạng Drawer / Off-canvas trượt mở mượt mà trên Mobile & Tablet.
+  - Resume Workspace: Tự động chuyển đổi layout từ 2 cột song song (50%-50%) sang dạng 1 cột dạng thẻ xếp tầng trên thiết bị di động.
+  - Tối ưu hóa khung hiển thị PDF viewer và LaTeX editor trên màn hình nhỏ.
+- [ ] **Touch & Gesture Enhancements**:
+  - Hỗ trợ thao tác vuốt (swipe) chuyển đổi giữa các tab và thẻ công việc.
+  - Tối ưu kích thước các nút bấm đạt chuẩn 44x44px của mobile accessibility.
+- [ ] **Dark / Light Theme & Ultra-Wide Layouts**:
+  - Hỗ trợ giao diện Dark Mode toàn diện.
+  - Giới hạn max-width hợp lý trên màn hình lớn (Ultra-Wide 2K/4K) tránh kéo giãn giao diện quá mức.

@@ -365,6 +365,18 @@ class GeneratedSummary(BaseModel):
     claims: List[GeneratedClaimFragment] = Field(default_factory=list, description="Granular claim fragments")
 
 
+class GeneratedSkillCategory(BaseModel):
+    """Danh mục kỹ năng được may đo và tái cấu trúc bởi Gemini / AI Writer."""
+    category_name: str = Field(
+        ...,
+        description="Custom category header tailored to JD, e.g. 'Languages & Core Systems', 'Frameworks & Backend APIs', 'Databases & Distributed Caching', 'Security, Cryptography & Auth', 'Tools & DevOps'"
+    )
+    skills: List[str] = Field(
+        default_factory=list,
+        description="List of verified skills/technologies prioritized for this category"
+    )
+
+
 class StructuredResumeDraft(BaseModel):
     """
     Mô hình Resume có cấu trúc sinh bởi Gemini Semantic Writer.
@@ -372,7 +384,11 @@ class StructuredResumeDraft(BaseModel):
     """
     target_title: str = Field(..., description="Target job title in English")
     professional_summary: GeneratedSummary
-    priority_skills: List[str] = Field(default_factory=list)
+    priority_skills: List[str] = Field(default_factory=list, description="Top prioritized key skills")
+    tailored_skills: List[GeneratedSkillCategory] = Field(
+        default_factory=list,
+        description="Strategically organized and prioritized skill categories tailored for the target JD"
+    )
     projects: List[GeneratedProject] = Field(default_factory=list)
 
 

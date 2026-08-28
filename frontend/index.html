@@ -10,7 +10,8 @@
       name="description"
       content="Nền tảng tìm kiếm việc làm IT, phân tích mức độ phù hợp bằng thuật toán tất định 7 chỉ số và tạo thiết kế hồ sơ ứng tuyển theo chuẩn ATS."
     />
-    <link rel="stylesheet" href="/static/css/index.css" />
+    <meta name="api-base" content="" />
+    <link rel="stylesheet" href="css/index.css?v=1.1" />
     <!-- Lucide Vector Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
   </head>
@@ -538,6 +539,72 @@
             </div>
 
             <div class="system-grid">
+              <!-- Card 0: Backend API & Cloud Connection Configuration (Phase 8.1 Zero-Cost Production) -->
+              <div class="card system-card" style="grid-column: 1 / -1;">
+                <div>
+                  <div class="system-card-header" style="justify-content: space-between; align-items: flex-start;">
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                      <div class="system-card-icon system-card-icon-info">
+                        <i data-lucide="cloud" class="icon"></i>
+                      </div>
+                      <div>
+                        <h4 class="system-card-title">Cấu hình Máy chủ Backend & Cloud API Endpoint</h4>
+                        <span class="badge badge-blue" id="api-source-badge">Nguồn: Tự động nhận diện</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span id="api-health-status-badge" class="badge badge-outline">Chưa kiểm tra</span>
+                    </div>
+                  </div>
+                  <p class="system-card-desc">
+                    Hỗ trợ triển khai <strong>Cloudflare Pages (0đ)</strong> kết nối tới <strong>Cloud Backend API</strong> (Render, Koyeb, Hugging Face) hoặc máy chủ nội bộ (Localhost).
+                  </p>
+                  
+                  <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+                    <div>
+                      <label style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">
+                        API Base URL đang sử dụng:
+                      </label>
+                      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input
+                          type="text"
+                          id="custom-api-base-input"
+                          class="form-input"
+                          style="flex: 1; min-width: 260px; font-family: monospace; font-size: 0.875rem;"
+                          placeholder="Ví dụ: https://job-hunter-api.onrender.com/api/v1 hoặc /api/v1"
+                        />
+                        <button class="btn btn-primary btn-sm" onclick="saveCustomApiEndpoint()" title="Lưu cấu hình API Base">
+                          <i data-lucide="save" class="icon-sm"></i>
+                          <span>Lưu Endpoint</span>
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="resetApiEndpoint()" title="Đặt lại về mặc định">
+                          <i data-lucide="rotate-ccw" class="icon-sm"></i>
+                          <span>Mặc định</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                      <span style="font-size: 0.75rem; color: var(--color-text-muted);">Gợi ý cấu hình nhanh:</span>
+                      <button class="badge badge-outline" style="cursor: pointer;" onclick="setApiPreset('/api/v1')">/api/v1 (Relative / Same-Origin)</button>
+                      <button class="badge badge-outline" style="cursor: pointer;" onclick="setApiPreset('http://localhost:8000/api/v1')">http://localhost:8000/api/v1 (Localhost)</button>
+                    </div>
+
+                    <!-- Health Check Result Box -->
+                    <div id="api-health-result" style="display: none; padding: 12px; border-radius: 8px; background: var(--color-bg-subtle); border: 1px solid var(--color-border); font-size: 0.8125rem;">
+                      <!-- Dynamically rendered -->
+                    </div>
+                  </div>
+                </div>
+                
+                <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+                  <button class="btn btn-outline" id="btn-ping-api" onclick="testApiConnection()">
+                    <i data-lucide="activity" class="icon-sm"></i>
+                    <span>Kiểm tra kết nối (Ping Health)</span>
+                  </button>
+                </div>
+              </div>
+
               <!-- Card 1: Tailoring Only -->
               <div class="card system-card">
                 <div>
@@ -1037,7 +1104,8 @@ Liên hệ: hr@techglobal.com"
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="env.js" onerror="/* env.js is optional */"></script>
+    <script src="js/api.js?v=1.1"></script>
+    <script src="js/app.js?v=1.1"></script>
   </body>
 </html>

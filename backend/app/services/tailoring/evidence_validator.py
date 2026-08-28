@@ -260,13 +260,70 @@ class ClaimLevelValidator:
         return violations
 
     @classmethod
+    def validate_tailored_skills(
+        cls,
+        tailored_skills: List[Any],
+        bundle: EvidenceBundle,
+    ) -> List[ValidationViolation]:
+        """Kiểm chứng tính chân thực của các kỹ năng trong phần Tailored Skills."""
+        violations: List[ValidationViolation] = []
+        if not tailored_skills:
+            return violations
+
+        strategy = bundle.strategy
+        allowed_canonical: Set[str] = set(strategy.allowed_technologies)
+        for f in bundle.evidence_facts:
+            allowed_canonical.update(f.canonical_technologies)
+            for t in f.technologies:
+                c = alias_registry.get_canonical_id(t)
+                if c:
+                    allowed_canonical.add(c)
+                allowed_canonical.add(t.lower())
+
+        for cat_idx, cat in enumerate(tailored_skills):
+            cat_name = getattr(cat, "category_name", f"Category_{cat_idx+1}")
+            skills_list = getattr(cat, "skills", []) or []
+            for s in skills_list:
+                s_clean = s.strip()
+                s_canon = alias_registry.get_canonical_id(s_clean) or s_clean.lower()
+                
+                # Check unsupported JD fabrication
+                for unsupp in strategy.unsupported_requirements:
+                    unsupp_canon = alias_registry.get_canonical_id(unsupp) or unsupp.lower()
+                    if s_canon == unsupp_canon or s_clean.lower() == unsupp.lower():
+                        violations.append(
+                            ValidationViolation(
+                                violation_type=ValidationViolationType.UNSUPPORTED_JD_FABRICATION,
+                                section=f"skills.{cat_name}",
+                                unit_id=f"skill.{s_clean}",
+                                offending_text=s_clean,
+                                reason=f"Skill '{s_clean}' is listed in UNSUPPORTED_REQUIREMENTS and cannot be fabricated in skills section.",
+                            )
+                        )
+                        break
+                else:
+                    if s_canon not in allowed_canonical and s_clean.lower() not in allowed_canonical:
+                        if not any(s_clean.lower() in t for t in allowed_canonical):
+                            violations.append(
+                                ValidationViolation(
+                                    violation_type=ValidationViolationType.UNSUPPORTED_TECHNOLOGY,
+                                    section=f"skills.{cat_name}",
+                                    unit_id=f"skill.{s_clean}",
+                                    offending_text=s_clean,
+                                    reason=f"Skill '{s_clean}' in category '{cat_name}' is not in candidate's verified skill inventory.",
+                                )
+                            )
+
+        return violations
+
+    @classmethod
     def validate_draft(
         cls,
         draft: StructuredResumeDraft,
         bundle: EvidenceBundle,
     ) -> ValidationReport:
         """
-        Kiểm tra toàn diện bản StructuredResumeDraft.
+        Kiểm chứng toàn diện một bản StructuredResumeDraft hoàn chỉnh.
         Trả về ValidationReport phân rã trạng thái Valid / Invalid theo từng Unit.
         """
         all_violations: List[ValidationViolation] = []
@@ -282,6 +339,14 @@ class ClaimLevelValidator:
             accepted_units += 1
         else:
             all_violations.extend(sum_violations)
+
+        # 2. Check Tailored Skills
+        if getattr(draft, "tailored_skills", None):
+            skill_violations = cls.validate_tailored_skills(draft.tailored_skills, bundle)
+            if skill_violations:
+                all_violations.extend(skill_violations)
+            else:
+                locked_units["tailored_skills"] = draft.tailored_skills
 
         # 2. Check Projects & Bullets
         for p_idx, proj in enumerate(draft.projects):

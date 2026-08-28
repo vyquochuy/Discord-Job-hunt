@@ -207,29 +207,49 @@ class LaTeXGenerator:
 
         education_latex = "\n\n".join(edu_entries)
 
-        # 3. Skills (Xếp thứ tự dựa trên matched skills & strategy)
-        matched_set = {s.lower() for s in (effective_matched_skills or [])}
+        # 3. Skills (Render linh hoạt từ tailored_skills nếu có, hoặc fallback theo phân loại chuẩn)
+        if structured_draft and getattr(structured_draft, "tailored_skills", None) and len(structured_draft.tailored_skills) > 0:
+            skill_items = []
+            for cat in structured_draft.tailored_skills:
+                c_name = cls.sanitize_bullet(cat.category_name)
+                c_skills = [cls.sanitize_bullet(s) for s in cat.skills if s.strip()]
+                if c_skills:
+                    skill_items.append(f"    \\item \\textbf{{{c_name}:}} {', '.join(c_skills)}")
 
-        def sort_skills(skill_list: List[str]) -> List[str]:
-            matched = [s for s in skill_list if s.lower() in matched_set]
-            others = [s for s in skill_list if s.lower() not in matched_set]
-            return matched + others
+            cat_names_lower = [cat.category_name.lower() for cat in structured_draft.tailored_skills]
+            if not any("soft" in n for n in cat_names_lower):
+                soft_skills = ["Problem-solving", "System design thinking", "Technical documentation", "Teamwork"]
+                skill_items.append(f"    \\item \\textbf{{Soft Skills:}} {', '.join(soft_skills)}")
+            if not any("language" in n for n in cat_names_lower):
+                lang_skills = ["Vietnamese (Native)", "English (level B1)"]
+                skill_items.append(f"    \\item \\textbf{{Languages:}} {', '.join(lang_skills)}")
 
-        # Thu thập kỹ năng từ candidate.skills hoặc fallback cấu trúc chuẩn
-        candidate_skills_by_cat: Dict[str, List[str]] = {}
-        if candidate.skills:
-            for s in candidate.skills:
-                cat = s.category.lower() if s.category else "other"
-                candidate_skills_by_cat.setdefault(cat, []).append(s.name)
+            skills_latex = f"""\\begin{{itemize}}[leftmargin=0.15in, label={{}}, itemsep=0pt]
+{chr(10).join(skill_items)}
+\\end{{itemize}}"""
+        else:
+            matched_set = {s.lower() for s in (effective_matched_skills or [])}
 
-        prog_skills = sort_skills(candidate_skills_by_cat.get("programming") or ["C++", "Python", "JavaScript", "TypeScript", "Dart"])
-        fw_skills = sort_skills(candidate_skills_by_cat.get("frameworks") or ["React", "Tailwind CSS", "NextJS", "Hono", "Flutter", "FastAPI"])
-        tool_skills = sort_skills(candidate_skills_by_cat.get("tools_databases") or candidate_skills_by_cat.get("tools") or ["SQL", "PostgreSQL", "SQLite", "Git", "Linux", "Docker", "OpenSSL", "Wireshark", "Visual Studio 2022"])
-        sec_skills = sort_skills(candidate_skills_by_cat.get("security") or ["X.509 PKI", "RSA-2048", "SHA-256", "Zero-Knowledge Architecture", "Argon2id", "AES-256-GCM", "ECDH P-256"])
-        soft_skills = candidate_skills_by_cat.get("soft_skills") or ["Problem-solving", "System design thinking", "Technical documentation", "Teamwork"]
-        lang_skills = ["Vietnamese (Native)", "English (level B1)"]
+            def sort_skills(skill_list: List[str]) -> List[str]:
+                matched = [s for s in skill_list if s.lower() in matched_set]
+                others = [s for s in skill_list if s.lower() not in matched_set]
+                return matched + others
 
-        skills_latex = f"""\\begin{{itemize}}[leftmargin=0.15in, label={{}}, itemsep=0pt]
+            # Thu thập kỹ năng từ candidate.skills hoặc fallback cấu trúc chuẩn
+            candidate_skills_by_cat: Dict[str, List[str]] = {}
+            if candidate.skills:
+                for s in candidate.skills:
+                    cat = s.category.lower() if s.category else "other"
+                    candidate_skills_by_cat.setdefault(cat, []).append(s.name)
+
+            prog_skills = sort_skills(candidate_skills_by_cat.get("programming") or ["C++", "Python", "JavaScript", "TypeScript", "Dart"])
+            fw_skills = sort_skills(candidate_skills_by_cat.get("frameworks") or ["React", "Tailwind CSS", "NextJS", "Hono", "Flutter", "FastAPI"])
+            tool_skills = sort_skills(candidate_skills_by_cat.get("tools_databases") or candidate_skills_by_cat.get("tools") or ["SQL", "PostgreSQL", "SQLite", "Git", "Linux", "Docker", "OpenSSL", "Wireshark", "Visual Studio 2022"])
+            sec_skills = sort_skills(candidate_skills_by_cat.get("security") or ["X.509 PKI", "RSA-2048", "SHA-256", "Zero-Knowledge Architecture", "Argon2id", "AES-256-GCM", "ECDH P-256"])
+            soft_skills = candidate_skills_by_cat.get("soft_skills") or ["Problem-solving", "System design thinking", "Technical documentation", "Teamwork"]
+            lang_skills = ["Vietnamese (Native)", "English (level B1)"]
+
+            skills_latex = f"""\\begin{{itemize}}[leftmargin=0.15in, label={{}}, itemsep=0pt]
     \\item \\textbf{{Programming Languages:}} {', '.join(prog_skills)}
     \\item \\textbf{{Frameworks \\& Libraries:}} {', '.join(fw_skills)}
     \\item \\textbf{{Tools \\& Databases:}} {', '.join(tool_skills)}

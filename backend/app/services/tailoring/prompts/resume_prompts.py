@@ -41,6 +41,17 @@ def build_resume_generation_prompt(bundle: EvidenceBundle) -> str:
             "is_core": f.is_core,
         })
 
+    # Thu thập tất cả kỹ năng đã được chứng thực từ candidate
+    candidate_skills_list = []
+    for f in facts:
+        if f.category.value == "skill":
+            candidate_skills_list.extend(f.technologies)
+    if not candidate_skills_list:
+        candidate_skills_list = strategy.allowed_technologies
+
+    # Loại bỏ trùng lặp giữ nguyên thứ tự
+    unique_candidate_skills = list(dict.fromkeys(candidate_skills_list))
+
     prompt_data = {
         "TARGET_ROLE": strategy.target_role,
         "POSITIONING_ANGLE": strategy.positioning,
@@ -48,6 +59,8 @@ def build_resume_generation_prompt(bundle: EvidenceBundle) -> str:
         "TARGET_JOB_SUMMARY": jd_summary,
         "UNSUPPORTED_REQUIREMENTS_DO_NOT_FABRICATE": strategy.unsupported_requirements,
         "ALLOWED_PROJECTS": strategy.selected_projects,
+        "VERIFIED_CANDIDATE_SKILLS": unique_candidate_skills,
+        "PRIORITIZED_MATCHING_SKILLS": strategy.prioritized_skills,
         "VERIFIED_EVIDENCE_FACTS": facts_formatted,
         "LAYOUT_BUDGET": {
             "max_projects": bundle.layout_budget.max_projects,
@@ -60,6 +73,11 @@ def build_resume_generation_prompt(bundle: EvidenceBundle) -> str:
 
 CONTEXT & CONSTRAINTS:
 {json.dumps(prompt_data, indent=2, ensure_ascii=False)}
+
+SKILL TAILORING INSTRUCTIONS:
+1. Under `tailored_skills`, dynamically organize the candidate's verified skills into 4-6 strategic categories with professional, JD-focused category headers (e.g. 'Languages & Core Systems', 'Backend Frameworks & APIs', 'Databases & Storage', 'Security & Cryptography', 'Tools & DevOps').
+2. Prioritize skills matching the target Job Description first within each category.
+3. ZERO-HALLUCINATION INVARIANT: You may ONLY include skills/technologies from `VERIFIED_CANDIDATE_SKILLS` or `VERIFIED_EVIDENCE_FACTS`. Do NOT invent unproven technologies.
 
 OUTPUT JSON SCHEMA:
 {{
@@ -79,6 +97,24 @@ OUTPUT JSON SCHEMA:
     ]
   }},
   "priority_skills": {json.dumps(strategy.prioritized_skills[:8], ensure_ascii=False)},
+  "tailored_skills": [
+    {{
+      "category_name": "Languages & Core Systems",
+      "skills": ["C++", "Python", "TypeScript", "JavaScript"]
+    }},
+    {{
+      "category_name": "Backend Frameworks & APIs",
+      "skills": ["FastAPI", "Hono", "Node.js"]
+    }},
+    {{
+      "category_name": "Databases & Distributed Caching",
+      "skills": ["PostgreSQL", "Redis", "SQLite"]
+    }},
+    {{
+      "category_name": "Tools & Infrastructure",
+      "skills": ["Docker", "Git", "Linux", "Cloudflare Workers"]
+    }}
+  ],
   "projects": [
     {{
       "source_project_name": "Project Name Exactly Matching Source",

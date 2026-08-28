@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from app.schemas.tailoring_ir import (
     EvidenceBundle,
@@ -115,8 +115,44 @@ class DeterministicResumeComposer:
         # 1. Summary
         summary = cls.compose_summary(bundle)
 
-        # 2. Priority Skills
+        # 2. Priority Skills & Tailored Skill Categories
         skills = strategy.prioritized_skills[:8]
+        matched_set = {s.lower() for s in strategy.prioritized_skills}
+
+        def sort_skill_group(items: List[str]) -> List[str]:
+            m = [s for s in items if s.lower() in matched_set]
+            o = [s for s in items if s.lower() not in matched_set]
+            return m + o
+
+        # Thu thập các kỹ năng có thực trong evidence facts của candidate
+        available_skills: Set[str] = set()
+        for f in bundle.evidence_facts:
+            if getattr(f, "category", None) and getattr(f.category, "value", str(f.category)) == "skill":
+                available_skills.update(f.technologies)
+            elif hasattr(f, "technologies"):
+                available_skills.update(f.technologies)
+        if not available_skills and strategy.allowed_technologies:
+            available_skills.update(strategy.allowed_technologies)
+
+        avail_lower = {s.lower(): s for s in available_skills}
+
+        category_taxonomy = {
+            "Programming Languages": ["C++", "Python", "JavaScript", "TypeScript", "Dart", "Go", "Java", "Rust"],
+            "Frameworks & Libraries": ["FastAPI", "Hono", "React", "NextJS", "Flutter", "Tailwind CSS", "Node.js"],
+            "Tools & Databases": ["PostgreSQL", "Redis", "SQLite", "SQL", "Docker", "Git", "Linux", "OpenSSL", "Wireshark", "Cloudflare D1"]
+        }
+
+        from app.schemas.tailoring_ir import GeneratedSkillCategory
+
+        tailored_skills: List[GeneratedSkillCategory] = []
+        for cat_title, cand_list in category_taxonomy.items():
+            matched_in_cat = [avail_lower[s.lower()] for s in cand_list if s.lower() in avail_lower]
+            if matched_in_cat:
+                sorted_cat = sort_skill_group(matched_in_cat)
+                tailored_skills.append(GeneratedSkillCategory(category_name=cat_title, skills=sorted_cat))
+
+        if not tailored_skills and strategy.prioritized_skills:
+            tailored_skills.append(GeneratedSkillCategory(category_name="Key Technologies & Skills", skills=strategy.prioritized_skills))
 
         # 3. Projects & Bullets
         generated_projects: List[GeneratedProject] = []
@@ -150,6 +186,7 @@ class DeterministicResumeComposer:
             target_title=strategy.target_role,
             professional_summary=summary,
             priority_skills=skills,
+            tailored_skills=tailored_skills,
             projects=generated_projects,
         )
 
