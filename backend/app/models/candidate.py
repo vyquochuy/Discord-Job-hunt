@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, JSON, Uuid
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 # Tương thích chéo: sử dụng native PostgreSQL JSONB/UUID trên Postgres, fallback sang JSON/Uuid trên SQLite (Unit tests)
 JSON_TYPE = JSON().with_variant(JSONB, "postgresql")
