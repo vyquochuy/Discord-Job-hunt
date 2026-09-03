@@ -1,11 +1,12 @@
 import secrets
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.security import get_current_user_optional
 from app.services.system_service import PurgeReport, system_service
 
@@ -16,18 +17,26 @@ async def verify_admin_access(
     x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
     user: Optional[Any] = Depends(get_current_user_optional),
 ) -> bool:
-    """Xác thực quyền quản trị hệ thống trước khi thao tác các tác vụ nhạy cảm."""
+    """Xác thực quyền quản trị hệ thống: yêu cầu X-Internal-Secret hợp lệ hoặc tài khoản Superuser."""
     if x_internal_secret:
         is_valid = secrets.compare_digest(
             x_internal_secret.encode("utf-8"),
             settings.INTERNAL_API_SECRET.encode("utf-8")
         )
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid internal API secret for system administrative operations",
-            )
-    return True
+        if is_valid:
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal API secret for system administrative operations",
+        )
+
+    if user and getattr(user, "is_superuser", False):
+        return True
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Administrative privilege required for this system operation.",
+    )
 
 
 class PurgeRequest(BaseModel):
@@ -48,7 +57,9 @@ class PurgeRequest(BaseModel):
         "- `matches_only`: Xóa Job Matches để chấm điểm lại."
     ),
 )
+@limiter.limit("2/minute")
 async def purge_database(
+    request: Request,
     payload: PurgeRequest,
     db: AsyncSession = Depends(get_db),
     _auth: bool = Depends(verify_admin_access),
@@ -78,8 +89,11 @@ async def purge_database(
     summary="Reset toàn bộ hệ thống về trạng thái mẫu ban đầu",
     description="Xóa toàn bộ dữ liệu, nạp lại Skill Taxonomy và đồng bộ Profile từ context.example/.",
 )
+@limiter.limit("2/minute")
 async def reset_demo(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _auth: bool = Depends(verify_admin_access),
 ) -> Dict[str, Any]:
     return await system_service.reset_demo(session=db)
+

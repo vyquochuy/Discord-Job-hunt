@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import app
 from app.models.job import Job, JobSkill, RawJob, Skill
@@ -109,7 +110,10 @@ async def test_jobs_api_endpoints(test_client: AsyncClient):
     
     # 1. Trigger collect mock jobs
     logger.info("--- 1. Testing POST /api/v1/jobs/collect?source=mock&limit=3 ---")
-    collect_res = await test_client.post("/api/v1/jobs/collect?source=mock&limit=3")
+    collect_res = await test_client.post(
+        "/api/v1/jobs/collect?source=mock&limit=3",
+        headers={"X-Internal-Secret": settings.INTERNAL_API_SECRET},
+    )
     logger.info(f"  Response Status: {collect_res.status_code}, Body: {collect_res.json()}")
     assert collect_res.status_code == 200
     report = collect_res.json()["report"]

@@ -1,12 +1,51 @@
+import ipaddress
 import json
 import logging
 import re
+import socket
+from urllib.parse import urlparse
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import httpx
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger("url_fetcher")
+
+
+def is_safe_public_url(url: str) -> Tuple[bool, Optional[str]]:
+    """
+    Kiểm tra ngăn chặn tấn công SSRF (Server-Side Request Forgery).
+    Chặn các địa chỉ nội bộ, loopback, private ranges, và cloud metadata endpoints.
+    Trả về: (is_safe, error_message_hoặc_None)
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False, "INVALID_URL_SCHEME"
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "INVALID_HOSTNAME"
+
+        # Chặn các host đặc biệt và cloud metadata
+        if hostname.lower() in ("localhost", "127.0.0.1", "::1", "metadata.google.internal", "169.254.169.254"):
+            return False, "SSRF_BLOCKED: Cloud metadata or localhost endpoint"
+
+        # Phân giải DNS kiểm tra IP
+        ip_list = socket.getaddrinfo(hostname, None)
+        for item in ip_list:
+            ip_str = item[4][0]
+            ip = ipaddress.ip_address(ip_str)
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_reserved
+                or ip.is_multicast
+            ):
+                return False, f"SSRF_BLOCKED: Resolved to private or loopback IP ({ip_str})"
+        return True, None
+    except Exception as e:
+        return False, f"SSRF_BLOCKED: DNS resolution error: {str(e)}"
 
 
 @dataclass
@@ -76,11 +115,40 @@ class URLFetcher:
                 error="INVALID_URL_SCHEME",
             )
 
+        # Chặn SSRF
+        is_safe, err_msg = is_safe_public_url(url)
+        if not is_safe:
+            return FetchedDocument(
+                url=url,
+                final_url=url,
+                status_code=0,
+                content_type="",
+                html=None,
+                title=None,
+                meta_description=None,
+                og_title=None,
+                og_description=None,
+                json_ld=None,
+                clean_text="",
+                fetch_method="failed",
+                error=err_msg or "SSRF_BLOCKED: URL target resolves to private or unsafe address",
+            )
+
         try:
+            async def on_response(response: httpx.Response):
+                if response.is_redirect:
+                    next_url = response.headers.get("Location")
+                    if next_url:
+                        target_redirect = str(response.url.join(next_url))
+                        safe, r_err = is_safe_public_url(target_redirect)
+                        if not safe:
+                            raise httpx.RequestError(f"Redirect to unsafe address blocked: {next_url} ({r_err})")
+
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
                 headers=self.DEFAULT_HEADERS,
+                event_hooks={"response": [on_response]},
             ) as client:
                 response = await client.get(url)
                 final_url = str(response.url)

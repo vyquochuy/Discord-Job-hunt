@@ -134,8 +134,11 @@ async def test_saved_job_workflow(test_client: AsyncClient):
     token = reg_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 2. Thu thập job mock
-    await test_client.post("/api/v1/jobs/collect?source=mock&limit=2")
+    # 2. Thu thập job mock (yêu cầu internal secret vì có verify_admin_access)
+    await test_client.post(
+        "/api/v1/jobs/collect?source=mock&limit=2",
+        headers={"X-Internal-Secret": settings.INTERNAL_API_SECRET},
+    )
     
     # 3. Lấy danh sách job để chọn 1 job id
     jobs_resp = await test_client.get("/api/v1/jobs")

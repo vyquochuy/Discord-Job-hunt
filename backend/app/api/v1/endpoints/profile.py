@@ -21,19 +21,31 @@ async def verify_profile_access(
     user: Optional[Any] = Depends(get_current_user_optional),
 ) -> bool:
     """
-    Cho phép truy cập profile từ Web App hoặc Discord Bot có X-Internal-Secret.
+    Cho phép truy cập profile từ Web App (đã đăng nhập) hoặc Discord Bot có X-Internal-Secret hợp lệ.
     """
+    # 1. Kiểm tra X-Internal-Secret
     if x_internal_secret:
         is_valid = secrets.compare_digest(
             x_internal_secret.encode("utf-8"),
             settings.INTERNAL_API_SECRET.encode("utf-8")
         )
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid internal API secret",
-            )
-    return True
+        if is_valid:
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal API secret",
+        )
+
+    # 2. Kiểm tra Người dùng đã đăng nhập
+    if user:
+        return True
+
+    # 3. Từ chối nếu không có thông tin xác thực
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required to access candidate profile.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @router.get(

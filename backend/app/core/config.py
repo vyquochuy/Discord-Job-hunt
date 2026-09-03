@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     BACKEND_API_URL: str = "http://localhost:8000"
+    ALLOWED_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173"
 
     # Bảo mật API nội bộ & Web Auth
     INTERNAL_API_SECRET: str = "change_me_to_a_secure_random_string_32_chars"

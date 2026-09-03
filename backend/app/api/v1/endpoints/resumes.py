@@ -1,10 +1,13 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.limiter import limiter
+from app.core.security import get_authenticated_user_or_internal
 from app.schemas.resume import (
     TailorResumeRequest,
     TailoredResumeResponse,
@@ -16,10 +19,13 @@ router = APIRouter()
 
 
 @router.post("/tailor/{job_id}", response_model=TailoredResumeResponse)
+@limiter.limit("5/minute")
 async def tailor_resume(
+    request: Request,
     job_id: uuid.UUID,
     payload: TailorResumeRequest = TailorResumeRequest(),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Kích hoạt quy trình tinh chỉnh CV cho một tin tuyển dụng cụ thể:
@@ -53,6 +59,7 @@ async def tailor_resume(
 async def get_tailored_resume(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy thông tin chi tiết một bản Tailored Resume kèm bằng chứng Provenance và Cover Letter.
@@ -70,6 +77,7 @@ async def get_tailored_resume(
 async def get_tailored_resume_by_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy bản Tailored Resume đã sinh cho một Job ID cụ thể.
@@ -98,6 +106,7 @@ async def download_resume_pdf(
     id: uuid.UUID,
     download: bool = Query(False, description="Nếu True sẽ trả về attachment để tải xuống, ngược lại inline để xem trước"),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xem trước hoặc tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.
@@ -131,6 +140,7 @@ async def download_resume_pdf(
 async def get_resume_latex_source(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy mã nguồn LaTeX (.tex) thô của Tailored Resume.
@@ -153,6 +163,7 @@ async def update_resume_latex_source(
     id: uuid.UUID,
     payload: UpdateLatexRequest,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Cập nhật mã nguồn LaTeX (.tex) do người dùng chỉnh sửa và tự động biên dịch lại PDF.
@@ -180,6 +191,7 @@ async def update_resume_latex_source(
 async def delete_tailored_resume_by_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xóa bản Tailored Resume và Cover Letter của một Job ID cụ thể để chuẩn bị sinh lại.
@@ -200,6 +212,7 @@ async def delete_tailored_resume_by_job(
 async def delete_tailored_resume(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xóa bản Tailored Resume và Cover Letter theo ID.

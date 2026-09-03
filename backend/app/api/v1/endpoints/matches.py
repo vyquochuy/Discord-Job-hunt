@@ -1,10 +1,12 @@
 import asyncio
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import get_authenticated_user_or_internal
+from app.api.v1.endpoints.system import verify_admin_access
 from app.schemas.match import (
     BatchCalculateResponse,
     JobMatchDetailResponse,
@@ -26,6 +28,7 @@ async def list_matches(
     page: int = Query(1, ge=1, description="Số trang (bắt đầu từ 1)"),
     page_size: int = Query(20, ge=1, le=100, description="Số lượng bản ghi mỗi trang"),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy danh sách các tin tuyển dụng đã được phân tích mức độ phù hợp (Job Matches).
@@ -54,6 +57,7 @@ async def get_top_recommendations(
     limit: int = Query(10, ge=1, le=50, description="Số lượng gợi ý tối đa"),
     min_score: float = Query(60.0, ge=0.0, le=100.0, description="Điểm số tối thiểu"),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy danh sách các công việc được đề xuất hàng đầu (Top Recommendations) cho ứng viên.
@@ -99,6 +103,7 @@ async def get_top_recommendations(
 async def get_job_match(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy kết quả chi tiết phân tích match của 1 tin tuyển dụng (bao gồm 7 signals, hard filters và AI explanation).
@@ -118,6 +123,7 @@ async def calculate_match(
     job_id: uuid.UUID,
     force_refresh: bool = Query(True, description="Bắt buộc tính toán lại, bỏ qua cache"),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Kích hoạt tính toán phân tích độ phù hợp cho một tin tuyển dụng theo yêu cầu.
@@ -134,9 +140,10 @@ async def calculate_match(
 @router.post("/calculate-all", response_model=BatchCalculateResponse)
 async def calculate_all_matches(
     db: AsyncSession = Depends(get_db),
+    _auth: bool = Depends(verify_admin_access),
 ):
     """
-    Kích hoạt tính toán lại độ phù hợp cho toàn bộ các tin tuyển dụng đang ACTIVE.
+    Kích hoạt tính toán lại độ phù hợp cho toàn bộ các tin tuyển dụng đang ACTIVE (Yêu cầu quyền Quản trị).
     """
     try:
         total = await job_match_service.batch_calculate_all(db)

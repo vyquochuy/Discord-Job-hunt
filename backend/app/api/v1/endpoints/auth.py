@@ -1,11 +1,12 @@
 import uuid
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -20,7 +21,9 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("3/minute")
 async def register_user(
+    request: Request,
     payload: UserCreate,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
@@ -92,7 +95,9 @@ async def register_user(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login_user(
+    request: Request,
     payload: UserLogin,
     db: AsyncSession = Depends(get_db),
 ) -> Any:

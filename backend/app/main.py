@@ -31,6 +31,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
 
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -40,10 +44,19 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Cấu hình CORS
+# Gắn limiter vào app state và đăng ký handler lỗi vượt hạn mức
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Cấu hình CORS Whitelisting an toàn
+cors_origins = [
+    origin.strip()
+    for origin in settings.ALLOWED_CORS_ORIGINS.split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins if cors_origins else ["http://localhost:3000", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,13 +88,14 @@ async def serve_env_js():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Bắt và ghi log toàn bộ lỗi không mong muốn, trả về JSON chi tiết thay vì lỗi 500 ẩn."""
+    """Bắt và ghi log toàn bộ lỗi không mong muốn, trả về JSON an toàn thay vì phơi bày lỗi 500 ẩn."""
     error_trace = traceback.format_exc()
     logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}\n{error_trace}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": f"Internal Server Error: {str(exc)}"},
+        content={"detail": "Internal Server Error. Please contact system administrator."},
     )
+
 
 
 @app.get("/", tags=["system"])

@@ -42,13 +42,13 @@ async def test_client():
 
 @pytest.mark.asyncio
 async def test_profile_api_authentication(test_client: AsyncClient):
-    """Kiểm tra lớp bảo mật Web và X-Internal-Secret từ chối secret sai."""
+    """Kiểm tra lớp bảo mật Web và X-Internal-Secret: từ chối unauthenticated (401) và secret sai (403)."""
     logger.info("=== [TEST] Profile API Authentication & Security Gate ===")
     
-    # 1. Web Request thông thường (không có X-Internal-Secret) -> 200 OK (Single User Web Mode)
+    # 1. Request không xác thực -> 401 Unauthorized
     res_no_auth = await test_client.get("/api/v1/profile")
-    logger.info(f"  Web Request Status = {res_no_auth.status_code}")
-    assert res_no_auth.status_code == 200
+    logger.info(f"  Unauthenticated Request Status = {res_no_auth.status_code}")
+    assert res_no_auth.status_code == 401
 
     # 2. Sai secret key -> 403 Forbidden
     res_wrong_auth = await test_client.get(
@@ -57,6 +57,12 @@ async def test_profile_api_authentication(test_client: AsyncClient):
     logger.info(f"  Wrong Secret Request: Status = {res_wrong_auth.status_code}, Detail = {res_wrong_auth.json()['detail']}")
     assert res_wrong_auth.status_code == 403
     assert "Invalid internal API secret" in res_wrong_auth.json()["detail"]
+
+    # 3. Hợp lệ với X-Internal-Secret -> 200 OK
+    res_valid_auth = await test_client.get(
+        "/api/v1/profile", headers={"X-Internal-Secret": settings.INTERNAL_API_SECRET}
+    )
+    assert res_valid_auth.status_code == 200
 
 
 @pytest.mark.asyncio

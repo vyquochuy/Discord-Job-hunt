@@ -189,6 +189,15 @@ async def get_current_user_optional(
         stmt = select(User).order_by(User.created_at.asc()).limit(1)
         result = await db.execute(stmt)
         default_user = result.scalar_one_or_none()
+        if not default_user:
+            default_user = User(
+                id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                email="system@jobhunter.internal",
+                hashed_password="internal_system_service",
+                full_name="Internal System Service",
+                is_active=True,
+                is_superuser=True,
+            )
         return default_user
 
     return None
@@ -228,3 +237,23 @@ async def get_current_user(
         raise
     except Exception:
         raise credentials_exception
+
+
+async def get_authenticated_user_or_internal(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Dependency bắt buộc: yêu cầu Bearer Token người dùng hợp lệ
+    HOẶC X-Internal-Secret hợp lệ từ internal services (Discord bot / Workers).
+    """
+    user = await get_current_user_optional(auth=auth, x_internal_secret=x_internal_secret, db=db)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide a valid Bearer token or 'X-Internal-Secret'.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+

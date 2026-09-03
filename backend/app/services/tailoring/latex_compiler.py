@@ -72,6 +72,7 @@ class LaTeXCompiler:
         try:
             cmd = [
                 pdflatex_bin,
+                "-no-shell-escape",
                 "-interaction=nonstopmode",
                 f"-output-directory={storage_dir}",
                 str(tex_path),
@@ -137,8 +138,8 @@ class LaTeXCompiler:
             b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
             b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
             b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << >> >> endobj\n"
-            b"4 0 obj << /Length 55 >> stream\n"
-            b"BT /F1 12 Tf 50 800 Td (Vy Quoc Huy - Tailored Resume) Tj ET\n"
+            b"4 0 obj << /Length 50 >> stream\n"
+            b"BT /F1 12 Tf 50 800 Td (Candidate - Tailored Resume) Tj ET\n"
             b"endstream\n"
             b"endobj\n"
             b"xref\n"

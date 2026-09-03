@@ -1,12 +1,14 @@
 import uuid
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.security import get_current_user_optional
+from app.core.limiter import limiter
+from app.core.security import get_authenticated_user_or_internal, get_current_user_optional
+from app.api.v1.endpoints.system import verify_admin_access
 from app.models.user import User
 from app.models.job import (
     Job,
@@ -28,10 +30,15 @@ from app.schemas.job import (
 )
 from app.schemas.saved_job import SavedJobCreate, SavedJobResponse
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
+from app.services.collectors.growupwork_adapter import GrowUpWorkJobCollector
+from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
+from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.upwork_adapter import UpworkJobCollector
+from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
 from app.services.manual_ingestion_service import manual_ingestion_service
 
@@ -58,7 +65,11 @@ async def list_jobs(
         src = source.strip().lower()
         if src == "other":
             query = query.join(Job.raw_job).where(
-                ~RawJob.source.in_(["topcv", "itviec", "careerlink", "remotive", "mock", "manual"])
+                ~RawJob.source.in_([
+                    "topcv", "itviec", "careerlink", "remotive",
+                    "topdev", "itnavi", "growupwork", "vietnamworks", "upwork",
+                    "mock", "manual"
+                ])
             )
         else:
             query = query.join(Job.raw_job).where(RawJob.source == src)
@@ -106,22 +117,20 @@ async def list_jobs(
 
 @router.get("/saved", response_model=List[dict])
 async def list_saved_jobs(
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_authenticated_user_or_internal),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lấy danh sách các tin tuyển dụng đã lưu (Saved / Bookmarked) của người dùng.
+    Lấy danh sách các tin tuyển dụng đã lưu (Saved / Bookmarked) của người dùng đang đăng nhập.
     """
     from app.models.saved_job import SavedJob
 
-    query = select(SavedJob).options(
-        selectinload(SavedJob.job).selectinload(Job.raw_job)
+    query = (
+        select(SavedJob)
+        .options(selectinload(SavedJob.job).selectinload(Job.raw_job))
+        .where(SavedJob.user_id == current_user.id)
+        .order_by(SavedJob.created_at.desc())
     )
-
-    if current_user:
-        query = query.where(SavedJob.user_id == current_user.id)
-
-    query = query.order_by(SavedJob.created_at.desc())
     result = await db.execute(query)
     saved_list = result.scalars().all()
 
@@ -143,11 +152,11 @@ async def list_saved_jobs(
 async def save_job(
     job_id: uuid.UUID,
     payload: Optional[SavedJobCreate] = None,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_authenticated_user_or_internal),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lưu / Bookmark một tin tuyển dụng vào danh sách theo dõi.
+    Lưu / Bookmark một tin tuyển dụng vào danh sách theo dõi của người dùng.
     """
     from app.models.saved_job import SavedJob
 
@@ -161,25 +170,7 @@ async def save_job(
             detail=f"Job with ID {job_id} not found",
         )
 
-    # Lấy user_id
-    if current_user:
-        user_id = current_user.id
-    else:
-        # Fallback lấy user đầu tiên
-        u_stmt = select(User).order_by(User.created_at.asc()).limit(1)
-        u_res = await db.execute(u_stmt)
-        u = u_res.scalar_one_or_none()
-        if not u:
-            # Tạo user mặc định nếu chưa có
-            u = User(
-                id=uuid.uuid4(),
-                email="candidate@example.com",
-                hashed_password="default_hash",
-                full_name="Default Candidate",
-            )
-            db.add(u)
-            await db.flush()
-        user_id = u.id
+    user_id = current_user.id
 
     # Kiểm tra xem đã lưu chưa
     saved_stmt = select(SavedJob).where(
@@ -211,7 +202,7 @@ async def save_job(
 @router.delete("/{job_id}/save")
 async def unsave_job(
     job_id: uuid.UUID,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_authenticated_user_or_internal),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -219,16 +210,7 @@ async def unsave_job(
     """
     from app.models.saved_job import SavedJob
 
-    if current_user:
-        user_id = current_user.id
-    else:
-        u_stmt = select(User).order_by(User.created_at.asc()).limit(1)
-        u_res = await db.execute(u_stmt)
-        u = u_res.scalar_one_or_none()
-        user_id = u.id if u else None
-
-    if not user_id:
-        return {"status": "not_found"}
+    user_id = current_user.id
 
     saved_stmt = select(SavedJob).where(
         SavedJob.user_id == user_id,
@@ -247,9 +229,12 @@ async def unsave_job(
  
  
 @router.post("/ingest-manual", response_model=ManualJobIngestResponse)
+@limiter.limit("5/minute")
 async def ingest_manual_job(
+    request: Request,
     payload: ManualJobIngestRequest,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Nạp tin tuyển dụng thủ công từ Văn bản thô (Facebook/Zalo/Email) hoặc URL trực tiếp.
@@ -264,7 +249,7 @@ async def get_job_detail(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lấy chi tiết một tin tuyển dụng cùng các kỹ năng yêu cầu và thông tin dữ liệu thô.
+    Lấy chi tiết một tin tuyển dụng cùng các kỹ năng yêu cầu và thông tin dữ liệu thô (Công khai).
     """
     stmt = (
         select(Job)
@@ -291,9 +276,10 @@ async def trigger_collection(
     source: str = Query("mock", description="Nguồn thu thập: 'mock', 'remotive', 'itviec', 'careerlink', 'topcv'"),
     limit: int = Query(5, ge=1, le=50, description="Số lượng tin tối đa thu thập"),
     db: AsyncSession = Depends(get_db),
+    _auth: bool = Depends(verify_admin_access),
 ):
     """
-    Kích hoạt thu thập và chuẩn hóa tin tuyển dụng thủ công theo yêu cầu.
+    Kích hoạt thu thập và chuẩn hóa tin tuyển dụng thủ công theo yêu cầu (Yêu cầu quyền Quản trị).
     """
     collectors_map = {
         "mock": MockJobCollector(),
@@ -301,6 +287,11 @@ async def trigger_collection(
         "itviec": ITViecJobCollector(),
         "careerlink": CareerLinkJobCollector(),
         "topcv": TopCVJobCollector(),
+        "topdev": TopDevJobCollector(),
+        "itnavi": ITNaviJobCollector(),
+        "growupwork": GrowUpWorkJobCollector(),
+        "vietnamworks": VietnamWorksJobCollector(),
+        "upwork": UpworkJobCollector(),
     }
 
     if source not in collectors_map:
@@ -329,9 +320,10 @@ async def trigger_collection(
 async def trigger_daily_batch(
     limit_per_source: int = Query(50, ge=1, le=500, description="Số lượng tin tối đa mỗi nguồn (hỗ trợ quét sâu 1 tháng lên đến 500 tin/nguồn)"),
     db: AsyncSession = Depends(get_db),
+    _auth: bool = Depends(verify_admin_access),
 ):
     """
-    Kích hoạt toàn bộ chu kỳ Daily Autonomous Job Scan & Intelligence:
+    Kích hoạt toàn bộ chu kỳ Daily Autonomous Job Scan & Intelligence (Yêu cầu quyền Quản trị):
     Sync Context -> Sync Taxonomy -> Ingest Jobs (0 LLM Cost) -> Match & Score -> Rank Top Recommendations.
     """
     from app.services.daily_runner import daily_batch_runner

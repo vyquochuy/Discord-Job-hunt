@@ -1,9 +1,10 @@
 import uuid
-from typing import List
+from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import get_authenticated_user_or_internal
 from app.schemas.resume import (
     ApplicationLogResponse,
     ApplicationStatusUpdateRequest,
@@ -19,6 +20,7 @@ async def submit_job_application(
     job_id: uuid.UUID,
     payload: ApplicationSubmitRequest = ApplicationSubmitRequest(),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Nộp hồ sơ ứng tuyển cho công việc:
@@ -54,6 +56,7 @@ async def list_applications(
     page: int = Query(1, ge=1, description="Số trang"),
     page_size: int = Query(20, ge=1, le=100, description="Kích thước trang"),
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy danh sách các đơn ứng tuyển đã nộp/chuẩn bị.
@@ -70,6 +73,7 @@ async def list_applications(
 async def get_application_detail(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy thông tin chi tiết của một đơn ứng tuyển.
@@ -88,6 +92,7 @@ async def update_application_status(
     id: uuid.UUID,
     payload: ApplicationStatusUpdateRequest,
     db: AsyncSession = Depends(get_db),
+    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Cập nhật trạng thái đơn ứng tuyển (DRAFT, READY, SENT, INTERVIEW, OFFER, REJECTED).
