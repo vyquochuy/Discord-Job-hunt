@@ -186,3 +186,32 @@ async def test_notification_service_dispatch():
     )
     results = await service.notify(payload)
     assert results.get("ConsoleNotificationProvider") is True
+
+
+@pytest.mark.asyncio
+async def test_admin_superuser_bootstrap_and_permissions(test_client: AsyncClient):
+    """Kiểm tra tài khoản cấu hình ADMIN_EMAIL tự động nhận quyền Superuser."""
+    # 1. Đăng ký tài khoản với admin email
+    admin_payload = {
+        "email": settings.ADMIN_EMAIL,
+        "password": settings.ADMIN_INITIAL_PASSWORD,
+        "full_name": "Vy Quoc Huy Admin"
+    }
+    reg_resp = await test_client.post("/api/v1/auth/register", json=admin_payload)
+    assert reg_resp.status_code == 201
+    data = reg_resp.json()
+    assert data["user"]["email"] == settings.ADMIN_EMAIL
+    assert data["user"]["is_superuser"] is True
+    admin_token = data["access_token"]
+
+    # 2. Đăng ký một tài khoản thứ hai (user thường)
+    user2_payload = {
+        "email": "candidate.normal@example.com",
+        "password": "password123",
+        "full_name": "Normal Candidate"
+    }
+    u2_resp = await test_client.post("/api/v1/auth/register", json=user2_payload)
+    assert u2_resp.status_code == 201
+    u2_data = u2_resp.json()
+    assert u2_data["user"]["is_superuser"] is False
+

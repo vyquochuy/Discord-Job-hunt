@@ -24,6 +24,7 @@ tiktoken>=0.8.0,<1.0.0
 
 # Networking & Utilities
 httpx>=0.28.0,<1.0.0
+slowapi>=0.1.9,<1.0.0
 beautifulsoup4>=4.12.3,<5.0.0
 rapidfuzz>=3.10.0,<4.0.0
 python-dotenv>=1.0.1,<2.0.0

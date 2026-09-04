@@ -48,6 +48,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: job-hunt-backend:latest
     container_name: jobhunter_backend
     env_file:
       - .env
@@ -74,9 +75,7 @@ services:
   # 4. Background Workers: Xử lý tác vụ nặng (cào tin, AI extraction, render CV)
   # ----------------------------------------------------------------------------
   workers:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: job-hunt-backend:latest
     container_name: jobhunter_workers
     command: python -m app.worker
     env_file:

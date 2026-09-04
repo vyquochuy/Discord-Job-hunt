@@ -147,6 +147,10 @@ class ApiClient {
 
       if (response.status === 401) {
         console.warn('Unauthorized request — user session might be expired or missing.');
+        if (this.token && typeof window !== 'undefined') {
+          this.setToken(null);
+          window.dispatchEvent(new CustomEvent('jh:auth_expired'));
+        }
       }
 
       if (!response.ok) {
@@ -233,6 +237,14 @@ class ApiClient {
 
   async getMe() {
     return this.request('/auth/me');
+  }
+
+  logout() {
+    this.setToken(null);
+  }
+
+  hasToken() {
+    return !!this.token;
   }
 
   // --- Jobs Management ---

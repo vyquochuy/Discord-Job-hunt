@@ -306,8 +306,6 @@ class LaTeXGenerator:
 \\usepackage{{mathptmx}}
 \\usepackage{{geometry}}
 \\geometry{{a4paper, margin=0.65in}}
-\\usepackage{{titlesec}}
-\\usepackage{{enumitem}}
 \\usepackage{{hyperref}}
 \\usepackage{{xcolor}}
 \\usepackage{{amsmath}}
@@ -315,9 +313,14 @@ class LaTeXGenerator:
 % Custom Colors
 \\definecolor{{darkblue}}{{RGB}}{{0, 51, 102}}
 
-% Format sections
-\\titleformat{{\\section}}{{\\large\\bfseries\\color{{darkblue}}\\uppercase}}{{}}{{0em}}{{}}[\\titlerule]
-\\titlespacing{{\\section}}{{0pt}}{{1.5ex}}{{1ex}}
+% Format sections (Native LaTeX - Khong can goi texlive-latex-extra)
+\\makeatletter
+\\renewcommand{{\\section}}[1]{{%
+  \\vspace{{1.5ex}}%
+  {{\\noindent\\large\\bfseries\\color{{darkblue}}\\uppercase{{#1}}}}\\\\%
+  \\vspace{{-0.6ex}}\\noindent\\rule{{\\textwidth}}{{0.6pt}}\\vspace{{1ex}}%
+}}
+\\makeatother
 
 % Hyperlink setup
 \\hypersetup{{

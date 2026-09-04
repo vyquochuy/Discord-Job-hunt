@@ -1,0 +1,360 @@
+/* ==========================================================================
+   Jobs Page, Cards, Search Filters & Ingest Modals
+   ========================================================================== */
+
+/* Job Search & Filter Bar */
+.filter-bar {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr auto auto;
+  gap: 0.65rem;
+  align-items: center;
+  box-shadow: var(--shadow-xs);
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--slate-400);
+  pointer-events: none;
+}
+
+.search-input-wrapper .form-control {
+  padding-left: 2.25rem;
+}
+
+/* Job Cards Grid */
+.job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1rem;
+}
+
+.job-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+  position: relative;
+  border: 1px solid var(--border-default);
+}
+
+.job-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.company-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--slate-100);
+  border: 1px solid var(--border-default);
+  color: var(--slate-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.job-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.35;
+  transition: color var(--transition-fast);
+}
+
+.job-card:hover .job-title {
+  color: var(--primary-600);
+}
+
+.job-company {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+  font-weight: 500;
+  margin-top: 0.15rem;
+}
+
+.job-meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.65rem 0;
+}
+
+.job-description-snippet {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.job-card-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.job-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Match Score Pill */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  line-height: 1;
+}
+
+.score-high {
+  background-color: var(--success-50);
+  color: var(--success-700);
+  border: 1px solid var(--success-100);
+}
+
+.score-med {
+  background-color: var(--warning-50);
+  color: var(--warning-700);
+  border: 1px solid var(--warning-100);
+}
+
+.score-low {
+  background-color: var(--slate-100);
+  color: var(--slate-600);
+  border: 1px solid var(--slate-200);
+}
+
+/* Canonical Skills List */
+.job-skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.skill-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.skill-pill.matched {
+  background-color: var(--primary-50);
+  border-color: var(--primary-200);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+/* Scan Mode Cards */
+.scan-mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.scan-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background-color: var(--bg-surface);
+}
+
+.scan-mode-card:hover {
+  border-color: var(--border-strong);
+  background-color: var(--slate-50);
+}
+
+.scan-mode-card.selected {
+  border-color: var(--primary-600);
+  background-color: var(--primary-50);
+}
+
+.scan-radio {
+  margin-top: 0.25rem;
+  accent-color: var(--primary-600);
+}
+
+.scan-title {
+  color: var(--text-main);
+  font-size: 0.92rem;
+}
+
+.scan-title-primary {
+  color: var(--primary-700);
+  font-size: 0.92rem;
+}
+
+.scan-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0 0;
+}
+
+.custom-limit-box {
+  margin-top: 0.5rem;
+  display: none;
+}
+
+.custom-limit-input {
+  max-width: 200px;
+  display: inline-block;
+}
+
+.custom-limit-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
+
+.scan-progress-box {
+  display: none;
+  padding: 1rem;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  margin-top: 1rem;
+}
+
+.scan-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.scan-progress-status {
+  color: var(--primary-700);
+  font-size: 0.88rem;
+}
+
+.scan-progress-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.scan-result-box {
+  display: none;
+  margin-top: 1rem;
+}
+
+/* Manual Ingest Options & Result Checklists */
+.option-card {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+}
+
+.option-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.option-checkbox {
+  accent-color: var(--primary-600);
+  width: 16px;
+  height: 16px;
+}
+
+.manual-ingest-result-box {
+  display: none;
+  margin-top: 1.25rem;
+}
+
+.field-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  border: 1px solid var(--border-default);
+}
+
+.field-item.detected {
+  background-color: var(--success-50);
+  border-color: var(--success-100);
+  color: var(--success-700);
+}
+
+.field-item.undetected {
+  background-color: var(--slate-50);
+  color: var(--slate-400);
+}
+
+/* Responsive Rules */
+@media (max-width: 1024px) {
+  .filter-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-col-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .job-grid {
+    grid-template-columns: 1fr;
+  }
+}

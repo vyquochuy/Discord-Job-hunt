@@ -22,11 +22,65 @@ logging.basicConfig(
 logger = logging.getLogger("backend")
 
 
+async def ensure_admin_superuser():
+    """Tự động kiểm tra và khởi tạo tài khoản Superuser cấu hình khi khởi động ứng dụng."""
+    try:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.core.security import get_password_hash
+        from app.models.user import User
+        from app.models.candidate import Candidate
+        import uuid
+
+        admin_email = settings.ADMIN_EMAIL.lower().strip()
+        async with AsyncSessionLocal() as session:
+            stmt = select(User).where(User.email == admin_email)
+            result = await session.execute(stmt)
+            admin_user = result.scalar_one_or_none()
+
+            if not admin_user:
+                admin_user = User(
+                    id=uuid.uuid4(),
+                    email=admin_email,
+                    hashed_password=get_password_hash(settings.ADMIN_INITIAL_PASSWORD),
+                    full_name="Vy Quoc Huy",
+                    is_active=True,
+                    is_superuser=True,
+                )
+                session.add(admin_user)
+                await session.flush()
+                logger.info(f"Initialized Superuser account: {admin_email}")
+            else:
+                if not admin_user.is_superuser:
+                    admin_user.is_superuser = True
+                    logger.info(f"Updated {admin_email} to Superuser status.")
+
+            cand_stmt = select(Candidate).where((Candidate.user_id == admin_user.id) | (Candidate.user_id.is_(None))).order_by(Candidate.created_at.asc()).limit(1)
+            cand_res = await session.execute(cand_stmt)
+            candidate = cand_res.scalar_one_or_none()
+            if candidate:
+                if not candidate.user_id:
+                    candidate.user_id = admin_user.id
+            else:
+                new_cand = Candidate(
+                    id=uuid.uuid4(),
+                    user_id=admin_user.id,
+                    full_name=admin_user.full_name,
+                    email=admin_user.email,
+                )
+                session.add(new_cand)
+
+            await session.commit()
+    except Exception as e:
+        logger.warning(f"Note: ensure_admin_superuser skipped (Database may not be ready yet): {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Quản lý vòng đời khởi động và tắt ứng dụng."""
     logger.info(f"Starting {settings.PROJECT_NAME} (v{settings.VERSION})...")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
+    await ensure_admin_superuser()
     yield
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
 

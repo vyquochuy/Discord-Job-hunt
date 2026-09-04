@@ -80,17 +80,41 @@
           </a>
         </nav>
 
-        <div class="sidebar-footer">
-          <div class="user-badge">
-            <div class="user-avatar">
-              <i data-lucide="user-check" class="icon-sm"></i>
-            </div>
-            <div class="user-info">
-              <div class="user-name" id="sidebar-user-name">Vy Quoc Huy</div>
-              <div class="user-email" id="sidebar-user-email">
-                quochuy@example.com
+        <div class="sidebar-footer" id="sidebar-auth-container">
+          <!-- Logged In View -->
+          <div id="sidebar-user-logged-in" class="user-badge" style="display: none; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1;">
+              <div class="user-avatar" id="sidebar-user-avatar">
+                <i data-lucide="user-check" class="icon-sm"></i>
+              </div>
+              <div class="user-info" style="min-width: 0; flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                  <div class="user-name" id="sidebar-user-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Vy Quoc Huy</div>
+                  <span id="sidebar-role-badge" class="badge badge-purple" style="font-size: 0.65rem; padding: 0.05rem 0.35rem; display: none;">Admin</span>
+                </div>
+                <div class="user-email" id="sidebar-user-email" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">quochuy@example.com</div>
               </div>
             </div>
+            <button class="btn-icon-subtle" onclick="handleLogout()" title="Đăng xuất khỏi tài khoản" style="color: var(--slate-400); cursor: pointer; border: none; background: transparent; padding: 0.35rem; border-radius: var(--radius-sm); display: flex; align-items: center; flex-shrink: 0;">
+              <i data-lucide="log-out" class="icon-sm"></i>
+            </button>
+          </div>
+
+          <!-- Guest View -->
+          <div id="sidebar-user-guest" class="sidebar-guest-card" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 0.65rem 0.75rem; background: var(--bg-muted); border-radius: var(--radius-md); border: 1px dashed var(--border-strong); width: 100%;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div style="width: 26px; height: 26px; border-radius: var(--radius-full); background: var(--slate-200); display: flex; align-items: center; justify-content: center; color: var(--slate-600); flex-shrink: 0;">
+                <i data-lucide="user" class="icon-sm" style="width: 14px; height: 14px;"></i>
+              </div>
+              <div style="min-width: 0; flex: 1;">
+                <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">Khách vãng lai</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Chưa đăng nhập</div>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openAuthModal('login')" style="width: 100%; justify-content: center; font-size: 0.78rem; padding: 0.3rem 0.5rem;">
+              <i data-lucide="log-in" class="icon-sm" style="width: 13px; height: 13px;"></i>
+              <span>Đăng nhập / Đăng ký</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -105,6 +129,16 @@
             </h2>
           </div>
           <div class="header-actions">
+            <button
+              id="header-btn-login"
+              class="btn btn-primary btn-sm"
+              onclick="openAuthModal('login')"
+              title="Đăng nhập tài khoản"
+              style="display: none;"
+            >
+              <i data-lucide="log-in" class="icon-sm"></i>
+              <span>Đăng nhập</span>
+            </button>
             <button
               class="btn btn-outline btn-sm"
               onclick="openManualIngestModal()"
@@ -122,6 +156,7 @@
               <span>Đồng bộ Context</span>
             </button>
             <button
+              id="btn-open-scan-jobs"
               class="btn btn-primary btn-sm"
               onclick="openScanJobsModal()"
               title="Quét tin tuyển dụng từ các sàn đối tác"
@@ -358,6 +393,21 @@
 
           <!-- View 6: Candidate Profile -->
           <section id="view-profile" class="view-section">
+            <div id="profile-auth-required" class="card empty-state-card" style="display: none; padding: 3.5rem 1.5rem;">
+              <div class="empty-state-icon-box" style="background-color: var(--primary-50); color: var(--primary-600);">
+                <i data-lucide="user-check" class="icon-lg"></i>
+              </div>
+              <h3 class="empty-state-title">Yêu cầu Đăng nhập</h3>
+              <p class="empty-state-text">
+                Vui lòng đăng nhập để xem, chỉnh sửa và đồng bộ hóa hồ sơ năng lực của bạn.
+              </p>
+              <button class="btn btn-primary" onclick="openAuthModal('login', 'profile')">
+                <i data-lucide="log-in" class="icon-sm"></i>
+                <span>Đăng nhập hoặc Đăng ký</span>
+              </button>
+            </div>
+
+            <div id="profile-authenticated-content">
             <div class="card mb-6">
               <div class="mb-4">
                 <h3 class="section-title">
@@ -528,6 +578,7 @@
                   <span>Lưu thông tin hồ sơ</span>
                 </button>
               </div>
+            </div>
             </div>
           </section>
 
@@ -1100,12 +1151,199 @@ Liên hệ: hr@techglobal.com"
       </div>
     </div>
 
+    <!-- Modal: Authentication (Đăng nhập / Đăng ký / Quick Dev Login) -->
+    <div id="auth-modal" class="modal-backdrop">
+      <div class="modal-dialog modal-dialog-md">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <div class="modal-icon-badge" style="background-color: var(--primary-50); color: var(--primary-600); width: 34px; height: 34px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+              <i data-lucide="shield" class="icon-sm"></i>
+            </div>
+            <div>
+              <h3 id="auth-modal-title" style="margin: 0; font-size: 1.05rem; font-weight: 600;">Tài khoản & Xác thực</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.78rem; color: var(--text-muted);">
+                Đăng nhập để lưu tin, nộp đơn và sử dụng các tính năng cá nhân hóa
+              </p>
+            </div>
+          </div>
+          <button
+            class="btn-close"
+            onclick="closeAuthModal()"
+            title="Đóng cửa sổ"
+          >
+            <i data-lucide="x" class="icon-sm"></i>
+          </button>
+        </div>
+
+        <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+          <!-- Tab Switcher -->
+          <div class="auth-nav-tabs">
+            <button
+              id="tab-btn-auth-login"
+              class="auth-nav-tab active"
+              onclick="switchAuthTab('login')"
+            >
+              <i data-lucide="log-in" class="icon-sm" style="display: inline; vertical-align: middle; margin-right: 4px;"></i>
+              <span>Đăng nhập</span>
+            </button>
+            <button
+              id="tab-btn-auth-register"
+              class="auth-nav-tab"
+              onclick="switchAuthTab('register')"
+            >
+              <i data-lucide="user-plus" class="icon-sm" style="display: inline; vertical-align: middle; margin-right: 4px;"></i>
+              <span>Tạo tài khoản mới</span>
+            </button>
+          </div>
+
+          <!-- Form 1: Đăng nhập -->
+          <form id="form-auth-login" onsubmit="handleAuthLogin(event)" style="display: block;">
+            <div class="form-group" style="margin-bottom: 0.85rem;">
+              <label class="form-label" for="auth-login-email" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+                Địa chỉ Email <span style="color: var(--danger-600);">*</span>
+              </label>
+              <input
+                type="email"
+                id="auth-login-email"
+                class="form-input"
+                placeholder="vyquochuy3005@gmail.com"
+                required
+                autocomplete="username"
+                style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
+              />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label class="form-label" for="auth-login-password" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+                Mật khẩu <span style="color: var(--danger-600);">*</span>
+              </label>
+              <input
+                type="password"
+                id="auth-login-password"
+                class="form-input"
+                placeholder="Nhập mật khẩu..."
+                required
+                autocomplete="current-password"
+                style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
+              />
+            </div>
+
+            <button
+              type="submit"
+              id="btn-submit-auth-login"
+              class="btn btn-primary"
+              style="width: 100%; justify-content: center; padding: 0.6rem; font-size: 0.9rem;"
+            >
+              <i data-lucide="log-in" class="icon-sm"></i>
+              <span>Đăng nhập hệ thống</span>
+            </button>
+
+            <!-- Quick Dev Admin Login (CHỈ HIỂN THỊ KHI Ở LOCAL DEV) -->
+            <div id="quick-dev-login-container" class="dev-quick-login-banner" style="display: none;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--purple-700); display: flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="zap" class="icon-sm" style="color: var(--warning-600);"></i>
+                  <span>MÔI TRƯỜNG LOCAL DEV</span>
+                </span>
+                <span class="badge badge-purple" style="font-size: 0.65rem;">Superuser Dev</span>
+              </div>
+              <p style="font-size: 0.76rem; color: var(--slate-600); margin: 0; line-height: 1.4;">
+                Tiện ích test nhanh: 1 click đăng nhập ngay tài khoản Quản trị viên tối cao (Superuser) mà không cần gõ mật khẩu.
+              </p>
+              <button
+                type="button"
+                id="btn-quick-admin-login"
+                class="btn btn-outline btn-sm"
+                onclick="handleQuickAdminLogin()"
+                style="width: 100%; justify-content: center; background: var(--bg-surface); border-color: var(--purple-300); color: var(--purple-700); font-weight: 600; font-size: 0.8rem; padding: 0.45rem;"
+              >
+                <i data-lucide="sparkles" class="icon-sm" style="color: var(--purple-600);"></i>
+                <span>⚡ Đăng nhập nhanh Admin (vyquochuy3005@gmail.com)</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- Form 2: Đăng ký -->
+          <form id="form-auth-register" onsubmit="handleAuthRegister(event)" style="display: none;">
+            <div class="form-group" style="margin-bottom: 0.85rem;">
+              <label class="form-label" for="auth-reg-name" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+                Họ và tên <span style="color: var(--danger-600);">*</span>
+              </label>
+              <input
+                type="text"
+                id="auth-reg-name"
+                class="form-input"
+                placeholder="Nguyễn Văn A"
+                required
+                style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
+              />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.85rem;">
+              <label class="form-label" for="auth-reg-email" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+                Địa chỉ Email <span style="color: var(--danger-600);">*</span>
+              </label>
+              <input
+                type="email"
+                id="auth-reg-email"
+                class="form-input"
+                placeholder="name@example.com"
+                required
+                autocomplete="username"
+                style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
+              />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label class="form-label" for="auth-reg-password" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+                Mật khẩu (Tối thiểu 6 ký tự) <span style="color: var(--danger-600);">*</span>
+              </label>
+              <input
+                type="password"
+                id="auth-reg-password"
+                class="form-input"
+                placeholder="Tạo mật khẩu an toàn..."
+                required
+                minlength="6"
+                autocomplete="new-password"
+                style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
+              />
+            </div>
+
+            <button
+              type="submit"
+              id="btn-submit-auth-reg"
+              class="btn btn-primary"
+              style="width: 100%; justify-content: center; padding: 0.6rem; font-size: 0.9rem;"
+            >
+              <i data-lucide="user-plus" class="icon-sm"></i>
+              <span>Tạo tài khoản & Bắt đầu</span>
+            </button>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; text-align: center; line-height: 1.4;">
+              Hệ thống tự động liên kết hồ sơ ứng viên cá nhân hóa ngay sau khi tạo tài khoản.
+            </div>
+          </form>
+        </div>
+
+        <div class="modal-footer" style="background: var(--bg-muted); border-top: 1px solid var(--border-default); padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem;">
+            <i data-lucide="lock" class="icon-sm" style="width: 12px; height: 12px;"></i>
+            <span>Bảo mật JWT 256-bit chuẩn SaaS</span>
+          </span>
+          <button class="btn btn-outline btn-sm" onclick="closeAuthModal()">
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
     <script src="env.js" onerror="/* env.js is optional */"></script>
     <script src="js/api.js?v=1.1"></script>
-    <script src="js/app.js?v=1.1"></script>
+    <script type="module" src="js/app.js?v=2.0"></script>
   </body>
 </html>
