@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -46,13 +47,15 @@ class ResumeSemanticWriter:
         self.api_base_url = api_base_url or getattr(settings, "GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
 
     async def _call_gemini_json(self, system_instruction: str, user_prompt: str) -> Optional[Dict[str, Any]]:
-        """Gọi REST API của Gemini với định dạng Structured JSON mode."""
+        """Gọi REST API của Gemini với định dạng Structured JSON mode và cơ chế Model Cascade + Retry tự động."""
         if not self.api_key:
             return None
 
-        # Endpoint format for Google Gemini v1beta REST API:
-        # POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={API_KEY}
-        url = f"{self.api_base_url}/models/{self.model}:generateContent?key={self.api_key}"
+        # Danh sách model theo thứ tự ưu tiên thử nghiệm (Cascade Fallback)
+        models_to_try = [self.model]
+        for fallback in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"]:
+            if fallback not in models_to_try:
+                models_to_try.append(fallback)
 
         payload = {
             "contents": [
@@ -70,28 +73,53 @@ class ResumeSemanticWriter:
             },
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(url, json=payload)
-                if resp.status_code != 200:
-                    logger.warning(f"Gemini API returned status {resp.status_code}: {resp.text}")
-                    return None
-                
-                data = resp.json()
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    return None
-                
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if not parts:
-                    return None
-                
-                raw_text = parts[0].get("text", "").strip()
-                return json.loads(raw_text)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for model_name in models_to_try:
+                url = f"{self.api_base_url}/models/{model_name}:generateContent?key={self.api_key}"
+                # Cho phép tối đa 2 lần thử (1 retry cho transient 503 / 429)
+                for attempt in range(2):
+                    try:
+                        resp = await client.post(url, json=payload)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            candidates = data.get("candidates", [])
+                            if not candidates:
+                                break
 
-        except Exception as e:
-            logger.warning(f"Error communicating with Gemini API: {e}. Falling back to deterministic composition.")
-            return None
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            raw_text = ""
+                            for p in parts:
+                                if "text" in p and p["text"]:
+                                    raw_text = p["text"].strip()
+                                    break
+
+                            if raw_text:
+                                logger.info(f"[ResumeSemanticWriter] Gemini call succeeded with model '{model_name}'.")
+                                return json.loads(raw_text)
+                            break
+                        elif resp.status_code in (503, 429):
+                            logger.warning(
+                                f"Gemini API model '{model_name}' returned status {resp.status_code} (attempt {attempt+1}/2)."
+                            )
+                            if attempt == 0:
+                                await asyncio.sleep(1.5)
+                                continue
+                            else:
+                                break  # Chuyển sang model dự phòng tiếp theo
+                        else:
+                            logger.warning(
+                                f"Gemini API model '{model_name}' returned status {resp.status_code}: {resp.text[:150]}"
+                            )
+                            break
+                    except Exception as e:
+                        logger.warning(f"Error communicating with Gemini model '{model_name}': {e}")
+                        if attempt == 0:
+                            await asyncio.sleep(1.0)
+                            continue
+                        break
+
+        logger.info("[ResumeSemanticWriter] All Gemini model attempts failed. Falling back to deterministic composition.")
+        return None
 
     async def generate_resume_draft(self, bundle: EvidenceBundle) -> StructuredResumeDraft:
         """

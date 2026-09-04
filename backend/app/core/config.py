@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # Gemini Integration
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-3.6-flash"
+    GEMINI_MODEL: str = "gemini-3.7-flash"
     GEMINI_API_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
 
     model_config = SettingsConfigDict(

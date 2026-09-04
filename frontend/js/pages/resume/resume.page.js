@@ -117,7 +117,16 @@ export function switchResumePreviewTab(tab) {
     if (tabTexBtn) tabTexBtn.className = 'btn btn-outline btn-sm';
     if (tabPdfBtn) tabPdfBtn.className = 'btn btn-primary btn-sm';
     if (viewTex) viewTex.style.display = 'none';
-    if (viewPdf) viewPdf.style.display = 'block';
+    if (viewPdf) {
+      viewPdf.style.display = 'block';
+      const iframe = viewPdf.querySelector('iframe');
+      if (iframe && state.selectedResume) {
+        const freshUrl = api.getResumePdfUrl(state.selectedResume.id, false);
+        if (iframe.src !== freshUrl) {
+          iframe.src = freshUrl;
+        }
+      }
+    }
   }
 }
 

@@ -121,6 +121,12 @@ async def test_auth_register_and_login_flow(test_client: AsyncClient):
     assert me_data["email"] == "user@example.com"
     assert me_data["full_name"] == "Nguyen Van A"
 
+    # 4. Kiểm tra xác thực qua Query param (cho iframe/download PDF)
+    query_resp = await test_client.get(
+        f"/api/v1/jobs/saved?token={token}"
+    )
+    assert query_resp.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_saved_job_workflow(test_client: AsyncClient):

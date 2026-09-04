@@ -7,7 +7,7 @@ import uuid
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Dict
-from fastapi import Header, HTTPException, Depends, status
+from fastapi import Header, HTTPException, Depends, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -160,16 +160,18 @@ async def verify_internal_secret(
 async def get_current_user_optional(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    token: Optional[str] = Query(None, description="JWT Token qua query param cho trình duyệt xem inline iframe hoặc tải file"),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[Any]:
     """
-    Dependency lấy User hiện tại nếu có Bearer token hoặc Internal Secret (fallback user).
+    Dependency lấy User hiện tại nếu có Bearer token, Query token, hoặc Internal Secret (fallback user).
     """
     from app.models.user import User
 
-    # 1. Thử lấy từ Bearer Token
-    if auth and auth.credentials:
-        payload = decode_access_token(auth.credentials)
+    # 1. Thử lấy từ Bearer Token hoặc Query token
+    raw_token = auth.credentials if (auth and auth.credentials) else token
+    if raw_token:
+        payload = decode_access_token(raw_token)
         if payload and "sub" in payload:
             user_id = payload["sub"]
             try:
@@ -242,17 +244,19 @@ async def get_current_user(
 async def get_authenticated_user_or_internal(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    token: Optional[str] = Query(None, description="JWT Token qua query param cho trình duyệt xem inline iframe hoặc tải file"),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """
     Dependency bắt buộc: yêu cầu Bearer Token người dùng hợp lệ
+    HOẶC Query Token hợp lệ (cho iframe/download)
     HOẶC X-Internal-Secret hợp lệ từ internal services (Discord bot / Workers).
     """
-    user = await get_current_user_optional(auth=auth, x_internal_secret=x_internal_secret, db=db)
+    user = await get_current_user_optional(auth=auth, x_internal_secret=x_internal_secret, token=token, db=db)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Provide a valid Bearer token or 'X-Internal-Secret'.",
+            detail="Authentication required. Provide a valid Bearer token, query token or 'X-Internal-Secret'.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
