@@ -43,7 +43,7 @@ async def ensure_admin_superuser():
                     id=uuid.uuid4(),
                     email=admin_email,
                     hashed_password=get_password_hash(settings.ADMIN_INITIAL_PASSWORD),
-                    full_name="Vy Quoc Huy",
+                    full_name=os.getenv("ADMIN_NAME", "Administrator"),
                     is_active=True,
                     is_superuser=True,
                 )

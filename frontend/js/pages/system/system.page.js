@@ -13,10 +13,57 @@ import { loadProfile } from '../profile/profile.page.js';
 export function loadSystemView() {
   const currentBase = api.getBaseUrl();
   const currentSource = api.getResolutionSource();
+  const isAdmin = Boolean(state.currentUser && state.currentUser.is_superuser);
+
+  const bannerContainer = document.getElementById('system-admin-banner-container');
+  if (bannerContainer) {
+    if (isAdmin) {
+      bannerContainer.innerHTML = `
+        <div class="card" style="border-left: 4px solid var(--success-600); background: var(--bg-surface); padding: 12px 18px;">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="background: rgba(16, 185, 129, 0.15); color: var(--success-600); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <i data-lucide="shield-check" class="icon"></i>
+            </div>
+            <div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: var(--success-700);">Đã xác thực quyền Quản trị viên tối cao (Superuser)</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">
+                Tài khoản: <strong>${state.currentUser.email || 'Admin'}</strong>. Bạn có toàn quyền cấu hình API Endpoint và thực thi các lệnh dọn dẹp cơ sở dữ liệu.
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      bannerContainer.innerHTML = `
+        <div class="card" style="border-left: 4px solid var(--warning-600); background: var(--bg-surface); padding: 14px 18px;">
+          <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div style="background: rgba(245, 158, 11, 0.15); color: var(--warning-600); width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <i data-lucide="shield-alert" class="icon"></i>
+              </div>
+              <div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-main);">Yêu cầu quyền Quản trị viên (Superuser)</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                  ${state.currentUser ? 'Tài khoản hiện tại không có quyền Quản trị viên. Toàn bộ tác vụ cấu hình và dọn dẹp hệ thống đã bị khóa.' : 'Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản Quản trị viên để thực hiện các thao tác hệ thống.'}
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openAuthModal('login', 'system')">
+              <i data-lucide="log-in" class="icon-sm"></i>
+              <span>${state.currentUser ? 'Đổi tài khoản Admin' : 'Đăng nhập Admin'}</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  }
 
   const inputEl = document.getElementById('custom-api-base-input');
   if (inputEl) {
     inputEl.value = currentBase;
+    inputEl.disabled = !isAdmin;
+    inputEl.style.opacity = isAdmin ? '1' : '0.6';
+    inputEl.style.cursor = isAdmin ? 'text' : 'not-allowed';
   }
 
   const sourceBadge = document.getElementById('api-source-badge');
@@ -24,10 +71,26 @@ export function loadSystemView() {
     sourceBadge.textContent = `Nguồn: ${currentSource}`;
   }
 
+  // Khóa/Mở khóa toàn bộ các nút tác vụ Admin
+  document.querySelectorAll('.btn-admin-action').forEach(btn => {
+    btn.disabled = !isAdmin;
+    btn.style.opacity = isAdmin ? '1' : '0.5';
+    btn.style.cursor = isAdmin ? 'pointer' : 'not-allowed';
+    if (!isAdmin) {
+      btn.setAttribute('title', 'Yêu cầu quyền Quản trị viên (Superuser)');
+    }
+  });
+
   refreshIcons();
 }
 
 export function saveCustomApiEndpoint() {
+  if (!state.currentUser || !state.currentUser.is_superuser) {
+    showToast('Tác vụ này chỉ cho phép Quản trị viên (Superuser) thực hiện!', 'warning');
+    openAuthModal('login', 'system');
+    return;
+  }
+
   const inputEl = document.getElementById('custom-api-base-input');
   const val = inputEl ? inputEl.value.trim() : '';
 
@@ -43,6 +106,12 @@ export function saveCustomApiEndpoint() {
 }
 
 export function resetApiEndpoint() {
+  if (!state.currentUser || !state.currentUser.is_superuser) {
+    showToast('Tác vụ này chỉ cho phép Quản trị viên (Superuser) thực hiện!', 'warning');
+    openAuthModal('login', 'system');
+    return;
+  }
+
   api.resetBaseUrl();
   showToast(`Đã khôi phục API Endpoint về cấu hình mặc định: ${api.getBaseUrl()}`, 'info');
   loadSystemView();
@@ -50,6 +119,12 @@ export function resetApiEndpoint() {
 }
 
 export function setApiPreset(url) {
+  if (!state.currentUser || !state.currentUser.is_superuser) {
+    showToast('Tác vụ này chỉ cho phép Quản trị viên (Superuser) thực hiện!', 'warning');
+    openAuthModal('login', 'system');
+    return;
+  }
+
   const inputEl = document.getElementById('custom-api-base-input');
   if (inputEl) {
     inputEl.value = url;

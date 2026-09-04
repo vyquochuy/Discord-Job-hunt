@@ -31,12 +31,6 @@ export function updateAuthUI() {
   const nameEl = document.getElementById('sidebar-user-name');
   const emailEl = document.getElementById('sidebar-user-email');
   const roleBadge = document.getElementById('sidebar-role-badge');
-  const quickDevContainer = document.getElementById('quick-dev-login-container');
-
-  // Control Quick Dev Login button visibility strictly:
-  if (quickDevContainer) {
-    quickDevContainer.style.display = isLocalDevEnvironment() ? 'flex' : 'none';
-  }
 
   if (state.currentUser) {
     if (loggedInContainer) loggedInContainer.style.display = 'flex';
@@ -208,42 +202,6 @@ export async function handleAuthRegister(e) {
   }
 }
 
-export async function handleQuickAdminLogin() {
-  if (!isLocalDevEnvironment()) {
-    showToast('Tính năng này chỉ khả dụng trong môi trường Localhost!', 'warning');
-    return;
-  }
-
-  const email = 'vyquochuy3005@gmail.com';
-  const password = 'vyquochuy300600';
-
-  showToast('Đang thực hiện đăng nhập nhanh tài khoản Admin...', 'info');
-
-  try {
-    let res;
-    try {
-      res = await api.login(email, password);
-    } catch (loginErr) {
-      // Bootstrap via register if not exists
-      res = await api.register(email, password, 'Vy Quoc Huy');
-    }
-
-    api.setToken(res.access_token);
-    state.currentUser = res.user;
-    updateAuthUI();
-    closeAuthModal();
-
-    showToast('Đã đăng nhập nhanh thành công với quyền Quản trị viên tối cao (Superuser)!', 'success');
-    events.emit(APP_EVENTS.AUTH_LOGIN_SUCCESS, res.user);
-
-    const targetView = pendingRedirectView || state.activeView;
-    pendingRedirectView = null;
-    doNavigate(targetView, false);
-  } catch (err) {
-    showToast(`Đăng nhập nhanh thất bại: ${err.message}`, 'error');
-  }
-}
-
 export function handleLogout() {
   api.logout();
   resetUserState();
@@ -251,7 +209,7 @@ export function handleLogout() {
   showToast('Đã đăng xuất khỏi tài khoản thành công.', 'info');
   events.emit(APP_EVENTS.AUTH_LOGOUT);
 
-  const protectedViews = ['recommendations', 'resume', 'applications', 'profile'];
+  const protectedViews = ['recommendations', 'resume', 'applications', 'profile', 'system'];
   if (protectedViews.includes(state.activeView)) {
     doNavigate('dashboard');
   } else {

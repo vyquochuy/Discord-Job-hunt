@@ -74,9 +74,10 @@
           </a>
 
           <div class="nav-section-title">Cấu hình</div>
-          <a class="nav-link" data-view="system" role="button" tabindex="0">
+          <a class="nav-link" data-view="system" role="button" tabindex="0" title="Chỉ dành cho Quản trị viên (Admin)">
             <i data-lucide="settings" class="icon"></i>
             <span>Hệ thống & Dữ liệu</span>
+            <span class="badge badge-purple" style="font-size: 0.65rem; padding: 0.08rem 0.35rem; margin-left: auto;">Admin</span>
           </a>
         </nav>
 
@@ -589,6 +590,9 @@
               (PDF, LaTeX) trên máy chủ.
             </div>
 
+            <!-- Dynamic Admin Access Notice / Status Banner -->
+            <div id="system-admin-banner-container" style="margin-bottom: 1.25rem;"></div>
+
             <div class="system-grid">
               <!-- Card 0: Backend API & Cloud Connection Configuration (Phase 8.1 Zero-Cost Production) -->
               <div class="card system-card" style="grid-column: 1 / -1;">
@@ -624,11 +628,11 @@
                           style="flex: 1; min-width: 260px; font-family: monospace; font-size: 0.875rem;"
                           placeholder="Ví dụ: https://job-hunter-api.onrender.com/api/v1 hoặc /api/v1"
                         />
-                        <button class="btn btn-primary btn-sm" onclick="saveCustomApiEndpoint()" title="Lưu cấu hình API Base">
+                        <button class="btn btn-primary btn-sm btn-admin-action" id="btn-save-custom-api" onclick="saveCustomApiEndpoint()" title="Lưu cấu hình API Base (Yêu cầu Admin)">
                           <i data-lucide="save" class="icon-sm"></i>
                           <span>Lưu Endpoint</span>
                         </button>
-                        <button class="btn btn-outline btn-sm" onclick="resetApiEndpoint()" title="Đặt lại về mặc định">
+                        <button class="btn btn-outline btn-sm btn-admin-action" id="btn-reset-custom-api" onclick="resetApiEndpoint()" title="Đặt lại về mặc định (Yêu cầu Admin)">
                           <i data-lucide="rotate-ccw" class="icon-sm"></i>
                           <span>Mặc định</span>
                         </button>
@@ -636,9 +640,9 @@
                     </div>
 
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                      <span style="font-size: 0.75rem; color: var(--color-text-muted);">Gợi ý cấu hình nhanh:</span>
-                      <button class="badge badge-outline" style="cursor: pointer;" onclick="setApiPreset('/api/v1')">/api/v1 (Relative / Same-Origin)</button>
-                      <button class="badge badge-outline" style="cursor: pointer;" onclick="setApiPreset('http://localhost:8000/api/v1')">http://localhost:8000/api/v1 (Localhost)</button>
+                      <span style="font-size: 0.75rem; color: var(--color-text-muted);">Gợi ý cấu hình nhanh (Yêu cầu Admin):</span>
+                      <button class="badge badge-outline btn-api-preset btn-admin-action" style="cursor: pointer;" onclick="setApiPreset('/api/v1')">/api/v1 (Relative / Same-Origin)</button>
+                      <button class="badge badge-outline btn-api-preset btn-admin-action" style="cursor: pointer;" onclick="setApiPreset('http://localhost:8000/api/v1')">http://localhost:8000/api/v1 (Localhost)</button>
                     </div>
 
                     <!-- Health Check Result Box -->
@@ -681,7 +685,7 @@
                   </p>
                 </div>
                 <button
-                  class="btn btn-warning"
+                  class="btn btn-warning btn-admin-action btn-purge-action"
                   onclick="
                     confirmPurgeDatabase(
                       'tailoring_only',
@@ -714,7 +718,7 @@
                   </p>
                 </div>
                 <button
-                  class="btn btn-primary"
+                  class="btn btn-primary btn-admin-action btn-purge-action"
                   onclick="
                     confirmPurgeDatabase(
                       'matches_only',
@@ -753,7 +757,7 @@
                   </p>
                 </div>
                 <button
-                  class="btn btn-danger"
+                  class="btn btn-danger btn-admin-action btn-purge-action"
                   onclick="
                     confirmPurgeDatabase(
                       'jobs_and_tailoring',
@@ -786,7 +790,7 @@
                     <code>context.example/</code>.
                   </p>
                 </div>
-                <button class="btn btn-primary" onclick="confirmResetDemo()">
+                <button class="btn btn-primary btn-admin-action btn-purge-action" onclick="confirmResetDemo()">
                   <i data-lucide="refresh-cw" class="icon-sm"></i>
                   <span>Khôi phục Trạng thái mẫu</span>
                 </button>
@@ -815,7 +819,7 @@
                   </p>
                 </div>
                 <button
-                  class="btn btn-danger"
+                  class="btn btn-danger btn-admin-action btn-purge-action"
                   onclick="
                     confirmPurgeDatabase(
                       'all',
@@ -1206,7 +1210,7 @@ Liên hệ: hr@techglobal.com"
                 type="email"
                 id="auth-login-email"
                 class="form-input"
-                placeholder="vyquochuy3005@gmail.com"
+                placeholder="admin@example.com hoặc email của bạn"
                 required
                 autocomplete="username"
                 style="width: 100%; padding: 0.55rem 0.75rem; font-size: 0.88rem; border-radius: var(--radius-md); border: 1px solid var(--border-default);"
@@ -1237,30 +1241,6 @@ Liên hệ: hr@techglobal.com"
               <i data-lucide="log-in" class="icon-sm"></i>
               <span>Đăng nhập hệ thống</span>
             </button>
-
-            <!-- Quick Dev Admin Login (CHỈ HIỂN THỊ KHI Ở LOCAL DEV) -->
-            <div id="quick-dev-login-container" class="dev-quick-login-banner" style="display: none;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 0.75rem; font-weight: 700; color: var(--purple-700); display: flex; align-items: center; gap: 0.35rem;">
-                  <i data-lucide="zap" class="icon-sm" style="color: var(--warning-600);"></i>
-                  <span>MÔI TRƯỜNG LOCAL DEV</span>
-                </span>
-                <span class="badge badge-purple" style="font-size: 0.65rem;">Superuser Dev</span>
-              </div>
-              <p style="font-size: 0.76rem; color: var(--slate-600); margin: 0; line-height: 1.4;">
-                Tiện ích test nhanh: 1 click đăng nhập ngay tài khoản Quản trị viên tối cao (Superuser) mà không cần gõ mật khẩu.
-              </p>
-              <button
-                type="button"
-                id="btn-quick-admin-login"
-                class="btn btn-outline btn-sm"
-                onclick="handleQuickAdminLogin()"
-                style="width: 100%; justify-content: center; background: var(--bg-surface); border-color: var(--purple-300); color: var(--purple-700); font-weight: 600; font-size: 0.8rem; padding: 0.45rem;"
-              >
-                <i data-lucide="sparkles" class="icon-sm" style="color: var(--purple-600);"></i>
-                <span>⚡ Đăng nhập nhanh Admin (vyquochuy3005@gmail.com)</span>
-              </button>
-            </div>
           </form>
 
           <!-- Form 2: Đăng ký -->

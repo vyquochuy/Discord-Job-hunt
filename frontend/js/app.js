@@ -4,6 +4,7 @@
 
 import { state } from './core/store.js';
 import { api } from './api/index.js';
+import { events, APP_EVENTS } from './core/events.js';
 import { navigateTo, initRouter } from './core/router.js';
 import { showToast } from './components/common/toast.js';
 import { refreshIcons } from './utils/dom.js';
@@ -15,7 +16,6 @@ import {
   updateAuthUI,
   handleAuthLogin,
   handleAuthRegister,
-  handleQuickAdminLogin,
   handleLogout
 } from './components/common/auth-modal.js';
 
@@ -85,7 +85,6 @@ Object.assign(window, {
   updateAuthUI,
   handleAuthLogin,
   handleAuthRegister,
-  handleQuickAdminLogin,
   handleLogout,
   loadDashboard,
   loadJobs,
@@ -150,6 +149,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const protectedViews = ['recommendations', 'resume', 'applications', 'profile'];
     if (protectedViews.includes(state.activeView)) {
       navigateTo('dashboard');
+    } else if (state.activeView === 'system') {
+      loadSystemView();
+    }
+  });
+
+  events.on(APP_EVENTS.AUTH_LOGIN_SUCCESS, () => {
+    if (state.activeView === 'system') {
+      loadSystemView();
+    }
+  });
+
+  events.on(APP_EVENTS.AUTH_LOGOUT, () => {
+    if (state.activeView === 'system') {
+      loadSystemView();
     }
   });
 
