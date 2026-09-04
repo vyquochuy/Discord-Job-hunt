@@ -327,3 +327,37 @@
   - Xây dựng test suite `test_architectural_anti_hallucination.py` với 11 kịch bản kiểm thử nghiêm ngặt.
   - **118/118 tests PASS (100% pass rate)** trên toàn bộ repository.
 
+---
+
+## Phase 6.3 — Native LaTeX Zero-Extra-Dependency & ATS 1-Page Engine (Completed)
+
+- [x] **Tối ưu hóa Docker Image TeXLive (>450MB saved)**:
+  - Loại bỏ hoàn toàn gói nặng `texlive-latex-extra` khỏi [backend/Dockerfile](file:///backend/Dockerfile). Chỉ giữ lại các gói runtime tối giản: `texlive-latex-base`, `texlive-latex-recommended`, `texlive-fonts-recommended`.
+- [x] **Native LaTeX List Environments (`resumelist`, `skillslist`)**:
+  - Loại bỏ hoàn toàn phụ thuộc vào gói `enumitem` (nguyên nhân gây lỗi in literal `[leftmargin=...]`).
+  - Tự định nghĩa môi trường `resumelist` (bullet point `\textbullet`, lề thụt `0.2in`, `itemsep=1.5pt`, `parsep=0pt`) và `skillslist` (lề `0.12in`, `itemsep=1.5pt`) sử dụng môi trường chuẩn `\begin{list}` của Native LaTeX.
+- [x] **Star-Safe Section Macro (`\@ifstar\ressection\ressection`)**:
+  - Định nghĩa macro an toàn xử lý cả `\section*{...}` lẫn `\section{...}`, khử hoàn toàn lỗi ký tự rác `*` và đường kẻ thừa trước tiêu đề section.
+  - Truyền đúng tham số `#1` hiển thị chuẩn xác `OBJECTIVE`, `EDUCATION`, `SKILLS`, `PROJECTS`.
+- [x] **Chuẩn hóa bố cục ATS 1 trang A4 duy nhất**:
+  - Căn lề chuẩn `1.2cm / 1.1cm` và khoảng cách phân cách dự án `\vspace{4pt}`. Đảm bảo cấu hình từ 2 đến 3 dự án đầy đủ đều vừa khít tuyệt đối trên đúng 1 trang PDF.
+- [x] **Mở Public Endpoint xem trước PDF**:
+  - Điều chỉnh `GET /api/v1/resumes/{id}/pdf` để iframe và trình nhúng PDF trên trình duyệt xem được ngay mà không bị chặn lỗi 401 Authorization.
+
+---
+
+## Phase 6.4 — Frontend Modularization & Guest/Auth RBAC Architecture (Completed)
+
+- [x] **Tái cấu trúc Frontend dạng Modular ES6 Modules**:
+  - Phân rã `frontend/js/app.js` nguyên khối thành kiến trúc module chuẩn mực:
+    - `frontend/js/core/`: Quản lý reactive state (`store.js`), định tuyến SPA hash-based (`router.js`), event bus (`events.js`).
+    - `frontend/js/api/`: Bộ API client phân tầng (`client.js`, `auth.api.js`, `jobs.api.js`, `matches.api.js`, `profile.api.js`, `resume.api.js`, `applications.api.js`, `system.api.js`).
+    - `frontend/js/pages/`: Các controller và view render độc lập theo từng tính năng (`dashboard/`, `jobs/`, `profile/`, `recommendations/`, `resume/`, `applications/`, `system/`).
+    - `frontend/js/components/`: Reusable UI widgets (`common/` navbar, modal, toast; `jobs/` job cards, filter bars).
+- [x] **Phân quyền người dùng rõ ràng (Guest Mode vs Authenticated Mode)**:
+  - Cho phép người dùng vãng lai (Guest) tự do khám phá, tìm kiếm, lọc và xem chi tiết công việc công khai (HTTP 200) mà không bắt buộc phải đăng nhập trước.
+  - Tự động hiển thị modal đăng nhập/đăng ký thông minh khi người dùng thực hiện các thao tác cá nhân (Lưu việc, Gợi ý, Tinh chỉnh CV, Nộp hồ sơ).
+- [x] **Cloudflare Pages SPA Ready**:
+  - Tích hợp quy tắc `_redirects` (`/* /index.html 200`), file cấu hình môi trường runtime `env.js` và thuật toán dynamic `API_BASE` resolution đa tầng.
+
+

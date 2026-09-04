@@ -83,15 +83,15 @@ graph TD
 
 ### 3.1 Web Application (`frontend/`)
 - **Role**: Primary user interface.
-- **Characteristics**: Clean, professional, responsive, information-dense, Simple Blue design system (`--primary: #2563eb`).
-- **Core Views**:
-  - `/login` & `/register`: Authentication.
-  - `/dashboard`: Daily digest summary ("What is worth applying today?").
-  - `/jobs` & `/jobs/:id`: Multi-criteria search, JD inspection, match breakdowns, action buttons (*Apply*, *Save*, *Tailor Resume*).
-  - `/recommendations`: High-scoring job recommendations.
-  - `/profile`: Direct candidate profile editing and baseline context synchronization.
-  - `/resume`: Tailored resume workspace, LaTeX/Cover Letter preview, PDF compilation download, Zero-Hallucination provenance verification.
-  - `/applications`: Application lifecycle tracking from `SAVED` to `INTERVIEW`/`OFFER`.
+- **Architecture**: Modular ES6 Single Page Application (SPA) without monolithic files:
+  - `core/`: Reactive state store (`store.js`), Hash-based router (`router.js`) with auth navigation guards, Decoupled event bus (`events.js`).
+  - `api/`: Domain-specific API services (`client.js`, `auth.api.js`, `jobs.api.js`, `matches.api.js`, `profile.api.js`, `resume.api.js`, `applications.api.js`, `system.api.js`).
+  - `pages/`: Independent page controllers and view renderers (`dashboard/`, `jobs/`, `profile/`, `recommendations/`, `resume/`, `applications/`, `system/`).
+  - `components/`: Reusable UI elements (`common/` navbar, modal, toast; `jobs/` job cards, filter bars).
+- **Access Control & RBAC**:
+  - **Guest Mode**: Unauthenticated public users can freely browse, search, and inspect jobs without 401 barriers.
+  - **Protected Actions**: Saving jobs, matching, profile editing, resume tailoring, and application tracking require login and trigger modal authentication seamlessly.
+- **Design Characteristics**: Clean, professional, responsive, information-dense, Simple Blue design system (`--primary: #2563eb`).
 
 ### 3.2 Backend API & Domain Core (`backend/`)
 - **Role**: Application behavior, API contracts, domain logic, and AI orchestration.
@@ -107,12 +107,12 @@ graph TD
       - `fact_graph.py`: Fact graph and EvidenceRegistry extracting atomic facts with canonical tools and metrics.
       - `jd_capability_analyzer.py`: JD capability extraction and candidate gap analysis.
       - `resume_intelligence.py`: Strategic positioning, MMR project selection, and layout budgeting.
-      - `gemini_resume_writer.py`: Semantic resume writer calling Google Gemini REST API (`gemini-3.6-flash`) with structured JSON claims output.
+      - `gemini_resume_writer.py`: Semantic resume writer with model cascading (`gemini-3.7-flash` -> `gemini-3.6-flash` -> `gemini-flash-latest`) and exponential backoff retry.
       - `deterministic_composer.py`: 100% offline deterministic composer fallback.
       - `evidence_validator.py`: `ClaimLevelValidator` (6-stage claim checking) & `UnitRegenerationOrchestrator` (locked-unit selective regeneration).
       - `provenance_verifier.py`: Quantitative claim-level provenance verification.
-      - `latex_generator.py`: Pure LaTeX generator rendering directly from `StructuredResumeDraft`.
-      - `latex_compiler.py`: PDF compilation via `pdflatex`.
+      - `latex_generator.py`: Pure Native LaTeX generator (custom `resumelist` & `skillslist` via `\begin{list}`, star-safe `\@ifstar\ressection\ressection`, strictly tuned to 1 ATS page).
+      - `latex_compiler.py`: PDF compilation via `pdflatex` in an ultra-lightweight Docker environment (zero `texlive-latex-extra` bloat).
       - `cover_letter_generator.py`: Contextualized cover letter composer.
     - `ingestion_pipeline.py` & `deduplication/`: Multi-source collection, SHA-256 hash caching, 3-tier deduplication.
     - `notifications/`: `NotificationService` and notification provider abstractions.
