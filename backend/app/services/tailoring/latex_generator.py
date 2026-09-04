@@ -224,9 +224,9 @@ class LaTeXGenerator:
                 lang_skills = ["Vietnamese (Native)", "English (level B1)"]
                 skill_items.append(f"    \\item \\textbf{{Languages:}} {', '.join(lang_skills)}")
 
-            skills_latex = f"""\\begin{{itemize}}[leftmargin=0.15in, label={{}}, itemsep=0pt]
+            skills_latex = f"""\\begin{{skillslist}}
 {chr(10).join(skill_items)}
-\\end{{itemize}}"""
+\\end{{skillslist}}"""
         else:
             matched_set = {s.lower() for s in (effective_matched_skills or [])}
 
@@ -249,14 +249,14 @@ class LaTeXGenerator:
             soft_skills = candidate_skills_by_cat.get("soft_skills") or ["Problem-solving", "System design thinking", "Technical documentation", "Teamwork"]
             lang_skills = ["Vietnamese (Native)", "English (level B1)"]
 
-            skills_latex = f"""\\begin{{itemize}}[leftmargin=0.15in, label={{}}, itemsep=0pt]
+            skills_latex = f"""\\begin{{skillslist}}
     \\item \\textbf{{Programming Languages:}} {', '.join(prog_skills)}
     \\item \\textbf{{Frameworks \\& Libraries:}} {', '.join(fw_skills)}
     \\item \\textbf{{Tools \\& Databases:}} {', '.join(tool_skills)}
     \\item \\textbf{{Security \\& Systems:}} {', '.join(sec_skills)}
     \\item \\textbf{{Soft Skills:}} {', '.join(soft_skills)}
     \\item \\textbf{{Languages:}} {', '.join(lang_skills)}
-\\end{{itemize}}"""
+\\end{{skillslist}}"""
 
         # 4. Projects (Duyệt theo projects_data)
         projects_latex_list = []
@@ -289,13 +289,12 @@ class LaTeXGenerator:
             if p_info.get("technologies"):
                 tech_str = ", ".join([cls.sanitize_bullet(t) for t in p_info["technologies"]])
                 tech_line = f"    \\item \\textbf{{Technologies:}} {tech_str}."
-                bullet_items.append(tech_line)
+                bullet_items.append(tech_line + "\n")
 
             proj_block = f"""{header_line}
-\\begin{{itemize}}[leftmargin=0.25in, nosep]
-{''.join(bullet_items)}
-\\end{{itemize}}
-\\vspace{{10pt}}"""
+\\begin{{resumelist}}
+{''.join(bullet_items)}\\end{{resumelist}}
+\\vspace{{4pt}}"""
             projects_latex_list.append(proj_block)
 
         projects_latex = "\n\n".join(projects_latex_list)
@@ -305,7 +304,7 @@ class LaTeXGenerator:
 \\usepackage[utf8]{{inputenc}}
 \\usepackage{{mathptmx}}
 \\usepackage{{geometry}}
-\\geometry{{a4paper, margin=0.65in}}
+\\geometry{{left=1.2cm, top=1.1cm, right=1.2cm, bottom=1.1cm}}
 \\usepackage{{hyperref}}
 \\usepackage{{xcolor}}
 \\usepackage{{amsmath}}
@@ -313,14 +312,36 @@ class LaTeXGenerator:
 % Custom Colors
 \\definecolor{{darkblue}}{{RGB}}{{0, 51, 102}}
 
-% Format sections (Native LaTeX - Khong can goi texlive-latex-extra)
+% Format sections (Native LaTeX ho tro ca \\section* va \\section khong can texlive-latex-extra)
 \\makeatletter
-\\renewcommand{{\\section}}[1]{{%
-  \\vspace{{1.5ex}}%
-  {{\\noindent\\large\\bfseries\\color{{darkblue}}\\uppercase{{#1}}}}\\\\%
-  \\vspace{{-0.6ex}}\\noindent\\rule{{\\textwidth}}{{0.6pt}}\\vspace{{1ex}}%
+\\newcommand{{\\ressection}}[1]{{%
+  \\vspace{{1.2ex}}%
+  {{\\noindent\\large\\bfseries\\color{{darkblue}}\\uppercase{{#1}}}}\\par
+  \\vspace{{-0.4ex}}\\noindent\\rule{{\\textwidth}}{{0.6pt}}\\vspace{{0.6ex}}\\par
 }}
+\\renewcommand{{\\section}}{{\\@ifstar\\ressection\\ressection}}
 \\makeatother
+
+% Native LaTeX List Environments (Toi uu gian dong va le, khong can goi enumitem)
+\\newenvironment{{resumelist}}{{%
+  \\begin{{list}}{{\\textbullet}}{{%
+    \\setlength{{\\leftmargin}}{{0.2in}}%
+    \\setlength{{\\itemsep}}{{1.5pt}}%
+    \\setlength{{\\topsep}}{{1pt}}%
+    \\setlength{{\\parsep}}{{0pt}}%
+    \\setlength{{\\partopsep}}{{0pt}}%
+  }}%
+}}{{\\end{{list}}}}
+
+\\newenvironment{{skillslist}}{{%
+  \\begin{{list}}{{}}{{%
+    \\setlength{{\\leftmargin}}{{0.12in}}%
+    \\setlength{{\\itemsep}}{{1.5pt}}%
+    \\setlength{{\\topsep}}{{1pt}}%
+    \\setlength{{\\parsep}}{{0pt}}%
+    \\setlength{{\\partopsep}}{{0pt}}%
+  }}%
+}}{{\\end{{list}}}}
 
 % Hyperlink setup
 \\hypersetup{{
