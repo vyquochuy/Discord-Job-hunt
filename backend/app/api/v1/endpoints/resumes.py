@@ -106,7 +106,6 @@ async def download_resume_pdf(
     id: uuid.UUID,
     download: bool = Query(False, description="Nếu True sẽ trả về attachment để tải xuống, ngược lại inline để xem trước"),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xem trước hoặc tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.

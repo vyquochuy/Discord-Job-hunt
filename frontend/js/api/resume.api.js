@@ -30,7 +30,5 @@ export function updateResumeLatex(resumeId, latexSource) {
 }
 
 export function getResumePdfUrl(resumeId, download = false) {
-  const token = client.getToken();
-  const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : '';
-  return `${client.getBaseUrl()}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}${tokenQuery}`;
+  return `${client.getBaseUrl()}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
 }
