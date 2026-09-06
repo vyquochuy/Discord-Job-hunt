@@ -3,12 +3,11 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from rapidfuzz import fuzz
 
-from app.models.candidate import Candidate, CandidateProject
+from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.match import JobMatch
 from app.schemas.tailoring_ir import (
     EvidenceBundle,
-    EvidenceFact,
     FactNode,
     JDCapabilityProfile,
     LayoutBudget,
@@ -19,7 +18,7 @@ from app.schemas.tailoring_ir import (
     SkillRequirementType,
     TailoringStrategy,
 )
-from app.services.tailoring.fact_graph import CAPABILITY_TAXONOMY, fact_graph_builder
+from app.services.tailoring.fact_graph import fact_graph_builder
 from app.services.tailoring.jd_capability_analyzer import (
     DOMAIN_KEYWORD_TAXONOMY,
     jd_capability_analyzer,
@@ -413,7 +412,6 @@ class AdaptiveSummaryBuilder:
         # Xác định các điểm sáng kỹ thuật thực chiến
         has_api_db = any(c in unique_caps for c in ["api", "database"])
         has_crypto_pki = any(c in unique_caps for c in ["crypto", "system_programming", "security"])
-        has_realtime_infra = any(c in unique_caps for c in ["realtime", "infra"])
         has_mobile = "mobile" in unique_caps
 
         if "systems" in primary_doms or "security" in primary_doms:
@@ -674,9 +672,7 @@ class ResumeIntelligenceEngine:
           + Candidate Gaps (unsupported_requirements) cấm AI chế biến
         - Đóng gói cùng LayoutBudget và JD summary.
         """
-        from app.schemas.tailoring_ir import EvidenceBundle, TailoringStrategy
         from app.services.tailoring.fact_graph import evidence_registry
-        from app.services.tailoring.alias_registry import alias_registry
 
         # 1. Sinh ResumeStrategy nền tảng (chọn dự án, ranking bullets)
         resume_strat = cls.build_strategy(

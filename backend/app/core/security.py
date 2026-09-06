@@ -14,9 +14,20 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.user import User
 
 # HTTP Bearer scheme
 security_bearer = HTTPBearer(auto_error=False)
+
+
+def is_valid_internal_secret(secret: Optional[str]) -> bool:
+    """Kiểm tra tính hợp lệ của X-Internal-Secret theo hằng số thời gian an toàn."""
+    if not secret:
+        return False
+    return secrets.compare_digest(
+        secret.encode("utf-8"),
+        settings.INTERNAL_API_SECRET.encode("utf-8"),
+    )
 
 
 def get_password_hash(password: str) -> str:
@@ -143,12 +154,7 @@ async def verify_internal_secret(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    is_valid = secrets.compare_digest(
-        x_internal_secret.encode("utf-8"),
-        settings.INTERNAL_API_SECRET.encode("utf-8")
-    )
-
-    if not is_valid:
+    if not is_valid_internal_secret(x_internal_secret):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid internal API secret",
@@ -162,12 +168,10 @@ async def get_current_user_optional(
     x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
     token: Optional[str] = Query(None, description="JWT Token qua query param cho trình duyệt xem inline iframe hoặc tải file"),
     db: AsyncSession = Depends(get_db),
-) -> Optional[Any]:
+) -> Optional[User]:
     """
     Dependency lấy User hiện tại nếu có Bearer token, Query token, hoặc Internal Secret (fallback user).
     """
-    from app.models.user import User
-
     # 1. Thử lấy từ Bearer Token hoặc Query token
     raw_token = auth.credentials if (auth and auth.credentials) else token
     if raw_token:
@@ -184,10 +188,7 @@ async def get_current_user_optional(
                 pass
 
     # 2. Thử fallback nếu có X-Internal-Secret hợp lệ
-    if x_internal_secret and secrets.compare_digest(
-        x_internal_secret.encode("utf-8"),
-        settings.INTERNAL_API_SECRET.encode("utf-8")
-    ):
+    if is_valid_internal_secret(x_internal_secret):
         stmt = select(User).order_by(User.created_at.asc()).limit(1)
         result = await db.execute(stmt)
         default_user = result.scalar_one_or_none()
@@ -208,12 +209,10 @@ async def get_current_user_optional(
 async def get_current_user(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     db: AsyncSession = Depends(get_db),
-) -> Any:
+) -> User:
     """
     Dependency bắt buộc người dùng đã đăng nhập hợp lệ.
     """
-    from app.models.user import User
-
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -246,7 +245,7 @@ async def get_authenticated_user_or_internal(
     x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
     token: Optional[str] = Query(None, description="JWT Token qua query param cho trình duyệt xem inline iframe hoặc tải file"),
     db: AsyncSession = Depends(get_db),
-) -> Any:
+) -> User:
     """
     Dependency bắt buộc: yêu cầu Bearer Token người dùng hợp lệ
     HOẶC Query Token hợp lệ (cho iframe/download)
@@ -260,4 +259,53 @@ async def get_authenticated_user_or_internal(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def verify_admin_access(
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    user: Optional[User] = Depends(get_current_user_optional),
+) -> bool:
+    """
+    Xác thực quyền quản trị hệ thống: yêu cầu X-Internal-Secret hợp lệ hoặc tài khoản Superuser.
+    """
+    if x_internal_secret:
+        if is_valid_internal_secret(x_internal_secret):
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal API secret for system administrative operations",
+        )
+
+    if user and getattr(user, "is_superuser", False):
+        return True
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Administrative privilege required for this system operation.",
+    )
+
+
+async def verify_profile_access(
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+    user: Optional[User] = Depends(get_current_user_optional),
+) -> bool:
+    """
+    Cho phép truy cập profile từ Web App (đã đăng nhập) hoặc Discord Bot có X-Internal-Secret hợp lệ.
+    """
+    if x_internal_secret:
+        if is_valid_internal_secret(x_internal_secret):
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal API secret",
+        )
+
+    if user:
+        return True
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required to access candidate profile.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 

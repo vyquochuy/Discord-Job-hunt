@@ -14,7 +14,6 @@ from app.services.matching.models import (
     EvidenceItem,
     EvidenceStatus,
     FilterStatus,
-    HardFilterResult,
     JobMatchInputDTO,
     MatchScoreResult,
     MatchSignal,

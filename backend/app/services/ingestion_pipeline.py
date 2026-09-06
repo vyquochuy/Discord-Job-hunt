@@ -1,10 +1,9 @@
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import List
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.job import (
     Job,
@@ -13,7 +12,6 @@ from app.models.job import (
     RawJob,
     RawJobStatusEnum,
     Skill,
-    SkillAlias,
 )
 from app.services.ai.embedding_service import embedding_service
 from app.services.ai.llm_extractor import llm_extractor

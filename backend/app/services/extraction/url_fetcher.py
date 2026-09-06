@@ -134,7 +134,14 @@ class URLFetcher:
                 error=err_msg or "SSRF_BLOCKED: URL target resolves to private or unsafe address",
             )
 
+        # 1. Chuyên biệt: VietnamWorks API lookup nếu URL chứa job ID
+        if "vietnamworks.com" in url.lower():
+            vnw_doc = await self._fetch_vietnamworks_api(url)
+            if vnw_doc:
+                return vnw_doc
+
         try:
+
             async def on_response(response: httpx.Response):
                 if response.is_redirect:
                     next_url = response.headers.get("Location")
@@ -285,6 +292,28 @@ class URLFetcher:
 
         # Kiểm tra xem trang có đủ nội dung văn bản hay yêu cầu JS rendering
         if len(clean_text) < self.MIN_CONTENT_LENGTH:
+            # Fallback 1: Trích xuất từ Next.js App Router RSC streaming (self.__next_f.push)
+            rsc_matches = re.findall(r'"jobDescription":"(.*?)(?<!\\)"', html_content)
+            if rsc_matches:
+                try:
+                    desc_str = rsc_matches[0].encode("utf-8").decode("unicode_escape", errors="ignore")
+                    extracted_rsc_desc = BeautifulSoup(desc_str, "html.parser").get_text("\n", strip=True)
+                    rsc_reqs = re.findall(r'"jobRequirement":"(.*?)(?<!\\)"', html_content)
+                    extracted_rsc_req = ""
+                    if rsc_reqs:
+                        req_str = rsc_reqs[0].encode("utf-8").decode("unicode_escape", errors="ignore")
+                        extracted_rsc_req = BeautifulSoup(req_str, "html.parser").get_text("\n", strip=True)
+                    clean_text = f"{page_title or og_title or ''}\n\n{extracted_rsc_desc}\n\n{extracted_rsc_req}".strip()
+                except Exception:
+                    pass
+
+            # Fallback 2: Trích xuất từ OpenGraph / Meta description
+            if len(clean_text) < self.MIN_CONTENT_LENGTH and (og_desc or meta_desc):
+                desc_candidate = og_desc or meta_desc
+                if len(desc_candidate) >= 40:
+                    clean_text = f"{page_title or og_title or 'Job Posting'}\n\n{desc_candidate}".strip()
+
+        if len(clean_text) < self.MIN_CONTENT_LENGTH:
             # Kiểm tra xem có phải SPA (React/Vue/Angular root app)
             has_spa_root = bool(soup.find(id=re.compile(r"(app|root|__next)", re.I)))
             error_code = "JS_REQUIRED" if has_spa_root else "EMPTY_CONTENT"
@@ -319,6 +348,65 @@ class URLFetcher:
             fetch_method="httpx",
             error=None,
         )
+
+    async def _fetch_vietnamworks_api(self, url: str) -> Optional[FetchedDocument]:
+        """
+        Trích xuất trực tiếp thông tin tin tuyển dụng VietnamWorks qua REST Search API bằng jobId.
+        Hỗ trợ các URL dạng https://www.vietnamworks.com/...-2097932-jv...
+        """
+        match = re.search(r"[-/](\d+)-jv", url)
+        if not match:
+            return None
+        job_id = match.group(1)
+        api_url = "https://ms.vietnamworks.com/job-search/v1.0/search"
+        payload = {
+            "userId": 0,
+            "query": "",
+            "filter": [{"field": "jobId", "value": job_id}],
+            "ranges": [],
+            "order": [],
+            "hitsPerPage": 1,
+            "page": 0,
+        }
+        headers = {
+            "User-Agent": self.DEFAULT_HEADERS["User-Agent"],
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(headers=headers, timeout=10.0) as client:
+                resp = await client.post(api_url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    items = data.get("data", [])
+                    if items:
+                        item = items[0]
+                        title = item.get("jobTitle") or "VietnamWorks Job"
+                        company = item.get("companyName") or "VietnamWorks Employer"
+                        desc_html = item.get("jobDescription") or ""
+                        req_html = item.get("jobRequirement") or ""
+                        clean_desc = BeautifulSoup(desc_html, "html.parser").get_text("\n", strip=True)
+                        clean_req = BeautifulSoup(req_html, "html.parser").get_text("\n", strip=True)
+                        clean_text = f"Vị trí: {title}\nCông ty: {company}\n\nMÔ TẢ CÔNG VIỆC:\n{clean_desc}\n\nYÊU CẦU CÔNG VIỆC:\n{clean_req}"
+                        return FetchedDocument(
+                            url=url,
+                            final_url=url,
+                            status_code=200,
+                            content_type="application/json",
+                            html=f"<div><h1>{title}</h1><h2>{company}</h2>{desc_html}{req_html}</div>",
+                            title=title,
+                            meta_description=clean_desc[:200],
+                            og_title=title,
+                            og_description=clean_desc[:200],
+                            json_ld=None,
+                            clean_text=clean_text,
+                            fetch_method="httpx",
+                            error=None,
+                        )
+        except Exception as e:
+            logger.warning(f"Failed to fetch VietnamWorks job via search API: {e}")
+        return None
+
 
 
 url_fetcher = URLFetcher()

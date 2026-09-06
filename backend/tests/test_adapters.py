@@ -2,10 +2,15 @@ import logging
 import pytest
 from app.services.collectors.base import RawJobData
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
+from app.services.collectors.growupwork_adapter import GrowUpWorkJobCollector
+from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
+from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.upwork_adapter import UpworkJobCollector
+from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 
 logger = logging.getLogger("test.adapters")
 
@@ -150,3 +155,177 @@ async def test_topcv_parser():
     assert extracted.company_name == "VNG Corp"
     assert "NodeJS" in extracted.skills_required
     assert "React" in extracted.skills_required
+
+
+@pytest.mark.asyncio
+async def test_itviec_parser():
+    """Kiểm tra ITViecJobCollector bóc tách dữ liệu từ raw payload & html."""
+    logger.info("=== [TEST] ITViecJobCollector Parsing ===")
+    collector = ITViecJobCollector()
+    assert collector.source_name == "itviec"
+
+    raw = RawJobData(
+        source="itviec",
+        source_url="https://itviec.com/it-jobs/expert-ios-engineer-techcombank",
+        source_job_id="expert-ios-engineer-techcombank",
+        raw_payload={
+            "title": "Expert, iOS Software Engineer",
+            "company": "Techcombank",
+            "location": "Ha Noi",
+            "skills": ["iOS", "Swift", "Objective-C"],
+            "salary_text": "Negotiable",
+        },
+        raw_html="<div><p>We need iOS Swift master</p></div>",
+        content_hash="f"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "Expert, iOS Software Engineer"
+    assert extracted.company_name == "Techcombank"
+    assert "Swift" in extracted.skills_required
+    assert "Ha Noi" in extracted.location
+
+
+@pytest.mark.asyncio
+async def test_topdev_parser():
+    """Kiểm tra TopDevJobCollector bóc tách dữ liệu và xác định work_mode."""
+    logger.info("=== [TEST] TopDevJobCollector Parsing ===")
+    collector = TopDevJobCollector()
+    assert collector.source_name == "topdev"
+
+    raw = RawJobData(
+        source="topdev",
+        source_url="https://topdev.vn/detail-jobs/senior-backend-python-remote-12345",
+        source_job_id="12345",
+        raw_payload={
+            "title": "Senior Backend Developer (Remote)",
+            "company": "KMS Technology",
+            "location": "Ho Chi Minh City",
+            "skills": ["Python", "FastAPI", "Docker"],
+            "salary_text": "$2000 - $3000",
+        },
+        raw_html="<div>Senior Backend Developer (Remote) at KMS</div>",
+        content_hash="1"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "Senior Backend Developer (Remote)"
+    assert extracted.company_name == "KMS Technology"
+    assert extracted.work_mode.value == "REMOTE"
+    assert "FastAPI" in extracted.skills_required
+
+
+@pytest.mark.asyncio
+async def test_itnavi_parser():
+    """Kiểm tra ITNaviJobCollector bóc tách dữ liệu."""
+    logger.info("=== [TEST] ITNaviJobCollector Parsing ===")
+    collector = ITNaviJobCollector()
+    assert collector.source_name == "itnavi"
+
+    raw = RawJobData(
+        source="itnavi",
+        source_url="https://itnavi.com.vn/job/reactjs-developer-99",
+        source_job_id="99",
+        raw_payload={
+            "title": "Frontend ReactJS Developer",
+            "company": "FPT Software",
+            "location": "Da Nang",
+            "skills": ["ReactJS", "TypeScript"],
+            "salary_text": "15 - 25 triệu",
+        },
+        raw_html="<div>Frontend ReactJS Developer tại FPT Software</div>",
+        content_hash="2"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "Frontend ReactJS Developer"
+    assert extracted.company_name == "FPT Software"
+    assert "ReactJS" in extracted.skills_required
+
+
+@pytest.mark.asyncio
+async def test_growupwork_parser():
+    """Kiểm tra GrowUpWorkJobCollector bóc tách dữ liệu việc làm tiếng Nhật."""
+    logger.info("=== [TEST] GrowUpWorkJobCollector Parsing ===")
+    collector = GrowUpWorkJobCollector()
+    assert collector.source_name == "growupwork"
+
+    raw = RawJobData(
+        source="growupwork",
+        source_url="https://growupwork.com/job/brse-n2-tokyo-77",
+        source_job_id="77",
+        raw_payload={
+            "title": "Bridge Software Engineer (BrSE N2)",
+            "company": "NTT Data",
+            "location": "Tokyo, Japan",
+            "skills": ["Java", "Japanese N2", "AWS"],
+            "salary_text": "400 - 600 man/year",
+        },
+        raw_html="<div>BrSE N2 tại NTT Data Tokyo</div>",
+        content_hash="3"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "Bridge Software Engineer (BrSE N2)"
+    assert extracted.company_name == "NTT Data"
+    assert "Japanese N2" in extracted.skills_required
+
+
+@pytest.mark.asyncio
+async def test_vietnamworks_parser():
+    """Kiểm tra VietnamWorksJobCollector bóc tách dữ liệu."""
+    logger.info("=== [TEST] VietnamWorksJobCollector Parsing ===")
+    collector = VietnamWorksJobCollector()
+    assert collector.source_name == "vietnamworks"
+
+    raw = RawJobData(
+        source="vietnamworks",
+        source_url="https://www.vietnamworks.com/devops-cloud-engineer-jv123",
+        source_job_id="123",
+        raw_payload={
+            "title": "DevOps Cloud Engineer (Kubernetes)",
+            "company": "Shopee Vietnam",
+            "location": "Ho Chi Minh City",
+            "skills": ["Kubernetes", "Terraform", "CI/CD"],
+            "salary_text": "Negotiable",
+        },
+        raw_html="<div>DevOps Cloud Engineer tại Shopee</div>",
+        content_hash="4"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "DevOps Cloud Engineer (Kubernetes)"
+    assert extracted.company_name == "Shopee Vietnam"
+    assert "Kubernetes" in extracted.skills_required
+
+
+@pytest.mark.asyncio
+async def test_upwork_parser():
+    """Kiểm tra UpworkJobCollector bóc tách dữ liệu remote RSS."""
+    logger.info("=== [TEST] UpworkJobCollector Parsing ===")
+    collector = UpworkJobCollector()
+    assert collector.source_name == "upwork"
+
+    raw = RawJobData(
+        source="upwork",
+        source_url="https://www.upwork.com/jobs/~01abcdef123456",
+        source_job_id="01abcdef123456",
+        raw_payload={
+            "title": "Python FastAPI Microservices Developer",
+            "company": "Upwork Client (United States)",
+            "location": "Worldwide (Remote)",
+            "country": "United States",
+            "skills": ["Python", "FastAPI", "PostgreSQL"],
+            "clean_description": "Need an expert in Python and FastAPI to build RESTful services.",
+            "pub_date_str": "Wed, 01 Sep 2026 12:00:00 GMT",
+        },
+        raw_html="Need an expert in Python and FastAPI to build RESTful services.",
+        content_hash="5"*64,
+    )
+
+    extracted = await collector.parse_raw(raw)
+    assert extracted.title == "Python FastAPI Microservices Developer"
+    assert extracted.work_mode.value == "REMOTE"
+    assert extracted.company_name == "Upwork Client (United States)"
+    assert "FastAPI" in extracted.skills_required
+

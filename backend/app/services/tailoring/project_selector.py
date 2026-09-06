@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 from app.models.job import Job
 from app.schemas.tailoring_ir import (
@@ -8,9 +8,7 @@ from app.schemas.tailoring_ir import (
     LayoutBudget,
     ProjectScoringDetail,
     ProjectSelectionResult,
-    ScoredEvidenceItem,
     ScoredProjectCandidate,
-    SkillRequirementType,
 )
 from app.services.tailoring.jd_capability_analyzer import jd_capability_analyzer
 from app.services.tailoring.layout_planner import layout_planner

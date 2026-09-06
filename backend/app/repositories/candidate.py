@@ -1,6 +1,6 @@
 import uuid
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,7 +11,7 @@ from app.models.candidate import (
     CandidateProject,
     CandidateCertification,
 )
-from app.schemas.candidate import CandidateCreate, CandidateUpdate
+from app.schemas.candidate import CandidateUpdate
 
 
 class CandidateRepository:

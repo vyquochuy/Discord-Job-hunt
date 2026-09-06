@@ -10,8 +10,6 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
-    Integer,
-    Numeric,
     String,
     Text,
     func,

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 from app.schemas.tailoring_ir import EvidenceBundle, ValidationViolation
 
 

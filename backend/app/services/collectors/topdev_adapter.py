@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 import httpx
 from bs4 import BeautifulSoup
 
@@ -39,7 +39,8 @@ class TopDevJobCollector(BaseJobCollector):
         max_pages = min(25, max(1, (limit + 19) // 20))
 
         try:
-            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            timeout_cfg = httpx.Timeout(10.0, connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
                 while page <= max_pages and len(results) < limit:
                     target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"TopDev: Fetching page {page}/{max_pages} from {target_url}...")

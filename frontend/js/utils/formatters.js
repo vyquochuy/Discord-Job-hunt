@@ -45,12 +45,31 @@ export function formatSourceBadge(source, sourceUrl) {
     iconName = 'edit-3';
   } else if (src === 'topcv') {
     label = 'TopCV';
+    iconName = 'briefcase';
   } else if (src === 'itviec') {
     label = 'ITViec';
+    iconName = 'code-2';
   } else if (src === 'careerlink') {
     label = 'CareerLink';
+    iconName = 'link';
   } else if (src === 'remotive') {
     label = 'Remotive';
+    iconName = 'globe';
+  } else if (src === 'topdev') {
+    label = 'TopDev';
+    iconName = 'code';
+  } else if (src === 'vietnamworks') {
+    label = 'VietnamWorks';
+    iconName = 'building-2';
+  } else if (src === 'upwork') {
+    label = 'Upwork';
+    iconName = 'briefcase';
+  } else if (src === 'itnavi') {
+    label = 'ITNavi';
+    iconName = 'compass';
+  } else if (src === 'growupwork') {
+    label = 'GrowUpWork';
+    iconName = 'award';
   } else if (src === 'mock') {
     label = 'Demo';
     iconName = 'terminal';

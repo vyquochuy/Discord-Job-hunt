@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Set
+from typing import List, Optional
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.services.matching.models import (
     CandidateProfileDTO,
@@ -128,7 +128,6 @@ def evaluate_hard_filters(
     combined_roles = f"{target_roles_text} {headline_text}"
 
     is_intern = any(kw in combined_roles for kw in ["intern", "internship", "thực tập"])
-    is_fresher = any(kw in combined_roles for kw in ["fresher", "mới tốt nghiệp", "trainee"]) and not is_intern
     is_senior_lead = any(kw in combined_roles for kw in ["senior", "lead", "principal", "manager", "architect"]) and not is_intern
 
     job_text = f"{job.title} {job.description} {job.requirements_summary or ''}".lower()

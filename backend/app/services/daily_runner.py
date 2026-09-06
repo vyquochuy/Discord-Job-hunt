@@ -3,26 +3,30 @@ import logging
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.models.candidate import Candidate
 from app.models.job import Job, JobStatusEnum
 from app.models.match import JobMatch
 from app.repositories.candidate import CandidateRepository
 from app.services.candidate import CandidateService
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
+from app.services.collectors.growupwork_adapter import GrowUpWorkJobCollector
+from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
+from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.upwork_adapter import UpworkJobCollector
+from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline, IngestionStats
 from app.services.matching.match_service import job_match_service
 from app.services.matching.models import Eligibility, RecommendationCategory
 from app.services.normalization.skill_normalizer import skill_normalizer
+
 
 logger = logging.getLogger("daily_runner")
 
@@ -169,7 +173,13 @@ class DailyBatchRunnerService:
             ITViecJobCollector(),
             CareerLinkJobCollector(),
             TopCVJobCollector(),
+            ITNaviJobCollector(),
+            GrowUpWorkJobCollector(),
+            VietnamWorksJobCollector(),
+            UpworkJobCollector(),
+            TopDevJobCollector(),
         ]
+
 
         for col in collectors:
             sources_scanned.append(col.source_name)

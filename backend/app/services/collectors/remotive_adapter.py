@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 import httpx
 from bs4 import BeautifulSoup
 
@@ -94,7 +94,6 @@ class RemotiveJobCollector(BaseJobCollector):
                 posted_at = datetime.now(timezone.utc)
 
         tags = payload.get("tags", [])
-        salary_text = payload.get("salary", "")
 
         return JobExtractedData(
             title=payload.get("title", "").strip(),

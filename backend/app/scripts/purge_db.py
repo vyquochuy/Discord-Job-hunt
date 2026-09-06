@@ -61,7 +61,7 @@ async def main():
                 scope=args.scope,
                 clean_storage=not args.no_clean_storage,
             )
-            logger.info(f"✅ Purge completed successfully!")
+            logger.info("✅ Purge completed successfully!")
             logger.info(f"Deleted row counts: {report.deleted_counts}")
             logger.info(f"Cleaned storage artifacts: {report.cleaned_storage}")
 

@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from app.models.job import JobLevelEnum, WorkModeEnum

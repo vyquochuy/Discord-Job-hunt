@@ -1,9 +1,9 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.candidate import (
@@ -22,7 +22,6 @@ from app.models.resume import (
     TailoredResume,
 )
 from app.models.saved_job import SavedJob
-from app.models.user import User
 from app.services.candidate import CandidateService
 from app.services.normalization.skill_normalizer import skill_normalizer
 

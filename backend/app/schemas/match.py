@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Any, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.services.matching.models import (
@@ -10,11 +10,7 @@ from app.services.matching.models import (
     EvidenceItem,
     EvidenceStatus,
     FilterStatus,
-    HardFilterResult,
-    MatchSignal,
     RecommendationCategory,
-    RequirementEvaluation,
-    SkillMatchResult,
 )
 
 

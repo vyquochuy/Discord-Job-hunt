@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 import httpx
 from bs4 import BeautifulSoup
 
@@ -20,7 +20,9 @@ class VietnamWorksJobCollector(BaseJobCollector):
     """
 
     BASE_URL = "https://www.vietnamworks.com"
-    SEARCH_URL = "https://www.vietnamworks.com/viec-lam-it-phan-mem-i35-vn"
+    SEARCH_URL = "https://www.vietnamworks.com/it-phan-mem-kv"
+
+    API_SEARCH_URL = "https://ms.vietnamworks.com/job-search/v1.0/search"
 
     @property
     def source_name(self) -> str:
@@ -28,78 +30,70 @@ class VietnamWorksJobCollector(BaseJobCollector):
 
     async def fetch_jobs(self, limit: int = 50) -> List[RawJobData]:
         results: List[RawJobData] = []
-        headers = {
+        api_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": "https://www.vietnamworks.com/",
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
         }
 
-        page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
-
+        # 1. Primary: Query VietnamWorks public Search API
         try:
-            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
-                    target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
-                    logger.info(f"VietnamWorks: Fetching page {page}/{max_pages} from {target_url}...")
-
-                    response = await client.get(target_url, headers=headers)
+            timeout_cfg = httpx.Timeout(10.0, connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
+                page = 0
+                hits_per_page = min(limit, 25)
+                while len(results) < limit:
+                    payload = {
+                        "userId": 0,
+                        "query": "IT Software",
+                        "filter": [],
+                        "ranges": [],
+                        "order": [],
+                        "hitsPerPage": hits_per_page,
+                        "page": page,
+                    }
+                    response = await client.post(self.API_SEARCH_URL, headers=api_headers, json=payload)
                     if response.status_code != 200:
-                        logger.warning(f"VietnamWorks page {page} returned status {response.status_code}")
+                        logger.warning(f"VietnamWorks API returned status {response.status_code}")
                         break
 
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    job_cards = soup.select(
-                        ".job-item, .block-job-item, div[class*='job-item'], div[class*='job-card'], div[data-job-id], .job_card"
-                    )
-
-                    if not job_cards:
-                        job_cards = soup.find_all("div", class_=re.compile(r"job.*item|job.*card|block.*job", re.I))
-
-                    if not job_cards:
-                        logger.info(f"VietnamWorks: No job cards found on page {page}.")
+                    data = response.json()
+                    job_items = data.get("data", [])
+                    if not job_items:
                         break
 
-                    for card in job_cards:
+                    for item in job_items:
                         if len(results) >= limit:
                             break
 
-                        # 1. Title & URL
-                        title_elem = card.select_one(
-                            "h2 a, h3 a, a[class*='job-title'], a[class*='title'], a[href*='-jv']"
-                        )
-                        if not title_elem:
+                        title = item.get("jobTitle") or ""
+                        if not title:
                             continue
 
-                        title = title_elem.get_text(strip=True)
-                        rel_url = title_elem.get("href", "")
-                        url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                        url = item.get("jobUrl") or ""
+                        if not url.startswith("http"):
+                            url = f"{self.BASE_URL}{url}"
 
-                        # 2. Company Name
-                        company_elem = card.select_one(
-                            ".company-name, a[class*='company'], span[class*='company'], .company, p[class*='company']"
-                        )
-                        company = company_elem.get_text(strip=True) if company_elem else "VietnamWorks Employer"
+                        company = item.get("companyName") or "VietnamWorks Employer"
 
-                        # 3. Location
-                        location_elem = card.select_one(
-                            ".location, .city, .address, span[class*='location'], span[class*='city']"
-                        )
-                        location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
+                        # Extract locations
+                        locs = item.get("workingLocations") or []
+                        loc_names = [l.get("cityNameVI") or l.get("cityName") for l in locs if isinstance(l, dict)]
+                        location = ", ".join(loc_names) if loc_names else "Vietnam"
 
-                        # 4. Salary
-                        salary_elem = card.select_one(
-                            ".salary, span[class*='salary'], .text-salary, .salary-text, .price"
-                        )
-                        salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
+                        # Extract salary
+                        sal_min = item.get("salaryMin")
+                        sal_max = item.get("salaryMax")
+                        if sal_min and sal_max:
+                            salary_text = f"{sal_min:,} - {sal_max:,} {item.get('salaryCurrency', 'VND')}"
+                        else:
+                            salary_text = item.get("prettySalary") or ""
 
-                        # 5. Skills
-                        skill_elems = card.select(
-                            ".tag, .skill-tag, span[class*='tag'], span[class*='skill'], a[class*='tag']"
-                        )
-                        skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
+                        # Extract skills
+                        raw_skills = item.get("skills") or []
+                        skills = [s.get("skillName") for s in raw_skills if isinstance(s, dict) and s.get("skillName")]
 
+                        source_job_id = str(item.get("jobId") or "")
                         card_payload = {
                             "title": title,
                             "company": company,
@@ -107,30 +101,32 @@ class VietnamWorksJobCollector(BaseJobCollector):
                             "url": url,
                             "salary_text": salary_text,
                             "skills": skills,
+                            "description": item.get("jobDescription") or "",
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
-                        job_id_match = re.search(r"[-/](\d+)(?:-jv|\.html|\?|$)", url)
-                        source_job_id = job_id_match.group(1) if job_id_match else None
-
                         results.append(
                             RawJobData(
                                 source=self.source_name,
                                 source_url=url,
-                                source_job_id=source_job_id,
+                                source_job_id=source_job_id or None,
                                 raw_payload=card_payload,
-                                raw_html=str(card),
+                                raw_html=item.get("jobDescription") or "",
                                 content_hash=content_hash,
                             )
                         )
 
                     page += 1
-                    if page <= max_pages and len(results) < limit:
-                        await asyncio.sleep(0.35)
+                    if len(results) >= limit or len(job_items) < hits_per_page:
+                        break
+                    await asyncio.sleep(0.3)
 
-                logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from VietnamWorks.com")
+            if results:
+                logger.info(f"Successfully fetched {len(results)} IT jobs via VietnamWorks Search API")
+                return results
+
         except Exception as e:
-            logger.error(f"Error scraping VietnamWorks: {e}", exc_info=True)
+            logger.warning(f"VietnamWorks API query failed, trying HTML fallback: {e}")
 
         return results
 

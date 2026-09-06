@@ -7,13 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.models.job import Job
 from app.models.resume import (
     ApplicationChannelEnum,
     ApplicationLog,
     ApplicationStatusEnum,
     ResumeStatusEnum,
-    TailoredResume,
 )
 from app.services.tailoring.resume_service import resume_service
 

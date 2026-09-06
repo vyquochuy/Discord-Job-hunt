@@ -169,12 +169,12 @@ class LaTeXGenerator:
                         "bullets": b_texts,
                     })
 
-        full_name = candidate.full_name or "Vy Quoc Huy"
-        phone = candidate.phone or "(+84) 384988934"
-        email = candidate.email or "vyquochuy305@gmail.com"
-        github_url = candidate.github_url or "https://github.com/vyquochuy"
-        linkedin_url = candidate.linkedin_url or "https://www.linkedin.com/in/vyquochuy/"
-        location = candidate.location or "Thu Duc, Ho Chi Minh"
+        full_name = candidate.full_name
+        phone = candidate.phone
+        email = candidate.email
+        github_url = candidate.github_url
+        linkedin_url = candidate.linkedin_url
+        location = candidate.location
 
         # 2. Education
         edu_entries = []
@@ -182,7 +182,6 @@ class LaTeXGenerator:
             for edu in candidate.education:
                 if isinstance(edu, dict):
                     inst = cls.sanitize_bullet(edu.get("institution", "VNUHCM - University of Science"))
-                    degree = edu.get("degree", "Bachelor")
                     field = cls.sanitize_bullet(edu.get("field", "Computer Science - Cyber Security"))
                     gpa = edu.get("gpa", "3.15/4.0")
                     grad_year = edu.get("graduation_year", "2026")

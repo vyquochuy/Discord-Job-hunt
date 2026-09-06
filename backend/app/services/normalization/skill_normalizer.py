@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.job import Skill, SkillAlias, SkillCategoryEnum

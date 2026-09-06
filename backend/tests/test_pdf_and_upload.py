@@ -207,3 +207,43 @@ async def test_upload_empty_file_fails(test_client: AsyncClient):
     }
     res = await test_client.post("/api/v1/profile/upload-resume", headers=headers, files=files)
     assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_upload_oversized_file_rejected(test_client: AsyncClient, monkeypatch):
+    """Kiểm tra file vượt quá dung lượng cho phép bị từ chối bằng mã lỗi 413."""
+    headers = {"X-Internal-Secret": settings.INTERNAL_API_SECRET}
+    # Giảm tạm thời giới hạn upload xuống 100KB để test nhanh
+    monkeypatch.setattr(settings, "MAX_RESUME_UPLOAD_SIZE", 100 * 1024)
+    oversized_data = b"%PDF-1.4" + (b"A" * (120 * 1024))
+    files = {
+        "file": ("resume.pdf", io.BytesIO(oversized_data), "application/pdf")
+    }
+    res = await test_client.post("/api/v1/profile/upload-resume", headers=headers, files=files)
+    assert res.status_code == 413
+    assert "exceeds maximum allowed limit" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_upload_invalid_signature_pdf(test_client: AsyncClient):
+    """Kiểm tra file có đuôi .pdf nhưng signature nội dung sai bị từ chối 400."""
+    headers = {"X-Internal-Secret": settings.INTERNAL_API_SECRET}
+    fake_pdf = b"MZ\x90\x00\x03\x00\x00\x00"  # PE executable header disguised as PDF
+    files = {
+        "file": ("malicious.pdf", io.BytesIO(fake_pdf), "application/pdf")
+    }
+    res = await test_client.post("/api/v1/profile/upload-resume", headers=headers, files=files)
+    assert res.status_code == 400
+    assert "does not match PDF signature" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_upload_unsupported_extension(test_client: AsyncClient):
+    """Kiểm tra file có đuôi mở rộng không được hỗ trợ bị từ chối 400."""
+    headers = {"X-Internal-Secret": settings.INTERNAL_API_SECRET}
+    files = {
+        "file": ("payload.exe", io.BytesIO(b"malicious_bytes"), "application/octet-stream")
+    }
+    res = await test_client.post("/api/v1/profile/upload-resume", headers=headers, files=files)
+    assert res.status_code == 400
+    assert "Unsupported file format" in res.json()["detail"]

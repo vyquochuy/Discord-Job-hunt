@@ -1,7 +1,6 @@
 import logging
 import re
-from typing import Dict, List, Set, Tuple
-from rapidfuzz import fuzz
+from typing import Dict, List, Set
 
 from app.models.job import Job
 from app.schemas.tailoring_ir import JDCapabilityProfile, SkillRequirementType

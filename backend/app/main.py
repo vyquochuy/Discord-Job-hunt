@@ -116,6 +116,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if (
+        path.startswith("/js/")
+        or path.startswith("/css/")
+        or path.startswith("/static/")
+        or path.endswith(".js")
+        or path.endswith(".html")
+        or path == "/"
+    ):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # Tìm thư mục frontend (hỗ trợ cả môi trường Local lẫn Docker volume /frontend)
 frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
 if not frontend_dir.exists():

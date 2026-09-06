@@ -1,13 +1,11 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from app.schemas.tailoring_ir import (
     EvidenceBundle,
     EvidenceFact,
     GeneratedBullet,
-    GeneratedClaimFragment,
-    GeneratedProject,
     GeneratedSummary,
     StructuredResumeDraft,
     ValidationReport,
@@ -214,7 +212,6 @@ class ClaimLevelValidator:
     ) -> List[ValidationViolation]:
         """Kiểm chứng tính chân thực của Professional Summary."""
         violations: List[ValidationViolation] = []
-        facts_by_id = {f.id: f for f in bundle.evidence_facts}
         strategy = bundle.strategy
 
         if not summary.text or len(summary.text.strip()) < 10:
@@ -410,7 +407,6 @@ class UnitRegenerationOrchestrator:
         Thực thi vòng lặp kiểm tra và tái sinh có mục tiêu.
         Đảm bảo đầu ra cuối cùng 100% đạt chuẩn Zero-Hallucination.
         """
-        facts_by_id = {f.id: f for f in bundle.evidence_facts}
         current_draft = draft
 
         report = ClaimLevelValidator.validate_draft(current_draft, bundle)

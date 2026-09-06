@@ -300,7 +300,6 @@ class CoverLetterGenerator:
         recipient_name: Optional[str] = None,
     ) -> CoverLetterDraft:
         """Tầng 3: Sinh bản nháp có cấu trúc chặt chẽ (Structured Drafting)."""
-        full_name = candidate.full_name or "Candidate"
         company = parsed_jd.company_name
         role_title = parsed_jd.target_role
 

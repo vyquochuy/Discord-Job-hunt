@@ -1,13 +1,11 @@
-import os
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.resume import (
     CoverLetter,
@@ -157,7 +155,7 @@ class ResumeTailorService:
             for b in p.bullets:
                 sections_dict["PROJECTS"].append(b.text)
 
-        evidence_items, legacy_score, legacy_verified = provenance_verifier.verify_resume(
+        evidence_items, _, _ = provenance_verifier.verify_resume(
             candidate=candidate,
             tailored_sections=sections_dict,
         )

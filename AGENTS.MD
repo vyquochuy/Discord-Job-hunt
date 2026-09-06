@@ -15,13 +15,13 @@ AI Job Hunter Platform — personal job hunting intelligence platform with **Web
 
 ## 2. Current State
 
-**Phases 0 through 6 and Phase 8.1 are fully COMPLETED and production-verified (118/118 backend tests passing).**
+**Phases 0 through 6 and Phase 8.1 are fully COMPLETED and production-verified (135/135 backend tests passing).**
 
 - **Phase 0 (Foundation)**: Docker Compose (PostgreSQL with pgvector, Redis, Backend, Workers, Discord Bot), FastAPI skeleton, Alembic migrations.
 - **Phase 1 (Candidate Profile)**: SQLAlchemy models, Candidate Profile Ingestion (`candidate-profile.yaml`, `master-resume.tex`), CRUD/Sync REST APIs (`/api/v1/profile`).
 - **Phase 2 & 2.5 (Job Collection & Ad-hoc Ingestion)**:
   - Database models: `raw_jobs` (Source of Truth), `jobs` (Standardized), `skills` & `skill_aliases` (Canonical Taxonomy), `job_skills`.
-  - Source Adapters: `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `MockJobCollector`.
+  - Source Adapters (10 adapters): `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `TopDevJobCollector`, `VietnamWorksJobCollector`, `UpworkJobCollector`, `ITNaviJobCollector`, `GrowUpWorkJobCollector`, `MockJobCollector`.
   - Ingestion Pipeline: Content Hash SHA-256 caching (0 LLM cost hit), Deterministic parsing, 3-Tier Deduplication (Exact -> RapidFuzz -> pgvector).
   - Ad-hoc ingestion: `POST /api/v1/jobs/ingest-manual` for direct URLs or raw pasted text.
 - **Phase 3 (Job Intelligence)**:

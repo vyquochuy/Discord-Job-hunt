@@ -83,7 +83,7 @@ export async function startConfiguredJobScan() {
     progressStatus.textContent = `Đang quét dữ liệu (Giới hạn: ${limit} tin/nguồn)...`;
   }
   if (progressDetail) {
-    progressDetail.textContent = 'Hệ thống đang duyệt song song ITViec, TopCV, CareerLink, Remotive và tính toán điểm tương thích...';
+    progressDetail.textContent = 'Hệ thống đang kích hoạt các Collector (ITViec, Remotive, CareerLink, TopCV...) và chuẩn hóa dữ liệu...';
   }
 
   const startTime = Date.now();

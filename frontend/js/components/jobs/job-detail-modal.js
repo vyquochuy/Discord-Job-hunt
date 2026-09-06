@@ -8,6 +8,26 @@ import { refreshIcons, escapeHtml } from '../../utils/dom.js';
 import { showToast } from '../common/toast.js';
 import { openAuthModal } from '../common/auth-modal.js';
 
+const SIGNAL_NAME_MAP = {
+  requirement_fit: 'Yêu cầu cốt lõi',
+  technical_skill_match: 'Kỹ năng kỹ thuật',
+  project_relevance: 'Dự án liên quan',
+  experience_relevance: 'Kinh nghiệm',
+  education_match: 'Học vấn',
+  seniority_match: 'Cấp bậc',
+  work_fit: 'Hình thức làm việc',
+};
+
+const DEFAULT_SIGNAL_NAMES = [
+  'Yêu cầu cốt lõi',
+  'Kỹ năng kỹ thuật',
+  'Dự án liên quan',
+  'Kinh nghiệm',
+  'Học vấn',
+  'Cấp bậc',
+  'Hình thức làm việc',
+];
+
 export async function openJobDetailModal(jobId) {
   const modalBackdrop = document.getElementById('job-detail-modal');
   if (!modalBackdrop) return;
@@ -43,13 +63,25 @@ export async function openJobDetailModal(jobId) {
     let matchSectionHtml = '';
     if (match) {
       const scoreClass = match.score >= 80 ? 'score-high' : match.score >= 60 ? 'score-med' : 'score-low';
+      const rawSignals = match.signals || {};
 
-      const signalsList = Object.entries(match.signals || {}).map(([key, val]) => {
-        const percent = (val.score || 0) * 100;
+      const signalEntries = Array.isArray(rawSignals)
+        ? rawSignals.map((item, idx) => [String(idx), item])
+        : Object.entries(rawSignals);
+
+      const signalsList = signalEntries.map(([key, val], idx) => {
+        const scoreVal = typeof val === 'number' ? val : (val?.score ?? 0);
+        const percent = Math.min(100, Math.max(0, scoreVal * 100));
+        const rawName = (typeof val === 'object' && val?.name) ? val.name : key;
+        const displayName = SIGNAL_NAME_MAP[rawName]
+          || (!isNaN(Number(key)) && DEFAULT_SIGNAL_NAMES[Number(key)] ? DEFAULT_SIGNAL_NAMES[Number(key)] : null)
+          || DEFAULT_SIGNAL_NAMES[idx]
+          || String(rawName).replace(/_/g, ' ');
+
         return `
           <div style="margin-bottom: 0.5rem;">
             <div style="display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.2rem;">
-              <span style="text-transform: capitalize; font-weight: 500; color: var(--slate-700);">${key.replace(/_/g, ' ')}</span>
+              <span style="font-weight: 500; color: var(--slate-700);">${escapeHtml(displayName)}</span>
               <strong>${percent.toFixed(0)}%</strong>
             </div>
             <div style="height: 5px; background-color: var(--slate-200); border-radius: 4px; overflow: hidden;">
@@ -58,6 +90,8 @@ export async function openJobDetailModal(jobId) {
           </div>
         `;
       }).join('');
+
+
 
       matchSectionHtml = `
         <div class="card" style="background-color: var(--primary-50); border-color: var(--primary-100); margin-bottom: 1.25rem; padding: 1.15rem;">

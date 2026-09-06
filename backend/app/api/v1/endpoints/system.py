@@ -1,42 +1,14 @@
-import secrets
-from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from typing import Any, Dict
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.limiter import limiter
-from app.core.security import get_current_user_optional
+from app.core.security import verify_admin_access
 from app.services.system_service import PurgeReport, system_service
 
 router = APIRouter()
-
-
-async def verify_admin_access(
-    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
-    user: Optional[Any] = Depends(get_current_user_optional),
-) -> bool:
-    """Xác thực quyền quản trị hệ thống: yêu cầu X-Internal-Secret hợp lệ hoặc tài khoản Superuser."""
-    if x_internal_secret:
-        is_valid = secrets.compare_digest(
-            x_internal_secret.encode("utf-8"),
-            settings.INTERNAL_API_SECRET.encode("utf-8")
-        )
-        if is_valid:
-            return True
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid internal API secret for system administrative operations",
-        )
-
-    if user and getattr(user, "is_superuser", False):
-        return True
-
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Administrative privilege required for this system operation.",
-    )
 
 
 class PurgeRequest(BaseModel):

@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "job_hunter_platform_secret_key_web_2026_flexible_auth"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     DISCORD_WEBHOOK_URL: Optional[str] = None
+    ADMIN_NAME: str = "Administrator"
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_INITIAL_PASSWORD: str = "Admin@123456"
+    MAX_RESUME_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     # Cơ sở dữ liệu (PostgreSQL + pgvector)
     POSTGRES_USER: str = "jobhunter"

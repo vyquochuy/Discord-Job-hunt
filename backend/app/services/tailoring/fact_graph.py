@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set
 
 from app.models.candidate import Candidate
 from app.schemas.tailoring_ir import EvidenceCategory, EvidenceFact, FactNode, MetricFact

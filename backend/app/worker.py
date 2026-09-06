@@ -7,9 +7,14 @@ import redis.asyncio as aioredis
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
+from app.services.collectors.growupwork_adapter import GrowUpWorkJobCollector
+from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
+from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.upwork_adapter import UpworkJobCollector
+from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
 from app.services.normalization.skill_normalizer import skill_normalizer
 
@@ -32,7 +37,13 @@ async def run_collection_cycle(limit: int = 15):
         ITViecJobCollector(),
         CareerLinkJobCollector(),
         TopCVJobCollector(),
+        ITNaviJobCollector(),
+        GrowUpWorkJobCollector(),
+        VietnamWorksJobCollector(),
+        UpworkJobCollector(),
+        TopDevJobCollector(),
     ]
+
 
     async with AsyncSessionLocal() as session:
         # Seed / Sync taxonomy

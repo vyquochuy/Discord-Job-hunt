@@ -1,10 +1,12 @@
+import logging
 import uuid
-from typing import Any, List
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_authenticated_user_or_internal
+from app.models.user import User
 from app.schemas.resume import (
     ApplicationLogResponse,
     ApplicationStatusUpdateRequest,
@@ -12,6 +14,7 @@ from app.schemas.resume import (
 )
 from app.services.tailoring.application_service import application_service
 
+logger = logging.getLogger("applications")
 router = APIRouter()
 
 
@@ -20,7 +23,7 @@ async def submit_job_application(
     job_id: uuid.UUID,
     payload: ApplicationSubmitRequest = ApplicationSubmitRequest(),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Nộp hồ sơ ứng tuyển cho công việc:
@@ -39,15 +42,18 @@ async def submit_job_application(
             simulate_only=payload.simulate_only,
         )
         return app_log
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Application submission failed for job_id=%s", job_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Application submission failed: {str(e)}",
+            detail="An internal server error occurred while submitting application.",
         )
 
 
@@ -56,7 +62,7 @@ async def list_applications(
     page: int = Query(1, ge=1, description="Số trang"),
     page_size: int = Query(20, ge=1, le=100, description="Kích thước trang"),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy danh sách các đơn ứng tuyển đã nộp/chuẩn bị.
@@ -73,7 +79,7 @@ async def list_applications(
 async def get_application_detail(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy thông tin chi tiết của một đơn ứng tuyển.
@@ -92,7 +98,7 @@ async def update_application_status(
     id: uuid.UUID,
     payload: ApplicationStatusUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Cập nhật trạng thái đơn ứng tuyển (DRAFT, READY, SENT, INTERVIEW, OFFER, REJECTED).

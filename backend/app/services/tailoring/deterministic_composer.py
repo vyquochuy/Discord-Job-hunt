@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, List, Set
 
 from app.schemas.tailoring_ir import (
     EvidenceBundle,

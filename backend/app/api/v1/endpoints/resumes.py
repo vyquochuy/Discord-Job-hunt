@@ -1,13 +1,16 @@
+import logging
 import os
+import re
+import unicodedata
 import uuid
-from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.security import get_authenticated_user_or_internal
+from app.models.user import User
 from app.schemas.resume import (
     TailorResumeRequest,
     TailoredResumeResponse,
@@ -15,6 +18,7 @@ from app.schemas.resume import (
 )
 from app.services.tailoring.resume_service import resume_service
 
+logger = logging.getLogger("resumes")
 router = APIRouter()
 
 
@@ -25,7 +29,7 @@ async def tailor_resume(
     job_id: uuid.UUID,
     payload: TailorResumeRequest = TailorResumeRequest(),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Kích hoạt quy trình tinh chỉnh CV cho một tin tuyển dụng cụ thể:
@@ -43,15 +47,18 @@ async def tailor_resume(
             custom_tone=payload.custom_tone or "professional_and_humble",
         )
         return resume
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Resume tailoring failed for job_id=%s", job_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Resume tailoring failed: {str(e)}",
+            detail="An internal server error occurred while tailoring resume.",
         )
 
 
@@ -59,7 +66,7 @@ async def tailor_resume(
 async def get_tailored_resume(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy thông tin chi tiết một bản Tailored Resume kèm bằng chứng Provenance và Cover Letter.
@@ -77,7 +84,7 @@ async def get_tailored_resume(
 async def get_tailored_resume_by_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy bản Tailored Resume đã sinh cho một Job ID cụ thể.
@@ -90,9 +97,6 @@ async def get_tailored_resume_by_job(
         )
     return resume
 
-
-import re
-import unicodedata
 
 def sanitize_header_filename(text: str) -> str:
     """Chuyển đổi tên có dấu tiếng Việt hoặc ký tự đặc biệt thành ASCII an toàn cho HTTP Header."""
@@ -139,7 +143,7 @@ async def download_resume_pdf(
 async def get_resume_latex_source(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Lấy mã nguồn LaTeX (.tex) thô của Tailored Resume.
@@ -162,7 +166,7 @@ async def update_resume_latex_source(
     id: uuid.UUID,
     payload: UpdateLatexRequest,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Cập nhật mã nguồn LaTeX (.tex) do người dùng chỉnh sửa và tự động biên dịch lại PDF.
@@ -174,15 +178,18 @@ async def update_resume_latex_source(
             new_latex_source=payload.latex_source,
         )
         return updated_resume
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Resume recompilation failed for resume_id=%s", id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Recompilation failed: {str(e)}",
+            detail="An internal server error occurred while recompiling resume.",
         )
 
 
@@ -190,7 +197,7 @@ async def update_resume_latex_source(
 async def delete_tailored_resume_by_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xóa bản Tailored Resume và Cover Letter của một Job ID cụ thể để chuẩn bị sinh lại.
@@ -211,7 +218,7 @@ async def delete_tailored_resume_by_job(
 async def delete_tailored_resume(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xóa bản Tailored Resume và Cover Letter theo ID.

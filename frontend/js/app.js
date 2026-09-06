@@ -26,7 +26,8 @@ import {
   closeJobDetailModal,
   triggerCalculateMatch,
   saveJobBookmark
-} from './components/jobs/job-detail-modal.js';
+} from './components/jobs/job-detail-modal.js?v=2.2';
+
 import {
   openScanJobsModal,
   closeScanJobsModal,

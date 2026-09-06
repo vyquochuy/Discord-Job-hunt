@@ -131,7 +131,7 @@ async def login_user(
             id=uuid.uuid4(),
             email=email_clean,
             hashed_password=get_password_hash(payload.password),
-            full_name="Vy Quoc Huy",
+            full_name=settings.ADMIN_NAME,
             is_active=True,
             is_superuser=True,
         )

@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, List, Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,8 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.limiter import limiter
-from app.core.security import get_authenticated_user_or_internal, get_current_user_optional
-from app.api.v1.endpoints.system import verify_admin_access
+from app.core.security import get_authenticated_user_or_internal, verify_admin_access
 from app.models.user import User
 from app.models.job import (
     Job,
@@ -17,7 +16,6 @@ from app.models.job import (
     JobStatusEnum,
     RawJob,
     Skill,
-    SkillAlias,
     WorkModeEnum,
 )
 from app.schemas.job import (
@@ -28,7 +26,7 @@ from app.schemas.job import (
     ManualJobIngestResponse,
     SkillTaxonomyResponse,
 )
-from app.schemas.saved_job import SavedJobCreate, SavedJobResponse
+from app.schemas.saved_job import SavedJobCreate
 from app.services.collectors.careerlink_adapter import CareerLinkJobCollector
 from app.services.collectors.growupwork_adapter import GrowUpWorkJobCollector
 from app.services.collectors.itnavi_adapter import ITNaviJobCollector
@@ -41,6 +39,7 @@ from app.services.collectors.upwork_adapter import UpworkJobCollector
 from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
 from app.services.manual_ingestion_service import manual_ingestion_service
+from app.services.saved_job_service import saved_job_service
 
 router = APIRouter()
 
@@ -123,29 +122,7 @@ async def list_saved_jobs(
     """
     Lấy danh sách các tin tuyển dụng đã lưu (Saved / Bookmarked) của người dùng đang đăng nhập.
     """
-    from app.models.saved_job import SavedJob
-
-    query = (
-        select(SavedJob)
-        .options(selectinload(SavedJob.job).selectinload(Job.raw_job))
-        .where(SavedJob.user_id == current_user.id)
-        .order_by(SavedJob.created_at.desc())
-    )
-    result = await db.execute(query)
-    saved_list = result.scalars().all()
-
-    items = []
-    for s in saved_list:
-        job_data = JobResponse.model_validate(s.job).model_dump() if s.job else None
-        items.append({
-            "id": s.id,
-            "user_id": s.user_id,
-            "job_id": s.job_id,
-            "notes": s.notes,
-            "created_at": s.created_at,
-            "job": job_data,
-        })
-    return items
+    return await saved_job_service.list_saved_jobs(session=db, user_id=current_user.id)
 
 
 @router.post("/{job_id}/save")
@@ -158,45 +135,12 @@ async def save_job(
     """
     Lưu / Bookmark một tin tuyển dụng vào danh sách theo dõi của người dùng.
     """
-    from app.models.saved_job import SavedJob
-
-    # Kiểm tra job có tồn tại không
-    job_stmt = select(Job).where(Job.id == job_id)
-    job_res = await db.execute(job_stmt)
-    job = job_res.scalar_one_or_none()
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job with ID {job_id} not found",
-        )
-
-    user_id = current_user.id
-
-    # Kiểm tra xem đã lưu chưa
-    saved_stmt = select(SavedJob).where(
-        SavedJob.user_id == user_id,
-        SavedJob.job_id == job_id,
-    )
-    saved_res = await db.execute(saved_stmt)
-    existing_saved = saved_res.scalar_one_or_none()
-
-    if existing_saved:
-        if payload and payload.notes is not None:
-            existing_saved.notes = payload.notes
-            await db.commit()
-        return {"status": "already_saved", "saved_job_id": existing_saved.id}
-
-    notes = payload.notes if payload else None
-    saved_item = SavedJob(
-        id=uuid.uuid4(),
-        user_id=user_id,
+    return await saved_job_service.save_job(
+        session=db,
+        user_id=current_user.id,
         job_id=job_id,
-        notes=notes,
+        payload=payload,
     )
-    db.add(saved_item)
-    await db.commit()
-
-    return {"status": "saved", "saved_job_id": saved_item.id}
 
 
 @router.delete("/{job_id}/save")
@@ -208,33 +152,20 @@ async def unsave_job(
     """
     Hủy lưu (Unsave / Remove Bookmark) một tin tuyển dụng.
     """
-    from app.models.saved_job import SavedJob
-
-    user_id = current_user.id
-
-    saved_stmt = select(SavedJob).where(
-        SavedJob.user_id == user_id,
-        SavedJob.job_id == job_id,
+    return await saved_job_service.unsave_job(
+        session=db,
+        user_id=current_user.id,
+        job_id=job_id,
     )
-    saved_res = await db.execute(saved_stmt)
-    saved_item = saved_res.scalar_one_or_none()
 
-    if not saved_item:
-        return {"status": "not_found"}
 
-    await db.delete(saved_item)
-    await db.commit()
-
-    return {"status": "unsaved"}
- 
- 
 @router.post("/ingest-manual", response_model=ManualJobIngestResponse)
 @limiter.limit("5/minute")
 async def ingest_manual_job(
     request: Request,
     payload: ManualJobIngestRequest,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Nạp tin tuyển dụng thủ công từ Văn bản thô (Facebook/Zalo/Email) hoặc URL trực tiếp.

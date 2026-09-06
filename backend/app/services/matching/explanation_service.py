@@ -1,7 +1,7 @@
 import hashlib
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 from openai import AsyncOpenAI
 
 from app.core.config import settings

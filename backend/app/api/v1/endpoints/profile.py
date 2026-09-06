@@ -1,11 +1,10 @@
-import secrets
-from typing import Optional, Any
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
+from pathlib import Path
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_user_optional
+from app.core.security import verify_profile_access
 from app.schemas.candidate import (
     CandidateDetailResponse,
     CandidateSyncResponse,
@@ -14,38 +13,6 @@ from app.schemas.candidate import (
 from app.services.candidate import CandidateService
 
 router = APIRouter()
-
-
-async def verify_profile_access(
-    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
-    user: Optional[Any] = Depends(get_current_user_optional),
-) -> bool:
-    """
-    Cho phép truy cập profile từ Web App (đã đăng nhập) hoặc Discord Bot có X-Internal-Secret hợp lệ.
-    """
-    # 1. Kiểm tra X-Internal-Secret
-    if x_internal_secret:
-        is_valid = secrets.compare_digest(
-            x_internal_secret.encode("utf-8"),
-            settings.INTERNAL_API_SECRET.encode("utf-8")
-        )
-        if is_valid:
-            return True
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid internal API secret",
-        )
-
-    # 2. Kiểm tra Người dùng đã đăng nhập
-    if user:
-        return True
-
-    # 3. Từ chối nếu không có thông tin xác thực
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Authentication required to access candidate profile.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
 
 
 @router.get(
@@ -66,8 +33,8 @@ async def get_profile(
     "",
     response_model=CandidateDetailResponse,
     status_code=status.HTTP_200_OK,
-    summary="Cập nhật hồ sơ ứng viên",
-    description="Cập nhật các trường thông tin cơ bản của hồ sơ ứng viên (headline, mục tiêu, sở thích tuyển dụng...).",
+    summary="Cập nhật thông tin hồ sơ ứng viên",
+    description="Cho phép chỉnh sửa các trường thông tin cơ bản: headline, phone, email, github, linkedin, location.",
 )
 async def update_profile(
     update_data: CandidateUpdate,
@@ -81,7 +48,7 @@ async def update_profile(
     "/sync",
     response_model=CandidateSyncResponse,
     status_code=status.HTTP_200_OK,
-    summary="Đồng bộ hồ sơ từ context files",
+    summary="Đồng bộ hồ sơ từ các tệp cấu hình context/",
     description="Đọc toàn bộ file trong thư mục context/ (candidate-profile.yaml, master-resume.tex, master-resume.md, master-resume.pdf) hoặc context.example/ và nạp mới vào PostgreSQL.",
 )
 async def sync_profile(
@@ -99,13 +66,83 @@ async def sync_profile(
     description="Cho phép người dùng upload file CV (PDF, LaTeX, YAML, Markdown) để tự động trích xuất thông tin cá nhân, kỹ năng, dự án và cập nhật vào hệ thống.",
 )
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(..., description="File CV (.pdf, .tex, .yaml, .yml, .md, .json)"),
     db: AsyncSession = Depends(get_db),
     _authorized: bool = Depends(verify_profile_access),
 ) -> CandidateSyncResponse:
-    file_bytes = await file.read()
+    max_size = settings.MAX_RESUME_UPLOAD_SIZE
+
+    # 1. Kiểm tra Content-Length header để từ chối sớm
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > max_size:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail=f"File size exceeds maximum allowed limit of {max_size // (1024 * 1024)}MB.",
+                )
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Kiểm tra file.size nếu spooled file đã có thông tin
+    if file.size and file.size > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File size exceeds maximum allowed limit of {max_size // (1024 * 1024)}MB.",
+        )
+
+    # 3. Kiểm tra định dạng đuôi file
+    filename = file.filename or "resume.pdf"
+    ext = Path(filename).suffix.lower()
+    allowed_extensions = {".pdf", ".tex", ".yaml", ".yml", ".md", ".json", ".txt"}
+    if ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file format '{ext}'. Supported formats: {', '.join(sorted(allowed_extensions))}",
+        )
+
+    # 4. Đọc theo bounded chunks để chống tràn bộ nhớ (OOM / Unbounded Memory)
+    chunk_size = 64 * 1024
+    chunks: list[bytes] = []
+    total_bytes = 0
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File size exceeds maximum allowed limit of {max_size // (1024 * 1024)}MB.",
+            )
+        chunks.append(chunk)
+
+    file_bytes = b"".join(chunks)
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    # 5. Xác thực nội dung thực tế (không chỉ tin tưởng extension)
+    if ext == ".pdf":
+        if not file_bytes.startswith(b"%PDF"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid PDF file format. The file header does not match PDF signature.",
+            )
+    else:
+        # File văn bản (yaml, tex, md, json, txt) không được chứa null byte trong phần đầu
+        if b"\x00" in file_bytes[:1024]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid text format. Binary data detected.",
+            )
+
     return await CandidateService.ingest_resume_file(
         session=db,
-        filename=file.filename or "resume.pdf",
+        filename=filename,
         file_bytes=file_bytes,
     )

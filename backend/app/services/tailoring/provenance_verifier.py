@@ -1,16 +1,11 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 from rapidfuzz import fuzz
 
 from app.models.candidate import Candidate
 from app.schemas.resume import EvidenceMapItem
-from app.schemas.tailoring_ir import (
-    ClaimVerificationStatus,
-    DecomposedClaim,
-    FactNode,
-    MetricFact,
-)
+from app.schemas.tailoring_ir import DecomposedClaim
 from app.services.tailoring.fact_graph import fact_graph_builder
 
 logger = logging.getLogger("provenance_verifier")
@@ -147,10 +142,6 @@ class ProvenanceVerifier:
         if best_score < 50.0 and is_verified:
             is_verified = False
             notes.append(f"Low semantic support (Score: {best_score:.1f})")
-
-        status = ClaimVerificationStatus.VERIFIED if is_verified else ClaimVerificationStatus.UNVERIFIED
-        if not is_verified and unverified_metrics:
-            status = ClaimVerificationStatus.CONFLICTING
 
         similarity_norm = min(1.0, max(0.0, best_score / 100.0))
 

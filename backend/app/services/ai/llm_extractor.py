@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import Optional
 from openai import AsyncOpenAI
 
 from app.core.config import settings

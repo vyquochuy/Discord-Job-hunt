@@ -12,7 +12,6 @@ from app.models.job import (
     JobSkill,
     JobStatusEnum,
     RawJob,
-    RawJobStatusEnum,
     Skill,
 )
 from app.schemas.job import (

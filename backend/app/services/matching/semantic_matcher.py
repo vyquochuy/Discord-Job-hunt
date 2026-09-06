@@ -4,9 +4,7 @@ from app.services.matching.models import (
     CandidateProfileDTO,
     ConfidenceLevel,
     EvidenceItem,
-    EvidenceStatus,
     JobMatchInputDTO,
-    MatchSignal,
 )
 
 

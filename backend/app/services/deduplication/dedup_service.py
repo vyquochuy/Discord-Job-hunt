@@ -1,9 +1,8 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from rapidfuzz import fuzz
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.job import Job, JobStatusEnum
 from app.services.normalization.job_normalizer import job_normalizer

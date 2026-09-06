@@ -25,7 +25,6 @@ from app.services.matching.models import (
     RecommendationCategory,
 )
 from app.services.matching.scoring_engine import calculate_match_score
-from app.services.matching.semantic_matcher import compute_project_relevance
 from app.services.normalization.skill_normalizer import skill_normalizer
 
 logger = logging.getLogger("match_service")

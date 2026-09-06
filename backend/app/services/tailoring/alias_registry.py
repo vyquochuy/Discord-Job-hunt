@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 
 # ============================================================================

@@ -1,6 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.candidate import Candidate
+    from app.models.job import Job
 from sqlalchemy import (
     Boolean,
     DateTime,

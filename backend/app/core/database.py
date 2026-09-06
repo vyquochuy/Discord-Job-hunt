@@ -35,14 +35,11 @@ class Base(DeclarativeBase):
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    FastAPI Dependency: Cung cấp AsyncSession cho mỗi HTTP request,
-    tự động đóng session sau khi xử lý xong.
+    FastAPI Dependency: Cung cấp AsyncSession cho mỗi HTTP request.
+    Async context manager tự động quản lý lifecycle và giải phóng session an toàn.
     """
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session
 
 
 async def check_db_health() -> bool:

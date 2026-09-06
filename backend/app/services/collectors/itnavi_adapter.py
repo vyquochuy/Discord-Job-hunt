@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 import httpx
 from bs4 import BeautifulSoup
 
@@ -20,7 +20,7 @@ class ITNaviJobCollector(BaseJobCollector):
     """
 
     BASE_URL = "https://itnavi.com.vn"
-    SEARCH_URL = "https://itnavi.com.vn/viec-lam-it"
+    SEARCH_URL = "https://itnavi.com.vn/job"
 
     @property
     def source_name(self) -> str:
@@ -39,7 +39,8 @@ class ITNaviJobCollector(BaseJobCollector):
         max_pages = min(25, max(1, (limit + 19) // 20))
 
         try:
-            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            timeout_cfg = httpx.Timeout(10.0, connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
                 while page <= max_pages and len(results) < limit:
                     target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"ITNavi: Fetching page {page}/{max_pages} from {target_url}...")
@@ -51,11 +52,11 @@ class ITNaviJobCollector(BaseJobCollector):
 
                     soup = BeautifulSoup(response.text, "html.parser")
                     job_cards = soup.select(
-                        ".job-item, .item-job, .card-job, div[class*='job-item'], div[class*='job_item'], .job-card"
+                        ".jsl-item, .jsl_item, .job-item, .item-job, .card-job, div[class*='job-item'], div[class*='job_item'], .job-card"
                     )
 
                     if not job_cards:
-                        job_cards = soup.find_all("div", class_=re.compile(r"job.*item|job.*card", re.I))
+                        job_cards = soup.find_all("div", class_=re.compile(r"jsl.*item|job.*item|job.*card", re.I))
 
                     if not job_cards:
                         logger.info(f"ITNavi: No job cards found on page {page}.")
@@ -67,36 +68,46 @@ class ITNaviJobCollector(BaseJobCollector):
 
                         # 1. Title & URL
                         title_elem = card.select_one(
-                            "h3 a, h2 a, a[class*='title'], a[href*='/viec-lam-'], a[href*='/job/']"
+                            ".jsl-item__name, h2, h3, a[class*='title'], a[href*='/viec-lam-'], a[href*='/job/']"
                         )
                         if not title_elem:
                             continue
 
                         title = title_elem.get_text(strip=True)
-                        rel_url = title_elem.get("href", "")
-                        url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                        if not title:
+                            continue
+
+                        job_id = card.get("data-id") or card.get("id") or ""
+                        link_elem = card.select_one("a[href*='/job/'], a[href*='/viec-lam-']")
+                        if link_elem and link_elem.get("href"):
+                            rel_url = link_elem.get("href")
+                            url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                        elif job_id:
+                            url = f"{self.BASE_URL}/job/{job_id}"
+                        else:
+                            url = self.SEARCH_URL
 
                         # 2. Company Name
                         company_elem = card.select_one(
-                            ".company-name, a[class*='company'], .company, p[class*='company'], .employer-name"
+                            ".jsl-item__cpn, .company-name, a[class*='company'], .company, p[class*='company'], .employer-name"
                         )
                         company = company_elem.get_text(strip=True) if company_elem else "ITNavi Employer"
 
                         # 3. Location
                         location_elem = card.select_one(
-                            ".location, .address, span[class*='location'], span[class*='city'], .city"
+                            ".jsl-item__location, .location, .address, span[class*='location'], span[class*='city'], .city"
                         )
                         location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
 
                         # 4. Salary
                         salary_elem = card.select_one(
-                            ".salary, span[class*='salary'], .text-salary, .salary-text, .price"
+                            ".jsl-item__sm, .salary, span[class*='salary'], .text-salary, .salary-text, .price"
                         )
-                        salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
+                        salary_text = salary_elem.get_text(" ", strip=True) if salary_elem else ""
 
                         # 5. Skills
                         skill_elems = card.select(
-                            ".tag, .skill-tag, .skill-item, span[class*='tag'], span[class*='skill'], a.tag"
+                            ".tag, .skill-tag, .skill-item, span[class*='tag'], span[class*='skill'], a.tag, .jsl-item__tag"
                         )
                         skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
 
@@ -111,7 +122,7 @@ class ITNaviJobCollector(BaseJobCollector):
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
                         job_id_match = re.search(r"[-/](\d+)(?:\.html|\?|$)", url)
-                        source_job_id = job_id_match.group(1) if job_id_match else None
+                        source_job_id = job_id or (job_id_match.group(1) if job_id_match else None)
 
                         results.append(
                             RawJobData(
