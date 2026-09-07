@@ -19,6 +19,7 @@ from app.services.collectors.base import BaseJobCollector, RawJobData
 from app.services.deduplication.dedup_service import dedup_service
 from app.services.normalization.job_normalizer import job_normalizer
 from app.services.normalization.skill_normalizer import skill_normalizer
+from app.services.skill_service import skill_service
 
 logger = logging.getLogger("ingestion_pipeline")
 
@@ -208,15 +209,16 @@ class JobIngestionPipeline:
                     job.embedding = embedding_vec
                     await db.flush()
 
-                # BƯỚC 9: Chuẩn hóa Skill & Lưu JobSkill
+                # BƯỚC 9: Chuẩn hóa Skill & Lưu JobSkill (Declarative Reconciliation - O(1) Queries)
                 norm_required_skills = skill_normalizer.normalize_skills(extracted.skills_required)
                 norm_nice_skills = skill_normalizer.normalize_skills(extracted.skills_nice_to_have)
 
-                await self._save_job_skills(
-                    db, job.id, norm_required_skills, is_required=True, confidence=1.0, source="explicit"
-                )
-                await self._save_job_skills(
-                    db, job.id, norm_nice_skills, is_required=False, confidence=0.85, source="inferred"
+                await skill_service.sync_job_skills(
+                    db,
+                    job.id,
+                    norm_required=norm_required_skills,
+                    norm_nice=norm_nice_skills,
+                    source="explicit",
                 )
 
                 raw_job.fetch_status = RawJobStatusEnum.PARSED.value
@@ -235,47 +237,6 @@ class JobIngestionPipeline:
             f"Unchanged={stats.unchanged}, Duplicates={stats.duplicates_detected}, Errors={stats.errors}"
         )
         return stats
-
-    async def _save_job_skills(
-        self,
-        db: AsyncSession,
-        job_id,
-        skills_list: List[tuple],
-        is_required: bool,
-        confidence: float,
-        source: str,
-    ):
-        """Helper tìm hoặc tạo Skill trong Taxonomy và liên kết JobSkill."""
-        for canonical_name, category in skills_list:
-            if not canonical_name:
-                continue
-
-            # Tìm canonical skill
-            stmt = select(Skill).where(Skill.canonical_name == canonical_name)
-            res = await db.execute(stmt)
-            skill = res.scalars().first()
-
-            if not skill:
-                skill = Skill(canonical_name=canonical_name, category=category)
-                db.add(skill)
-                await db.flush()
-
-            # Thêm JobSkill nếu chưa tồn tại
-            stmt_js = select(JobSkill).where(
-                JobSkill.job_id == job_id, JobSkill.skill_id == skill.id
-            )
-            res_js = await db.execute(stmt_js)
-            existing_js = res_js.scalars().first()
-
-            if not existing_js:
-                job_skill = JobSkill(
-                    job_id=job_id,
-                    skill_id=skill.id,
-                    is_required=is_required,
-                    confidence=confidence,
-                    source=source,
-                )
-                db.add(job_skill)
 
 
 # Singleton Instance

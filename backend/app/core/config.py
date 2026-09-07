@@ -1,4 +1,7 @@
+import os
+import logging
 from typing import Optional
+from pydantic import field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,12 +25,45 @@ class Settings(BaseSettings):
     # Bảo mật API nội bộ & Web Auth
     INTERNAL_API_SECRET: str = "change_me_to_a_secure_random_string_32_chars"
     JWT_SECRET_KEY: str = "job_hunter_platform_secret_key_web_2026_flexible_auth"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 phút theo chuẩn bảo mật
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30    # 30 ngày cho refresh token
+    ROTATION_GRACE_PERIOD_SECONDS: int = 15  # Cửa sổ ân hạn concurrency chống duplicate refresh
     DISCORD_WEBHOOK_URL: Optional[str] = None
     ADMIN_NAME: str = "Administrator"
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_INITIAL_PASSWORD: str = "Admin@123456"
     MAX_RESUME_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB
+
+    @field_validator("JWT_SECRET_KEY", "INTERNAL_API_SECRET", mode="after")
+    @classmethod
+    def validate_secrets(cls, v: str, info: ValidationInfo) -> str:
+        field_name = info.field_name
+        if not v or not isinstance(v, str) or not v.strip():
+            raise ValueError(f"{field_name} must not be empty or whitespace.")
+
+        cleaned = v.strip()
+        insecure_defaults = {
+            "change_me_to_a_secure_random_string_32_chars",
+            "job_hunter_platform_secret_key_web_2026_flexible_auth",
+        }
+
+        env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+        is_insecure = (cleaned in insecure_defaults) or (len(cleaned) < 32)
+
+        if env == "production":
+            if is_insecure:
+                raise ValueError(
+                    f"Production security violation: {field_name} must be a secure secret of at least 32 characters and cannot use default/insecure values."
+                )
+        else:
+            if is_insecure:
+                logging.getLogger("uvicorn.error").warning(
+                    f"SECURITY WARNING: {field_name} appears to use an insecure/default value. Please configure a strong secret."
+                )
+
+        return cleaned
+
 
     # Cơ sở dữ liệu (PostgreSQL + pgvector)
     POSTGRES_USER: str = "jobhunter"

@@ -20,7 +20,7 @@ class CareerLinkJobCollector(BaseJobCollector):
     """
 
     BASE_URL = "https://www.careerlink.vn"
-    SEARCH_URL = "https://www.careerlink.vn/vieclam/list?category=19"
+    SEARCH_URL = "https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"
 
     @property
     def source_name(self) -> str:
@@ -41,7 +41,7 @@ class CareerLinkJobCollector(BaseJobCollector):
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
                 while page <= max_pages and len(results) < limit:
-                    target_url = f"{self.SEARCH_URL}&page={page}" if page > 1 else self.SEARCH_URL
+                    target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"CareerLink: Fetching page {page}/{max_pages} from {target_url}...")
 
                     response = await client.get(target_url, headers=headers)

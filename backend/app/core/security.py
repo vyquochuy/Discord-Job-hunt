@@ -30,113 +30,221 @@ def is_valid_internal_secret(secret: Optional[str]) -> bool:
     )
 
 
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
+
+# Password Hasher theo khuyến nghị OWASP 2024:
+# Argon2id với time_cost=2, memory_cost=65536 (64 MiB), parallelism=2, hash_len=32, salt_len=16
+password_hasher = PasswordHasher(
+    time_cost=2,
+    memory_cost=65536,
+    parallelism=2,
+    hash_len=32,
+    salt_len=16,
+)
+
+
 def get_password_hash(password: str) -> str:
     """
-    Hash password bằng PBKDF2-HMAC-SHA256 với salt ngẫu nhiên 16 bytes.
-    Không phụ thuộc vào binary compiled bên ngoài, tương thích đa nền tảng.
+    Hash password bằng Argon2id (tiêu chuẩn OWASP hiện hành).
+    Tự động sinh salt ngẫu nhiên an toàn trước GPU/ASIC brute-force.
     """
-    salt = secrets.token_hex(16)
-    key = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt.encode("utf-8"),
-        100_000,
-    )
-    return f"pbkdf2_sha256$100000${salt}${key.hex()}"
+    return password_hasher.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Xác minh mật khẩu so với hash đã lưu.
+    Hỗ trợ đồng thời Argon2id hiện tại và tương thích ngược với PBKDF2-HMAC-SHA256 cũ.
     """
-    try:
-        parts = hashed_password.split("$")
-        if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
-            return False
-        iterations = int(parts[1])
-        salt = parts[2]
-        expected_key = parts[3]
-        
-        calculated_key = hashlib.pbkdf2_hmac(
-            "sha256",
-            plain_password.encode("utf-8"),
-            salt.encode("utf-8"),
-            iterations,
-        ).hex()
-        
-        return secrets.compare_digest(calculated_key, expected_key)
-    except Exception:
+    if not hashed_password or not plain_password:
         return False
 
+    # 1. Thử xác minh bằng Argon2id (bắt đầu bằng $argon2id$ hoặc $argon2)
+    if hashed_password.startswith("$argon2"):
+        try:
+            return password_hasher.verify(hashed_password, plain_password)
+        except (VerifyMismatchError, InvalidHashError):
+            return False
+        except Exception:
+            return False
 
-def _b64encode_str(s: str) -> str:
-    return base64.urlsafe_b64encode(s.encode("utf-8")).decode("utf-8").rstrip("=")
+    # 2. Hỗ trợ tương thích ngược (Backward Compatibility) cho PBKDF2 cũ
+    if hashed_password.startswith("pbkdf2_sha256$"):
+        try:
+            parts = hashed_password.split("$")
+            if len(parts) != 4:
+                return False
+            iterations = int(parts[1])
+            salt = parts[2]
+            expected_key = parts[3]
+
+            calculated_key = hashlib.pbkdf2_hmac(
+                "sha256",
+                plain_password.encode("utf-8"),
+                salt.encode("utf-8"),
+                iterations,
+            ).hex()
+
+            return secrets.compare_digest(calculated_key, expected_key)
+        except Exception:
+            return False
+
+    return False
 
 
-def _b64decode_str(s: str) -> str:
-    padding = 4 - (len(s) % 4)
-    if padding != 4:
-        s += "=" * padding
-    return base64.urlsafe_b64decode(s.encode("utf-8")).decode("utf-8")
-
-
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def needs_password_rehash(hashed_password: str) -> bool:
     """
-    Tạo Token xác thực linh hoạt (HMAC-SHA256 Signed Payload).
-    Không gò bó kiến trúc JWT cứng nhắc, tự do mở rộng payload.
+    Kiểm tra xem mật khẩu đã băm có cần được nâng cấp (rehash) lên chuẩn Argon2id mới nhất không.
+    Trả về True nếu hash là định dạng cũ (PBKDF2) hoặc thông số Argon2 chưa tối ưu.
+    """
+    if not hashed_password:
+        return True
+    if not hashed_password.startswith("$argon2"):
+        return True
+    try:
+        return password_hasher.check_needs_rehash(hashed_password)
+    except Exception:
+        return True
+
+
+
+import jwt
+
+
+def hash_token(token: str) -> str:
+    """Tính SHA-256 hash của chuỗi token thô để lưu an toàn vào DB."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_access_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None,
+    jti: Optional[str] = None,
+) -> str:
+    """
+    Tạo Access Token xác thực chuẩn JWT (HS256) ngắn hạn (mặc định 30 phút).
+    Bắt buộc có các claims: sub, exp, iat, type, jti.
     """
     to_encode = data.copy()
+    if "sub" not in to_encode or not to_encode["sub"]:
+        raise ValueError("Missing 'sub' claim for access token creation.")
+
+    sub_str = str(to_encode["sub"])
+    try:
+        uuid.UUID(sub_str)
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError(f"Invalid UUID for 'sub' claim: {sub_str}")
+
     now = datetime.now(timezone.utc)
-    if expires_delta:
-        expire = now + expires_delta
-    else:
-        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": int(expire.timestamp()), "iat": int(now.timestamp())})
-    
-    header = {"alg": "HS256", "typ": "JWT"}
-    header_b64 = _b64encode_str(json.dumps(header, separators=(",", ":")))
-    payload_b64 = _b64encode_str(json.dumps(to_encode, separators=(",", ":")))
-    
-    signing_input = f"{header_b64}.{payload_b64}"
-    signature = hmac.new(
-        settings.JWT_SECRET_KEY.encode("utf-8"),
-        signing_input.encode("utf-8"),
-        hashlib.sha256
-    ).digest()
-    signature_b64 = base64.urlsafe_b64encode(signature).decode("utf-8").rstrip("=")
-    
-    return f"{signing_input}.{signature_b64}"
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    token_jti = str(jti or to_encode.get("jti") or uuid.uuid4())
+
+    to_encode.update({
+        "sub": sub_str,
+        "type": "access",
+        "jti": token_jti,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
+    })
+
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def create_refresh_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None,
+    jti: Optional[str] = None,
+    family_id: Optional[str] = None,
+) -> str:
+    """
+    Tạo Refresh Token chuẩn JWT (HS256) dài hạn (mặc định 30 ngày) phục vụ rotation.
+    Bắt buộc có các claims: sub, exp, iat, type, jti. Có thể kèm family_id.
+    """
+    to_encode = data.copy()
+    if "sub" not in to_encode or not to_encode["sub"]:
+        raise ValueError("Missing 'sub' claim for refresh token creation.")
+
+    sub_str = str(to_encode["sub"])
+    try:
+        uuid.UUID(sub_str)
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError(f"Invalid UUID for 'sub' claim: {sub_str}")
+
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+    token_jti = str(jti or to_encode.get("jti") or uuid.uuid4())
+
+    payload = {
+        "sub": sub_str,
+        "type": "refresh",
+        "jti": token_jti,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
+    }
+    if family_id or "family_id" in to_encode:
+        payload["family_id"] = str(family_id or to_encode["family_id"])
+    if "email" in to_encode:
+        payload["email"] = str(to_encode["email"])
+
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(
+    token: str,
+    expected_type: Optional[str] = "access",
+    require_claims: Optional[list] = None,
+) -> Dict[str, Any]:
+    """
+    Giải mã và xác thực chặt chẽ chữ ký JWT bằng PyJWT với whitelist algorithm từ config.
+    Kiểm tra claims bắt buộc: exp, iat, sub, type, jti.
+    Xác minh sub là UUID hợp lệ.
+    """
+    req_claims = require_claims or ["exp", "iat", "sub", "type", "jti"]
+
+    payload = jwt.decode(
+        token,
+        settings.JWT_SECRET_KEY,
+        algorithms=[settings.JWT_ALGORITHM],
+        options={
+            "require": req_claims,
+            "verify_exp": True,
+            "verify_iat": True,
+            "verify_signature": True,
+        },
+    )
+
+    sub_str = str(payload.get("sub", ""))
+    try:
+        uuid.UUID(sub_str)
+    except (ValueError, TypeError, AttributeError):
+        raise jwt.InvalidTokenError("Token subject (sub) is not a valid UUID")
+
+    if expected_type is not None:
+        token_type = payload.get("type")
+        if token_type != expected_type:
+            raise jwt.InvalidTokenError(f"Invalid token type: expected '{expected_type}', got '{token_type}'")
+
+    return payload
 
 
 def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Giải mã và xác thực chữ ký token.
+    Giải mã và xác thực chữ ký access token. Trả về None nếu token lỗi hoặc hết hạn.
+    Duy trì tương thích với các điểm gọi cũ.
     """
     try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        
-        header_b64, payload_b64, signature_b64 = parts
-        signing_input = f"{header_b64}.{payload_b64}"
-        
-        expected_sig = hmac.new(
-            settings.JWT_SECRET_KEY.encode("utf-8"),
-            signing_input.encode("utf-8"),
-            hashlib.sha256
-        ).digest()
-        expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).decode("utf-8").rstrip("=")
-        
-        if not secrets.compare_digest(signature_b64, expected_sig_b64):
-            return None
-        
-        payload = json.loads(_b64decode_str(payload_b64))
-        exp = payload.get("exp")
-        if exp and exp < time.time():
-            return None
-            
-        return payload
+        return decode_token(token, expected_type="access")
+    except Exception:
+        return None
+
+
+def decode_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Giải mã và xác thực chữ ký refresh token. Trả về None nếu token lỗi hoặc hết hạn.
+    """
+    try:
+        return decode_token(token, expected_type="refresh")
     except Exception:
         return None
 
@@ -175,17 +283,16 @@ async def get_current_user_optional(
     # 1. Thử lấy từ Bearer Token hoặc Query token
     raw_token = auth.credentials if (auth and auth.credentials) else token
     if raw_token:
-        payload = decode_access_token(raw_token)
-        if payload and "sub" in payload:
-            user_id = payload["sub"]
-            try:
-                stmt = select(User).where(User.id == uuid.UUID(str(user_id)))
-                result = await db.execute(stmt)
-                user = result.scalar_one_or_none()
-                if user and user.is_active:
-                    return user
-            except Exception:
-                pass
+        try:
+            payload = decode_token(raw_token, expected_type="access")
+            user_id = uuid.UUID(str(payload["sub"]))
+            stmt = select(User).where(User.id == user_id)
+            result = await db.execute(stmt)
+            user = result.scalar_one_or_none()
+            if user and user.is_active:
+                return user
+        except Exception:
+            pass
 
     # 2. Thử fallback nếu có X-Internal-Secret hợp lệ
     if is_valid_internal_secret(x_internal_secret):
@@ -212,32 +319,57 @@ async def get_current_user(
 ) -> User:
     """
     Dependency bắt buộc người dùng đã đăng nhập hợp lệ.
+    Bắt chi tiết ExpiredSignatureError và InvalidTokenError để trả thông báo chuẩn RFC 6750.
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
     if not auth or not auth.credentials:
-        raise credentials_exception
-        
-    payload = decode_access_token(auth.credentials)
-    if not payload or "sub" not in payload:
-        raise credentials_exception
-        
-    user_id = payload["sub"]
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required. Missing Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
-        stmt = select(User).where(User.id == uuid.UUID(str(user_id)))
+        payload = decode_token(auth.credentials, expected_type="access")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token has expired",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token has expired"'},
+        )
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = uuid.UUID(str(payload["sub"]))
+    try:
+        stmt = select(User).where(User.id == user_id)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
         if not user or not user.is_active:
-            raise credentials_exception
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account not found or deactivated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return user
     except HTTPException:
         raise
     except Exception:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 
 
 async def get_authenticated_user_or_internal(
@@ -253,6 +385,11 @@ async def get_authenticated_user_or_internal(
     """
     user = await get_current_user_optional(auth=auth, x_internal_secret=x_internal_secret, token=token, db=db)
     if not user:
+        if x_internal_secret and not is_valid_internal_secret(x_internal_secret):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid internal API secret.",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required. Provide a valid Bearer token, query token or 'X-Internal-Secret'.",

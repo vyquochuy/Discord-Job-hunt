@@ -1,5 +1,5 @@
-"""SQLAlchemy Models package."""
 from app.models.user import User
+from app.models.refresh_token import RefreshToken
 from app.models.saved_job import SavedJob
 from app.models.candidate import (
     Candidate,
@@ -36,7 +36,9 @@ from app.models.resume import (
 __all__ = [
     # Auth & Identity Models (Web-First)
     "User",
+    "RefreshToken",
     "SavedJob",
+
     # Candidate Models (Phase 1)
     "Candidate",
     "CandidateSkill",

@@ -160,17 +160,23 @@ class JobMatchService:
 
     @classmethod
     async def get_candidate_or_raise(
-        cls, session: AsyncSession, candidate_id: Optional[uuid.UUID] = None
+        cls,
+        session: AsyncSession,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Candidate:
-        """Lấy hồ sơ ứng viên active từ DB."""
+        """Lấy hồ sơ ứng viên active từ DB (ưu tiên candidate_id -> user_id -> fallback get_profile)."""
+        candidate = None
         if candidate_id:
             candidate = await CandidateRepository.get_by_id(session, candidate_id)
+        elif user_id:
+            candidate = await CandidateRepository.get_profile_by_user(session, user_id)
         else:
             candidate = await CandidateRepository.get_profile(session)
 
         if not candidate:
             raise ValueError(
-                "Không tìm thấy hồ sơ ứng viên. Vui lòng đồng bộ profile qua /profile sync trước."
+                "Không tìm thấy hồ sơ ứng viên. Vui lòng hoàn thiện hồ sơ hoặc tải lên CV trước."
             )
         return candidate
 
@@ -180,13 +186,14 @@ class JobMatchService:
         session: AsyncSession,
         job_id: uuid.UUID,
         candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         force_refresh: bool = False,
     ) -> JobMatch:
         """
         Tính toán và lưu trữ kết quả phân tích match cho 1 tin tuyển dụng.
         Nếu đã tồn tại và không yêu cầu force_refresh, trả về bản ghi cached.
         """
-        candidate = await cls.get_candidate_or_raise(session, candidate_id)
+        candidate = await cls.get_candidate_or_raise(session, candidate_id=candidate_id, user_id=user_id)
 
         # Kiểm tra cache
         if not force_refresh:
@@ -290,12 +297,15 @@ class JobMatchService:
 
     @classmethod
     async def batch_calculate_all(
-        cls, session: AsyncSession, candidate_id: Optional[uuid.UUID] = None
+        cls,
+        session: AsyncSession,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> int:
         """
         Tính toán match hàng loạt cho tất cả các tin tuyển dụng đang ACTIVE.
         """
-        candidate = await cls.get_candidate_or_raise(session, candidate_id)
+        candidate = await cls.get_candidate_or_raise(session, candidate_id=candidate_id, user_id=user_id)
 
         stmt = select(Job.id).where(Job.status == JobStatusEnum.ACTIVE)
         result = await session.execute(stmt)
@@ -305,7 +315,7 @@ class JobMatchService:
         for j_id in job_ids:
             try:
                 await cls.calculate_match_for_job(
-                    session, j_id, candidate.id, force_refresh=True
+                    session, j_id, candidate_id=candidate.id, force_refresh=True
                 )
                 count += 1
             except Exception as e:
@@ -318,10 +328,11 @@ class JobMatchService:
         cls,
         session: AsyncSession,
         candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         limit: int = 10,
         min_score: float = 60.0,
     ) -> List[JobMatch]:
-        candidate = await cls.get_candidate_or_raise(session, candidate_id)
+        candidate = await cls.get_candidate_or_raise(session, candidate_id=candidate_id, user_id=user_id)
         return await match_repository.get_top_recommendations(
             session, candidate.id, limit=limit, min_score=min_score
         )
@@ -331,13 +342,14 @@ class JobMatchService:
         cls,
         session: AsyncSession,
         candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         min_score: Optional[float] = None,
         eligibility: Optional[Eligibility] = None,
         recommendation: Optional[RecommendationCategory] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> Tuple[List[JobMatch], int]:
-        candidate = await cls.get_candidate_or_raise(session, candidate_id)
+        candidate = await cls.get_candidate_or_raise(session, candidate_id=candidate_id, user_id=user_id)
         return await match_repository.list_matches(
             session,
             candidate.id,

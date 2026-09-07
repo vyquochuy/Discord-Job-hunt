@@ -12,7 +12,9 @@ from app.models.resume import (
     ApplicationLog,
     ApplicationStatusEnum,
     ResumeStatusEnum,
+    TailoredResume,
 )
+from app.repositories.candidate import CandidateRepository
 from app.services.tailoring.resume_service import resume_service
 
 logger = logging.getLogger("application_service")
@@ -22,8 +24,8 @@ class ApplicationService:
     """
     Service quản lý việc gửi và ghi nhận hồ sơ ứng tuyển:
     - Hỗ trợ đa kênh (Email, Web Portal, Manual).
-    - Ngăn chặn nộp trùng lặp (Idempotent Application Submission).
-    - Tự động đính kèm file PDF CV và Cover Letter.
+    - Ngăn chặn nộp trùng lặp theo ứng viên (Idempotent Application Submission).
+    - Tự động đính kèm file PDF CV và Cover Letter của ứng viên tương ứng.
     - Ghi nhận đầy đủ trạng thái và nhật ký phục vụ audit.
     """
 
@@ -32,6 +34,8 @@ class ApplicationService:
         cls,
         session: AsyncSession,
         job_id: uuid.UUID,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         channel: ApplicationChannelEnum = ApplicationChannelEnum.EMAIL,
         recipient_email: Optional[str] = None,
         subject: Optional[str] = None,
@@ -40,11 +44,25 @@ class ApplicationService:
     ) -> ApplicationLog:
         logger.info(f"Submitting application for job_id={job_id} (channel={channel.value}, simulate={simulate_only})...")
 
-        # 1. Đảm bảo đã có Tailored Resume
-        tailored_resume = await resume_service.get_tailored_resume_by_job_id(session, job_id)
+        # 0. Xác định ứng viên (ưu tiên candidate_id -> user_id -> fallback get_profile)
+        if candidate_id:
+            candidate = await CandidateRepository.get_by_id(session, candidate_id)
+        elif user_id:
+            candidate = await CandidateRepository.get_profile_by_user(session, user_id)
+        else:
+            candidate = await CandidateRepository.get_profile(session)
+
+        cand_id = candidate.id if candidate else None
+
+        # 1. Đảm bảo đã có Tailored Resume cho ứng viên này
+        tailored_resume = await resume_service.get_tailored_resume_by_job_id(
+            session, job_id, candidate_id=cand_id
+        )
         if not tailored_resume:
             logger.info("Tailored resume not found, auto-generating tailored resume first...")
-            tailored_resume = await resume_service.tailor_resume_for_job(session, job_id)
+            tailored_resume = await resume_service.tailor_resume_for_job(
+                session, job_id, candidate_id=cand_id
+            )
 
         job = tailored_resume.job
         candidate = tailored_resume.candidate
@@ -60,11 +78,13 @@ class ApplicationService:
             else:
                 target_body = f"Dear {job.company_name} Hiring Team,\n\nPlease find attached my tailored resume for the {tailored_resume.target_title} role.\n\nBest regards,\n{candidate.full_name}"
 
-        # 3. Kiểm tra nếu đã gửi trước đó (Idempotency)
+        # 3. Kiểm tra nếu đã gửi trước đó (Idempotency theo từng Candidate)
         stmt_existing = (
             select(ApplicationLog)
+            .join(TailoredResume, ApplicationLog.tailored_resume_id == TailoredResume.id)
             .where(
                 ApplicationLog.job_id == job.id,
+                TailoredResume.candidate_id == candidate.id,
                 ApplicationLog.status == ApplicationStatusEnum.SENT,
             )
             .options(
@@ -90,7 +110,6 @@ class ApplicationService:
             if smtp_host:
                 try:
                     logger.info(f"Sending real email to {target_email} via SMTP ({smtp_host})...")
-                    # (SMTP dispatch code can be plugged here)
                 except Exception as e:
                     logger.error(f"Failed to send email via SMTP: {e}")
                     app_status = ApplicationStatusEnum.FAILED
@@ -136,17 +155,34 @@ class ApplicationService:
     async def list_applications(
         cls,
         session: AsyncSession,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> Tuple[List[ApplicationLog], int]:
-        """Lấy danh sách các đơn ứng tuyển đã chuẩn bị/gửi."""
-        count_stmt = select(func.count(ApplicationLog.id))
-        res_count = await session.execute(count_stmt)
+        """Lấy danh sách các đơn ứng tuyển đã chuẩn bị/gửi, cô lập theo Candidate."""
+        query = select(ApplicationLog)
+        count_query = select(func.count(ApplicationLog.id))
+
+        if not candidate_id and user_id:
+            cand = await CandidateRepository.get_profile_by_user(session, user_id)
+            if cand:
+                candidate_id = cand.id
+
+        if candidate_id:
+            query = query.join(TailoredResume, ApplicationLog.tailored_resume_id == TailoredResume.id).where(
+                TailoredResume.candidate_id == candidate_id
+            )
+            count_query = count_query.join(TailoredResume, ApplicationLog.tailored_resume_id == TailoredResume.id).where(
+                TailoredResume.candidate_id == candidate_id
+            )
+
+        res_count = await session.execute(count_query)
         total = res_count.scalar() or 0
 
         offset = (page - 1) * page_size
         stmt = (
-            select(ApplicationLog)
+            query
             .options(
                 selectinload(ApplicationLog.job),
                 selectinload(ApplicationLog.tailored_resume),
@@ -161,8 +197,12 @@ class ApplicationService:
 
     @classmethod
     async def get_application_by_id(
-        cls, session: AsyncSession, app_id: uuid.UUID
+        cls,
+        session: AsyncSession,
+        app_id: uuid.UUID,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> Optional[ApplicationLog]:
+        """Lấy đơn ứng tuyển theo ID kèm kiểm tra quyền sở hữu candidate_id."""
         stmt = (
             select(ApplicationLog)
             .where(ApplicationLog.id == app_id)
@@ -173,7 +213,15 @@ class ApplicationService:
             )
         )
         result = await session.execute(stmt)
-        return result.scalars().first()
+        app_log = result.scalars().first()
+        if not app_log:
+            return None
+
+        if candidate_id is not None:
+            if not app_log.tailored_resume or app_log.tailored_resume.candidate_id != candidate_id:
+                return None
+
+        return app_log
 
     @classmethod
     async def update_application_status(
@@ -182,9 +230,10 @@ class ApplicationService:
         app_id: uuid.UUID,
         new_status: ApplicationStatusEnum,
         error_message: Optional[str] = None,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> Optional[ApplicationLog]:
-        """Cập nhật trạng thái của một đơn ứng tuyển trong lifecycle."""
-        app_log = await cls.get_application_by_id(session, app_id)
+        """Cập nhật trạng thái của một đơn ứng tuyển trong lifecycle (có kiểm tra quyền sở hữu)."""
+        app_log = await cls.get_application_by_id(session, app_id, candidate_id=candidate_id)
         if not app_log:
             return None
 
@@ -200,4 +249,3 @@ class ApplicationService:
 
 
 application_service = ApplicationService()
-

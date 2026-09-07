@@ -28,6 +28,7 @@ from app.services.extraction.url_fetcher import url_fetcher
 from app.services.matching.match_service import job_match_service
 from app.services.normalization.job_normalizer import job_normalizer
 from app.services.normalization.skill_normalizer import skill_normalizer
+from app.services.skill_service import skill_service
 
 logger = logging.getLogger("manual_ingestion_service")
 
@@ -288,15 +289,16 @@ class ManualJobIngestionService:
         db.add(job)
         await db.flush()
 
-        # Lưu JobSkills
+        # Lưu JobSkills (Declarative Reconciliation - O(1) Queries)
         norm_required_skills = skill_normalizer.normalize_skills(extracted.skills_required)
         norm_nice_skills = skill_normalizer.normalize_skills(extracted.skills_nice_to_have)
 
-        await self._save_job_skills(
-            db, job.id, norm_required_skills, is_required=True, confidence=1.0, source="heuristic"
-        )
-        await self._save_job_skills(
-            db, job.id, norm_nice_skills, is_required=False, confidence=0.85, source="inferred"
+        await skill_service.sync_job_skills(
+            db,
+            job.id,
+            norm_required=norm_required_skills,
+            norm_nice=norm_nice_skills,
+            source="heuristic",
         )
 
         await db.commit()
@@ -351,43 +353,6 @@ class ManualJobIngestionService:
         res = await db.execute(stmt)
         return res.scalars().first()
 
-    async def _save_job_skills(
-        self,
-        db: AsyncSession,
-        job_id: uuid.UUID,
-        skills_list: list,
-        is_required: bool,
-        confidence: float,
-        source: str,
-    ):
-        for canonical_name, category in skills_list:
-            if not canonical_name:
-                continue
-
-            stmt = select(Skill).where(Skill.canonical_name == canonical_name)
-            res = await db.execute(stmt)
-            skill = res.scalars().first()
-
-            if not skill:
-                skill = Skill(canonical_name=canonical_name, category=category)
-                db.add(skill)
-                await db.flush()
-
-            stmt_js = select(JobSkill).where(
-                JobSkill.job_id == job_id, JobSkill.skill_id == skill.id
-            )
-            res_js = await db.execute(stmt_js)
-            existing_js = res_js.scalars().first()
-
-            if not existing_js:
-                job_skill = JobSkill(
-                    job_id=job_id,
-                    skill_id=skill.id,
-                    is_required=is_required,
-                    confidence=confidence,
-                    source=source,
-                )
-                db.add(job_skill)
 
     def _format_match_summary(self, match_obj) -> dict:
         return {

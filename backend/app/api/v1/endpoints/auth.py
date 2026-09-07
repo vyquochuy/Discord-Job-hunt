@@ -1,5 +1,5 @@
 import uuid
-from typing import Any
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,12 +10,23 @@ from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
     get_current_user,
+    get_current_user_optional,
     get_password_hash,
+    needs_password_rehash,
     verify_password,
 )
 from app.models.candidate import Candidate
 from app.models.user import User
-from app.schemas.auth import TokenResponse, UserCreate, UserLogin, UserResponse
+from app.schemas.auth import (
+    TokenLogoutRequest,
+    TokenRefreshRequest,
+    TokenRefreshResponse,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 
@@ -30,6 +41,7 @@ async def register_user(
     """
     Đăng ký tài khoản người dùng mới trên Web App.
     Tự động liên kết hoặc tạo hồ sơ Ứng viên 1–1 (CandidateProfile).
+    Cấp cặp Access Token (30m) và Refresh Token (30d).
     """
     # 1. Kiểm tra email đã tồn tại chưa
     email_clean = payload.email.lower().strip()
@@ -81,11 +93,18 @@ async def register_user(
         await db.flush()
         candidate_id = new_cand.id
 
+    # 5. Phát hành Cặp Token (RTR)
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+    access_token, refresh_token = await AuthService.issue_token_pair(
+        db=db,
+        user=user,
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
+
     await db.commit()
     await db.refresh(user)
-
-    # 4. Phát hành Token
-    token = create_access_token({"sub": str(user.id), "email": user.email})
 
     user_resp = UserResponse(
         id=user.id,
@@ -98,7 +117,8 @@ async def register_user(
     )
 
     return TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="Bearer",
         user=user_resp,
     )
@@ -113,6 +133,7 @@ async def login_user(
 ) -> Any:
     """
     Đăng nhập tài khoản người dùng Web App.
+    Cấp cặp Access Token (30m) và Refresh Token (30d) với Token Family mới.
     """
     email_clean = payload.email.lower().strip()
     stmt = (
@@ -159,6 +180,11 @@ async def login_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Nâng cấp mật khẩu tự động (Transparent Rehash sang Argon2id)
+    if needs_password_rehash(user.hashed_password):
+        user.hashed_password = get_password_hash(payload.password)
+        await db.commit()
+
     # Đảm bảo tài khoản admin cấu hình luôn duy trì quyền superuser
     if email_clean == settings.ADMIN_EMAIL.lower().strip() and not user.is_superuser:
         user.is_superuser = True
@@ -170,7 +196,16 @@ async def login_user(
             detail="Tài khoản đã bị vô hiệu hóa",
         )
 
-    token = create_access_token({"sub": str(user.id), "email": user.email})
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+    access_token, refresh_token = await AuthService.issue_token_pair(
+        db=db,
+        user=user,
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
+    await db.commit()
+
     candidate_id = user.candidate.id if user.candidate else None
 
     user_resp = UserResponse(
@@ -184,10 +219,57 @@ async def login_user(
     )
 
     return TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="Bearer",
         user=user_resp,
     )
+
+
+@router.post("/refresh", response_model=TokenRefreshResponse)
+@limiter.limit("30/minute")
+async def refresh_token_endpoint(
+    request: Request,
+    payload: TokenRefreshRequest,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Xoay vòng Refresh Token (Refresh Token Rotation).
+    Cấp Access Token mới (30m) và Refresh Token mới (30d).
+    Áp dụng Atomic DB Row-level locking, Grace Period (<= 15s) và Token Family Revocation.
+    """
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+
+    new_access, new_refresh = await AuthService.rotate_refresh_token(
+        db=db,
+        raw_refresh_token=payload.refresh_token,
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
+
+    return TokenRefreshResponse(
+        access_token=new_access,
+        refresh_token=new_refresh,
+        token_type="Bearer",
+    )
+
+
+@router.post("/logout")
+async def logout_user(
+    request: Request,
+    payload: Optional[TokenLogoutRequest] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Đăng xuất người dùng: Thu hồi Refresh Token cụ thể của thiết bị hiện tại.
+    """
+    if payload and payload.refresh_token:
+        user_id = current_user.id if current_user else None
+        await AuthService.revoke_refresh_token(db, payload.refresh_token, user_id=user_id)
+
+    return {"message": "Đăng xuất thành công"}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -217,3 +299,4 @@ async def get_me(
         candidate_id=candidate_id,
         created_at=user.created_at,
     )
+

@@ -58,7 +58,12 @@ async def test_profile_api_authentication(test_client: AsyncClient):
     assert res_wrong_auth.status_code == 403
     assert "Invalid internal API secret" in res_wrong_auth.json()["detail"]
 
-    # 3. Hợp lệ với X-Internal-Secret -> 200 OK
+    # 3. Hợp lệ với X-Internal-Secret: Đồng bộ profile trước rồi GET -> 200 OK
+    sync_res = await test_client.post(
+        "/api/v1/profile/sync", headers={"X-Internal-Secret": settings.INTERNAL_API_SECRET}
+    )
+    assert sync_res.status_code == 200
+
     res_valid_auth = await test_client.get(
         "/api/v1/profile", headers={"X-Internal-Secret": settings.INTERNAL_API_SECRET}
     )
@@ -87,7 +92,11 @@ async def test_get_and_update_profile_endpoints(test_client: AsyncClient):
     logger.info("=== [TEST] Profile GET & PUT Endpoints Lifecycle ===")
     headers = {"X-Internal-Secret": settings.INTERNAL_API_SECRET}
 
-    # 1. GET /api/v1/profile (sẽ tự động sync nếu DB trống)
+    # 0. Đồng bộ dữ liệu profile mẫu trước khi truy vấn
+    sync_res = await test_client.post("/api/v1/profile/sync", headers=headers)
+    assert sync_res.status_code == 200
+
+    # 1. GET /api/v1/profile
     get_res = await test_client.get("/api/v1/profile", headers=headers)
     logger.info(f"  GET /profile Status = {get_res.status_code}")
     assert get_res.status_code == 200

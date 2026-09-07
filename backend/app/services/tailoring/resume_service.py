@@ -40,14 +40,17 @@ class ResumeTailorService:
         session: AsyncSession,
         job_id: uuid.UUID,
         candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
         force_regenerate: bool = False,
         custom_tone: str = "professional_and_humble",
     ) -> TailoredResume:
         logger.info(f"Starting resume tailoring for job_id={job_id} (force_regenerate={force_regenerate})...")
 
-        # 1. Lấy thông tin ứng viên
+        # 1. Lấy thông tin ứng viên (ưu tiên candidate_id -> user_id -> fallback get_profile)
         if candidate_id:
             candidate = await CandidateRepository.get_by_id(session, candidate_id)
+        elif user_id:
+            candidate = await CandidateRepository.get_profile_by_user(session, user_id)
         else:
             candidate = await CandidateRepository.get_profile(session)
 
@@ -166,6 +169,7 @@ class ResumeTailorService:
             tex_content=latex_source,
             job_id=str(job.id),
             file_prefix=f"resume_{job.id}",
+            candidate_id=str(candidate.id),
         )
 
         resume_status = ResumeStatusEnum.COMPILED if compile_ok else ResumeStatusEnum.FAILED
@@ -179,8 +183,8 @@ class ResumeTailorService:
             custom_tone=custom_tone,
         )
 
-        # Lưu cover letter ra file .md cạnh resume
-        storage_dir = latex_compiler.get_storage_root() / str(job.id)
+        # Lưu cover letter ra file .md cạnh resume (cô lập theo candidate_id)
+        storage_dir = latex_compiler.get_storage_root() / str(candidate.id) / str(job.id)
         storage_dir.mkdir(parents=True, exist_ok=True)
         cl_md_path = storage_dir / "cover_letter.md"
         cl_md_path.write_text(cover_letter_data["content_markdown"], encoding="utf-8")
@@ -272,7 +276,11 @@ class ResumeTailorService:
 
     @classmethod
     async def update_and_recompile_latex(
-        cls, session: AsyncSession, resume_id: uuid.UUID, new_latex_source: str
+        cls,
+        session: AsyncSession,
+        resume_id: uuid.UUID,
+        new_latex_source: str,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> TailoredResume:
         """
         Cập nhật mã nguồn LaTeX đã chỉnh sửa và biên dịch lại tệp tin PDF.
@@ -281,11 +289,15 @@ class ResumeTailorService:
         if not resume:
             raise ValueError(f"Tailored resume with ID {resume_id} not found.")
 
+        if candidate_id is not None and resume.candidate_id != candidate_id:
+            raise ValueError(f"Tailored resume with ID {resume_id} not found.")
+
         resume.latex_source = new_latex_source
         compile_ok, pdf_path, comp_err = await latex_compiler.compile_tex(
             tex_content=new_latex_source,
             job_id=str(resume.job_id),
             file_prefix=f"resume_{resume.job_id}",
+            candidate_id=str(resume.candidate_id),
         )
         if pdf_path:
             resume.pdf_path = pdf_path
@@ -297,11 +309,18 @@ class ResumeTailorService:
 
     @classmethod
     async def get_tailored_resume_by_job_id(
-        cls, session: AsyncSession, job_id: uuid.UUID, candidate_id: Optional[uuid.UUID] = None
+        cls,
+        session: AsyncSession,
+        job_id: uuid.UUID,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[TailoredResume]:
-        """Truy vấn bản Tailored Resume theo Job ID."""
+        """Truy vấn bản Tailored Resume theo Job ID cho ứng viên cụ thể."""
         if not candidate_id:
-            candidate = await CandidateRepository.get_profile(session)
+            if user_id:
+                candidate = await CandidateRepository.get_profile_by_user(session, user_id)
+            else:
+                candidate = await CandidateRepository.get_profile(session)
             if not candidate:
                 return None
             candidate_id = candidate.id
@@ -324,21 +343,31 @@ class ResumeTailorService:
 
     @classmethod
     async def delete_tailored_resume_by_job_id(
-        cls, session: AsyncSession, job_id: uuid.UUID, candidate_id: Optional[uuid.UUID] = None
+        cls,
+        session: AsyncSession,
+        job_id: uuid.UUID,
+        candidate_id: Optional[uuid.UUID] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> bool:
         """
         Xóa bản Tailored Resume và Cover Letter theo Job ID, đồng thời dọn dẹp artifacts trên ổ đĩa.
         """
-        resume = await cls.get_tailored_resume_by_job_id(session, job_id, candidate_id=candidate_id)
+        resume = await cls.get_tailored_resume_by_job_id(
+            session, job_id, candidate_id=candidate_id, user_id=user_id
+        )
         if not resume:
             return False
 
         # 1. Xóa file artifacts trên disk
         try:
-            job_storage = latex_compiler.get_storage_root() / str(job_id)
-            if job_storage.exists() and job_storage.is_dir():
-                import shutil
-                shutil.rmtree(job_storage, ignore_errors=True)
+            import shutil
+            cand_job_storage = latex_compiler.get_storage_root() / str(resume.candidate_id) / str(job_id)
+            if cand_job_storage.exists() and cand_job_storage.is_dir():
+                shutil.rmtree(cand_job_storage, ignore_errors=True)
+            # Fallback check thư mục legacy phẳng
+            legacy_storage = latex_compiler.get_storage_root() / str(job_id)
+            if legacy_storage.exists() and legacy_storage.is_dir():
+                shutil.rmtree(legacy_storage, ignore_errors=True)
         except Exception as e:
             logger.warning(f"Failed to delete artifact directory for job {job_id}: {e}")
 
@@ -350,22 +379,31 @@ class ResumeTailorService:
 
     @classmethod
     async def delete_tailored_resume_by_id(
-        cls, session: AsyncSession, resume_id: uuid.UUID
+        cls,
+        session: AsyncSession,
+        resume_id: uuid.UUID,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> bool:
         """
-        Xóa bản Tailored Resume và Cover Letter theo ID.
+        Xóa bản Tailored Resume và Cover Letter theo ID (có xác thực quyền sở hữu).
         """
         resume = await cls.get_tailored_resume_by_id(session, resume_id)
         if not resume:
             return False
 
+        if candidate_id is not None and resume.candidate_id != candidate_id:
+            return False
+
         # 1. Xóa file artifacts trên disk
         try:
+            import shutil
             if resume.job_id:
-                job_storage = latex_compiler.get_storage_root() / str(resume.job_id)
-                if job_storage.exists() and job_storage.is_dir():
-                    import shutil
-                    shutil.rmtree(job_storage, ignore_errors=True)
+                cand_job_storage = latex_compiler.get_storage_root() / str(resume.candidate_id) / str(resume.job_id)
+                if cand_job_storage.exists() and cand_job_storage.is_dir():
+                    shutil.rmtree(cand_job_storage, ignore_errors=True)
+                legacy_storage = latex_compiler.get_storage_root() / str(resume.job_id)
+                if legacy_storage.exists() and legacy_storage.is_dir():
+                    shutil.rmtree(legacy_storage, ignore_errors=True)
         except Exception as e:
             logger.warning(f"Failed to delete artifact directory for resume {resume_id}: {e}")
 
@@ -374,6 +412,7 @@ class ResumeTailorService:
         await session.commit()
         logger.info(f"Deleted tailored resume ID={resume_id}")
         return True
+
 
 
 resume_service = ResumeTailorService()

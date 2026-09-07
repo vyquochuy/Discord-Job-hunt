@@ -99,6 +99,18 @@ class JobSkillResponse(BaseModel):
     source: str
 
 
+class DesiredJobSkill(BaseModel):
+    """
+    Domain Contract đại diện cho một kỹ năng mong muốn của Job sau khi parse và chuẩn hóa,
+    hoàn toàn tách biệt khỏi ORM model JobSkill.
+    """
+    canonical_name: str = Field(..., description="Tên chuẩn hóa của skill")
+    category: SkillCategoryEnum = Field(default=SkillCategoryEnum.OTHER, description="Nhóm kỹ năng")
+    is_required: bool = Field(default=True, description="True nếu bắt buộc, False nếu nice-to-have")
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Độ tin cậy trích xuất")
+    source: str = Field(default="explicit", description="Nguồn trích xuất: explicit, heuristic, llm, inferred")
+
+
 # ==============================================================================
 # Extracted Job Data (Parser/LLM Output DTO)
 # ==============================================================================

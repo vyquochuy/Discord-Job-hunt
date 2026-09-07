@@ -22,8 +22,9 @@ class CandidateRepository:
     @staticmethod
     async def get_profile(session: AsyncSession) -> Optional[Candidate]:
         """
-        Lấy thông tin hồ sơ ứng viên chính kèm theo tất cả các quan hệ liên kết
-        (skills, experiences, projects, certifications) thông qua eager loading.
+        [Legacy / Internal] Lấy thông tin hồ sơ ứng viên đầu tiên trong database.
+        Chỉ nên dùng cho internal batch jobs, CLI hoặc fallback tests.
+        Trong user-facing code, BẮT BUỘC dùng get_profile_by_user().
         """
         stmt = (
             select(Candidate)
@@ -38,6 +39,59 @@ class CandidateRepository:
         )
         result = await session.execute(stmt)
         return result.scalars().first()
+
+    @staticmethod
+    async def get_profile_by_user(session: AsyncSession, user_id: uuid.UUID) -> Optional[Candidate]:
+        """
+        Lấy thông tin hồ sơ ứng viên thuộc quyền sở hữu của một User cụ thể.
+        Đảm bảo cô lập dữ liệu 100% giữa các người dùng.
+        """
+        stmt = (
+            select(Candidate)
+            .options(
+                selectinload(Candidate.skills),
+                selectinload(Candidate.experiences),
+                selectinload(Candidate.projects),
+                selectinload(Candidate.certifications),
+            )
+            .where(Candidate.user_id == user_id)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_or_create_for_user(
+        cls, session: AsyncSession, user_id: uuid.UUID, full_name: Optional[str] = None, email: Optional[str] = None
+    ) -> Candidate:
+        """
+        Lấy hồ sơ Candidate của user, hoặc liên kết với Candidate unassigned nếu có, hoặc tạo mới nếu chưa tồn tại.
+        """
+        candidate = await cls.get_profile_by_user(session, user_id)
+        if not candidate:
+            # Kiểm tra nếu có candidate chưa gán user_id (unassigned candidate từ context sync / legacy)
+            unassigned_stmt = (
+                select(Candidate)
+                .where(Candidate.user_id.is_(None))
+                .order_by(Candidate.created_at.asc())
+                .limit(1)
+            )
+            unassigned_res = await session.execute(unassigned_stmt)
+            candidate = unassigned_res.scalar_one_or_none()
+            if candidate:
+                candidate.user_id = user_id
+                await session.commit()
+                return await cls.get_by_id(session, candidate.id)  # type: ignore
+
+            candidate = Candidate(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                full_name=full_name or "Candidate",
+                email=email,
+            )
+            session.add(candidate)
+            await session.commit()
+            return await cls.get_by_id(session, candidate.id)  # type: ignore
+        return candidate
 
     @staticmethod
     async def get_by_id(session: AsyncSession, candidate_id: uuid.UUID) -> Optional[Candidate]:
@@ -57,13 +111,17 @@ class CandidateRepository:
 
     @classmethod
     async def sync_from_parsed_context(
-        cls, session: AsyncSession, parsed: Dict[str, Any]
+        cls, session: AsyncSession, parsed: Dict[str, Any], user_id: Optional[uuid.UUID] = None
     ) -> Candidate:
         """
-        Đồng bộ toàn bộ dữ liệu hồ sơ từ context files (YAML, LaTeX, Markdown) vào Database.
-        Nếu ứng viên chưa tồn tại, tạo mới. Nếu đã tồn tại, cập nhật và làm mới các bảng quan hệ.
+        Đồng bộ toàn bộ dữ liệu hồ sơ từ context files hoặc CV upload vào Database.
+        Nếu truyền user_id, đồng bộ chuẩn xác cho hồ sơ của user đó.
+        Nếu không truyền user_id (legacy/testing), fallback về get_profile().
         """
-        candidate = await cls.get_profile(session)
+        if user_id:
+            candidate = await cls.get_profile_by_user(session, user_id)
+        else:
+            candidate = await cls.get_profile(session)
 
         cand_data = parsed.get("candidate", {})
         full_name = cand_data.get("name") or "Vy Quoc Huy"
@@ -204,6 +262,7 @@ class CandidateRepository:
 
         if not candidate:
             candidate = Candidate(
+                user_id=user_id,
                 full_name=full_name,
                 headline=headline,
                 email=email,
@@ -226,6 +285,8 @@ class CandidateRepository:
             )
             session.add(candidate)
         else:
+            if user_id and not candidate.user_id:
+                candidate.user_id = user_id
             candidate.full_name = full_name
             if headline:
                 candidate.headline = headline
@@ -263,11 +324,19 @@ class CandidateRepository:
 
     @classmethod
     async def update_profile_fields(
-        cls, session: AsyncSession, candidate_id: uuid.UUID, update_data: CandidateUpdate
+        cls,
+        session: AsyncSession,
+        candidate_id: uuid.UUID,
+        update_data: CandidateUpdate,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[Candidate]:
-        """Cập nhật các trường thông tin của ứng viên."""
+        """Cập nhật các trường thông tin của ứng viên (có kiểm tra quyền sở hữu nếu truyền user_id)."""
         candidate = await cls.get_by_id(session, candidate_id)
         if not candidate:
+            return None
+
+        # Kiểm tra quyền sở hữu nếu user_id được chỉ định
+        if user_id is not None and candidate.user_id is not None and candidate.user_id != user_id:
             return None
 
         update_dict = update_data.model_dump(exclude_unset=True)

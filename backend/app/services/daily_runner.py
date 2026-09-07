@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
@@ -91,12 +92,13 @@ class DailyBatchRunnerService:
         session: Optional[AsyncSession] = None,
         limit_per_source: int = 50,
         context_dir: Optional[str] = None,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> DailyBatchSummary:
         if session is not None:
-            return await cls._execute_batch(session, limit_per_source, context_dir)
+            return await cls._execute_batch(session, limit_per_source, context_dir, candidate_id=candidate_id)
         else:
             async with AsyncSessionLocal() as sess:
-                return await cls._execute_batch(sess, limit_per_source, context_dir)
+                return await cls._execute_batch(sess, limit_per_source, context_dir, candidate_id=candidate_id)
 
     @classmethod
     async def _execute_batch(
@@ -104,6 +106,7 @@ class DailyBatchRunnerService:
         session: AsyncSession,
         limit_per_source: int = 50,
         context_dir: Optional[str] = None,
+        candidate_id: Optional[uuid.UUID] = None,
     ) -> DailyBatchSummary:
         start_time = datetime.now(timezone.utc)
         t0 = time.time()
@@ -118,17 +121,21 @@ class DailyBatchRunnerService:
         duplicates_detected = 0
         ingestion_errors = 0
 
-        # 1. Đồng bộ Candidate Profile từ context/
-        logger.info("Step 1/5: Syncing Candidate Profile & Master Resume context...")
+        # 1. Xác định hoặc đồng bộ Candidate Profile
+        logger.info("Step 1/5: Resolving Candidate Profile & Master Resume context...")
         try:
-            await CandidateService.sync_profile_from_context(session, context_dir=context_dir)
-            candidate = await CandidateRepository.get_profile(session)
+            if candidate_id:
+                candidate = await CandidateRepository.get_by_id(session, candidate_id)
+            else:
+                await CandidateService.sync_profile_from_context(session, context_dir=context_dir)
+                candidate = await CandidateRepository.get_profile(session)
+
             if not candidate:
-                raise ValueError("Candidate profile not found after sync.")
-            logger.info(f"✅ Candidate profile synced: {candidate.full_name} ({candidate.headline})")
+                raise ValueError("Candidate profile not found.")
+            logger.info(f"✅ Candidate profile resolved: {candidate.full_name} ({candidate.headline})")
         except Exception as e:
-            logger.error(f"❌ Failed to sync candidate profile: {e}", exc_info=True)
-            raise RuntimeError(f"Candidate profile sync failed: {e}")
+            logger.error(f"❌ Failed to resolve candidate profile: {e}", exc_info=True)
+            raise RuntimeError(f"Candidate profile resolution failed: {e}")
 
         # 2. Đồng bộ Skill Taxonomy
         logger.info("Step 2/5: Seeding and synchronizing Canonical Skill Taxonomy...")

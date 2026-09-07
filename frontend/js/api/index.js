@@ -18,10 +18,12 @@ export const api = {
   setBaseUrl: (url) => client.setBaseUrl(url),
   resetBaseUrl: () => client.resetBaseUrl(),
   getResolutionSource: () => client.getResolutionSource(),
-  setToken: (token) => client.setToken(token),
+  setToken: (token, refreshToken = null) => client.setToken(token, refreshToken),
+  setTokens: (accessToken, refreshToken) => client.setTokens(accessToken, refreshToken),
   hasToken: () => client.hasToken(),
   logout: () => client.logout(),
   request: (endpoint, options) => client.request(endpoint, options),
+
 
   // Auth
   register: authApi.register,

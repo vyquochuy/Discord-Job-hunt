@@ -37,12 +37,17 @@ class LaTeXCompiler:
         tex_content: str,
         job_id: str,
         file_prefix: str = "resume",
+        candidate_id: Optional[str] = None,
     ) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Biên dịch nội dung TeX thành PDF.
+        Hỗ trợ lưu trữ cô lập theo candidate_id: storage/resumes/{candidate_id}/{job_id}/
         Trả về: (success, pdf_file_path, error_message).
         """
-        storage_dir = cls.get_storage_root() / str(job_id)
+        if candidate_id:
+            storage_dir = cls.get_storage_root() / str(candidate_id) / str(job_id)
+        else:
+            storage_dir = cls.get_storage_root() / str(job_id)
         storage_dir.mkdir(parents=True, exist_ok=True)
 
         tex_path = storage_dir / f"{file_prefix}.tex"

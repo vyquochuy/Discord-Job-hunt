@@ -36,6 +36,7 @@ from app.schemas.job import (
     SkillTaxonomyResponse,
     JobSkillBase,
     JobSkillResponse,
+    DesiredJobSkill,
     JobExtractedData,
     JobBase,
     JobCreate,

@@ -9,6 +9,8 @@ export class ApiClient {
   constructor() {
     this.baseUrl = resolveApiBaseUrl();
     this.token = (typeof localStorage !== 'undefined') ? localStorage.getItem('jh_access_token') : null;
+    this.refreshToken = (typeof localStorage !== 'undefined') ? localStorage.getItem('jh_refresh_token') : null;
+    this.refreshPromise = null; // Mutex Promise Queue cho in-flight refresh requests
   }
 
   getBaseUrl() {
@@ -37,21 +39,93 @@ export class ApiClient {
     return getApiResolutionSource();
   }
 
-  setToken(token) {
-    this.token = token;
-    if (token) {
-      localStorage.setItem('jh_access_token', token);
-    } else {
-      localStorage.removeItem('jh_access_token');
+  setTokens(accessToken, refreshToken = null) {
+    this.token = accessToken;
+    if (refreshToken !== undefined && refreshToken !== null) {
+      this.refreshToken = refreshToken;
     }
+    if (typeof localStorage !== 'undefined') {
+      if (accessToken) {
+        localStorage.setItem('jh_access_token', accessToken);
+      } else {
+        localStorage.removeItem('jh_access_token');
+      }
+      if (this.refreshToken) {
+        localStorage.setItem('jh_refresh_token', this.refreshToken);
+      } else if (refreshToken === null) {
+        localStorage.removeItem('jh_refresh_token');
+      }
+    }
+  }
+
+  setToken(token, refreshToken = null) {
+    this.setTokens(token, refreshToken);
   }
 
   hasToken() {
     return !!this.token;
   }
 
-  logout() {
-    this.setToken(null);
+  async logout() {
+    if (this.refreshToken) {
+      try {
+        await fetch(`${this.baseUrl}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: this.refreshToken }),
+        });
+      } catch (_) {}
+    }
+    this.token = null;
+    this.refreshToken = null;
+    this.refreshPromise = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('jh_access_token');
+      localStorage.removeItem('jh_refresh_token');
+    }
+    events.emit(APP_EVENTS.AUTH_EXPIRED);
+  }
+
+  async refreshAuthToken() {
+    // Invariant 1: Frontend Mutex ngăn chặn hoàn toàn duplicate refresh requests
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: this.refreshToken }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Refresh failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        this.setTokens(data.access_token, data.refresh_token);
+        return data.access_token;
+      } catch (err) {
+        this.token = null;
+        this.refreshToken = null;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('jh_access_token');
+          localStorage.removeItem('jh_refresh_token');
+        }
+        events.emit(APP_EVENTS.AUTH_EXPIRED);
+        throw err;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   getHeaders(customHeaders = {}) {
@@ -65,7 +139,7 @@ export class ApiClient {
     return headers;
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, isRetry = false) {
     let url;
     if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
       url = endpoint;
@@ -82,11 +156,32 @@ export class ApiClient {
         headers,
       });
 
+      // Tự động làm mới phiên với Refresh Token Mutex Queue khi gặp 401
       if (response.status === 401) {
-        console.warn('Unauthorized request — user session might be expired or missing.');
-        if (this.token) {
-          this.setToken(null);
-          events.emit(APP_EVENTS.AUTH_EXPIRED);
+        const isAuthEndpoint = endpoint.includes('/auth/login') ||
+                               endpoint.includes('/auth/register') ||
+                               endpoint.includes('/auth/refresh');
+
+        if (!isRetry && !isAuthEndpoint && this.refreshToken) {
+          try {
+            console.info('Access token expired, triggering automatic refresh with mutex...');
+            await this.refreshAuthToken();
+            // Thử lại request gốc với access token vừa được làm mới
+            return await this.request(endpoint, options, true);
+          } catch (refreshErr) {
+            console.warn('Token refresh failed, session terminated:', refreshErr);
+          }
+        } else {
+          console.warn('Unauthorized request — user session might be expired or missing.');
+          if (this.token || this.refreshToken) {
+            this.token = null;
+            this.refreshToken = null;
+            if (typeof localStorage !== 'undefined') {
+              localStorage.removeItem('jh_access_token');
+              localStorage.removeItem('jh_refresh_token');
+            }
+            events.emit(APP_EVENTS.AUTH_EXPIRED);
+          }
         }
       }
 
@@ -105,10 +200,13 @@ export class ApiClient {
       }
       return await response.text();
     } catch (err) {
-      console.error(`API Error [${options.method || 'GET'} ${endpoint}] -> ${url}:`, err);
+      if (!isRetry) {
+        console.error(`API Error [${options.method || 'GET'} ${endpoint}] -> ${url}:`, err);
+      }
       throw err;
     }
   }
+
 
   get(endpoint, options = {}) {
     return this.request(endpoint, { ...options, method: 'GET' });

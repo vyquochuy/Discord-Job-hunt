@@ -1,10 +1,11 @@
 import uuid
-from typing import Any, List, Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_authenticated_user_or_internal, verify_admin_access
+from app.models.user import User
 from app.schemas.match import (
     BatchCalculateResponse,
     JobMatchDetailResponse,
@@ -26,14 +27,15 @@ async def list_matches(
     page: int = Query(1, ge=1, description="Số trang (bắt đầu từ 1)"),
     page_size: int = Query(20, ge=1, le=100, description="Số lượng bản ghi mỗi trang"),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
-    Lấy danh sách các tin tuyển dụng đã được phân tích mức độ phù hợp (Job Matches).
+    Lấy danh sách các tin tuyển dụng đã được phân tích mức độ phù hợp cho hồ sơ của người dùng hiện tại.
     """
     try:
         items, total = await job_match_service.list_matches(
             db,
+            user_id=current_user.id,
             min_score=min_score,
             eligibility=eligibility,
             recommendation=recommendation,
@@ -55,15 +57,15 @@ async def get_top_recommendations(
     limit: int = Query(10, ge=1, le=50, description="Số lượng gợi ý tối đa"),
     min_score: float = Query(60.0, ge=0.0, le=100.0, description="Điểm số tối thiểu"),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
-    Lấy danh sách các công việc được đề xuất hàng đầu (Top Recommendations) cho ứng viên.
+    Lấy danh sách các công việc được đề xuất hàng đầu (Top Recommendations) cho người dùng hiện tại.
     Loại bỏ các công việc bị BLOCKED bởi Hard Filters.
     """
     try:
         matches = await job_match_service.get_top_recommendations(
-            db, limit=limit, min_score=min_score
+            db, user_id=current_user.id, limit=limit, min_score=min_score
         )
 
         results: List[TopRecommendationItem] = []
@@ -91,7 +93,6 @@ async def get_top_recommendations(
                     )
                 )
 
-
         return results
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -101,15 +102,16 @@ async def get_top_recommendations(
 async def get_job_match(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
-    Lấy kết quả chi tiết phân tích match của 1 tin tuyển dụng (bao gồm 7 signals, hard filters và AI explanation).
-    Nếu chưa từng tính toán, hệ thống sẽ tự động tính toán và lưu lại.
+    Lấy kết quả chi tiết phân tích match của 1 tin tuyển dụng cho người dùng hiện tại
+    (bao gồm 7 signals, hard filters và AI explanation).
+    Nếu chưa từng tính toán, hệ thống sẽ tự động tính toán và lưu lại theo hồ sơ của người dùng.
     """
     try:
         match_obj = await job_match_service.calculate_match_for_job(
-            db, job_id, force_refresh=False
+            db, job_id, user_id=current_user.id, force_refresh=False
         )
         return JobMatchDetailResponse.model_validate(match_obj)
     except ValueError as e:
@@ -121,14 +123,14 @@ async def calculate_match(
     job_id: uuid.UUID,
     force_refresh: bool = Query(True, description="Bắt buộc tính toán lại, bỏ qua cache"),
     db: AsyncSession = Depends(get_db),
-    _user: Any = Depends(get_authenticated_user_or_internal),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
-    Kích hoạt tính toán phân tích độ phù hợp cho một tin tuyển dụng theo yêu cầu.
+    Kích hoạt tính toán phân tích độ phù hợp cho một tin tuyển dụng theo hồ sơ của người dùng hiện tại.
     """
     try:
         match_obj = await job_match_service.calculate_match_for_job(
-            db, job_id, force_refresh=force_refresh
+            db, job_id, user_id=current_user.id, force_refresh=force_refresh
         )
         return JobMatchDetailResponse.model_validate(match_obj)
     except ValueError as e:

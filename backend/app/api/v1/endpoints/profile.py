@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import verify_profile_access
+from app.core.security import get_authenticated_user_or_internal, verify_admin_access
+from app.models.user import User
 from app.schemas.candidate import (
     CandidateDetailResponse,
     CandidateSyncResponse,
@@ -24,9 +25,9 @@ router = APIRouter()
 )
 async def get_profile(
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_profile_access),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ) -> CandidateDetailResponse:
-    return await CandidateService.get_profile(db)
+    return await CandidateService.get_profile(db, user_id=current_user.id)
 
 
 @router.put(
@@ -39,23 +40,24 @@ async def get_profile(
 async def update_profile(
     update_data: CandidateUpdate,
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_profile_access),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ) -> CandidateDetailResponse:
-    return await CandidateService.update_profile(db, update_data)
+    return await CandidateService.update_profile(db, update_data, user_id=current_user.id)
 
 
 @router.post(
     "/sync",
     response_model=CandidateSyncResponse,
     status_code=status.HTTP_200_OK,
-    summary="Đồng bộ hồ sơ từ các tệp cấu hình context/",
-    description="Đọc toàn bộ file trong thư mục context/ (candidate-profile.yaml, master-resume.tex, master-resume.md, master-resume.pdf) hoặc context.example/ và nạp mới vào PostgreSQL.",
+    summary="Đồng bộ hồ sơ từ các tệp cấu hình context/ (Chỉ Quản trị viên)",
+    description="Đọc toàn bộ file trong thư mục context/ trên server và nạp mới vào PostgreSQL cho tài khoản quản trị.",
 )
 async def sync_profile(
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_profile_access),
+    current_user: User = Depends(get_authenticated_user_or_internal),
+    _admin: bool = Depends(verify_admin_access),
 ) -> CandidateSyncResponse:
-    return await CandidateService.sync_profile_from_context(db)
+    return await CandidateService.sync_profile_from_context(db, user_id=current_user.id)
 
 
 @router.post(
@@ -69,7 +71,7 @@ async def upload_resume(
     request: Request,
     file: UploadFile = File(..., description="File CV (.pdf, .tex, .yaml, .yml, .md, .json)"),
     db: AsyncSession = Depends(get_db),
-    _authorized: bool = Depends(verify_profile_access),
+    current_user: User = Depends(get_authenticated_user_or_internal),
 ) -> CandidateSyncResponse:
     max_size = settings.MAX_RESUME_UPLOAD_SIZE
 
@@ -145,4 +147,5 @@ async def upload_resume(
         session=db,
         filename=filename,
         file_bytes=file_bytes,
+        user_id=current_user.id,
     )

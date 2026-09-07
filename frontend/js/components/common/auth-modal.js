@@ -130,7 +130,7 @@ export async function handleAuthLogin(e) {
 
   try {
     const res = await api.login(email, password);
-    api.setToken(res.access_token);
+    api.setTokens(res.access_token, res.refresh_token);
     state.currentUser = res.user;
     updateAuthUI();
     closeAuthModal();
@@ -180,7 +180,7 @@ export async function handleAuthRegister(e) {
 
   try {
     const res = await api.register(email, password, fullName);
-    api.setToken(res.access_token);
+    api.setTokens(res.access_token, res.refresh_token);
     state.currentUser = res.user;
     updateAuthUI();
     closeAuthModal();

@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from typing import Optional
 from fastapi import HTTPException, status
@@ -15,9 +16,9 @@ from app.services.parser import CandidateProfileParser
 class CandidateService:
     """
     Service Layer điều phối các nghiệp vụ liên quan đến Hồ sơ Ứng viên:
-    - Truy xuất thông tin chi tiết
-    - Cập nhật thông tin nhanh
-    - Đồng bộ hóa từ các tệp tin ngữ cảnh (context files)
+    - Truy xuất thông tin chi tiết (theo user_id)
+    - Cập nhật thông tin nhanh (theo user_id)
+    - Đồng bộ hóa từ các tệp tin ngữ cảnh (context files) hoặc CV upload
     """
 
     @staticmethod
@@ -40,32 +41,45 @@ class CandidateService:
         return local_context
 
     @classmethod
-    async def get_profile(cls, session: AsyncSession) -> CandidateDetailResponse:
+    async def get_profile(
+        cls, session: AsyncSession, user_id: Optional[uuid.UUID] = None
+    ) -> CandidateDetailResponse:
         """
         Lấy thông tin hồ sơ ứng viên.
-        Nếu chưa có hồ sơ trong database, tự động thử sync từ thư mục context/ hoặc context.example/.
+        - Nếu có user_id: truy vấn chính xác hồ sơ thuộc quyền sở hữu của user_id đó.
+        - Nếu không có user_id (internal/test fallback): truy vấn candidate đầu tiên hoặc auto-sync context.
         """
-        candidate = await CandidateRepository.get_profile(session)
-        if not candidate:
-            context_dir = cls.get_default_context_dir()
-            if context_dir.exists():
-                parsed = CandidateProfileParser.load_and_merge_context(context_dir)
-                candidate = await CandidateRepository.sync_from_parsed_context(session, parsed)
+        if user_id:
+            candidate = await CandidateRepository.get_profile_by_user(session, user_id)
+        else:
+            candidate = await CandidateRepository.get_profile(session)
+            if not candidate:
+                context_dir = cls.get_default_context_dir()
+                if context_dir.exists():
+                    parsed = CandidateProfileParser.load_and_merge_context(context_dir)
+                    candidate = await CandidateRepository.sync_from_parsed_context(session, parsed)
 
         if not candidate:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Candidate profile not found. Please upload a resume or sync from context files.",
+                detail="Candidate profile not found. Please upload a resume to create your profile.",
             )
 
         return CandidateDetailResponse.model_validate(candidate)
 
     @classmethod
     async def update_profile(
-        cls, session: AsyncSession, update_data: CandidateUpdate
+        cls,
+        session: AsyncSession,
+        update_data: CandidateUpdate,
+        user_id: Optional[uuid.UUID] = None,
     ) -> CandidateDetailResponse:
-        """Cập nhật các trường thông tin của hồ sơ ứng viên hiện tại."""
-        candidate = await CandidateRepository.get_profile(session)
+        """Cập nhật các trường thông tin của hồ sơ ứng viên."""
+        if user_id:
+            candidate = await CandidateRepository.get_profile_by_user(session, user_id)
+        else:
+            candidate = await CandidateRepository.get_profile(session)
+
         if not candidate:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -73,16 +87,21 @@ class CandidateService:
             )
 
         updated_candidate = await CandidateRepository.update_profile_fields(
-            session, candidate.id, update_data
+            session, candidate.id, update_data, user_id=user_id
         )
         return CandidateDetailResponse.model_validate(updated_candidate)
 
     @classmethod
     async def ingest_resume_file(
-        cls, session: AsyncSession, filename: str, file_bytes: bytes
+        cls,
+        session: AsyncSession,
+        filename: str,
+        file_bytes: bytes,
+        user_id: Optional[uuid.UUID] = None,
     ) -> CandidateSyncResponse:
         """
-        Xử lý file tải lên (.pdf, .tex, .yaml, .md, .json), trích xuất thông tin và lưu vào DB.
+        Xử lý file tải lên (.pdf, .tex, .yaml, .md, .json), trích xuất thông tin và lưu vào DB
+        cho đúng user_id được chỉ định.
         """
         if not file_bytes:
             raise HTTPException(
@@ -97,7 +116,9 @@ class CandidateService:
                 detail="Unable to extract meaningful profile information from the uploaded file.",
             )
 
-        candidate = await CandidateRepository.sync_from_parsed_context(session, parsed)
+        candidate = await CandidateRepository.sync_from_parsed_context(
+            session, parsed, user_id=user_id
+        )
 
         return CandidateSyncResponse(
             success=True,
@@ -112,10 +133,14 @@ class CandidateService:
 
     @classmethod
     async def sync_profile_from_context(
-        cls, session: AsyncSession, context_dir: Optional[Path | str] = None
+        cls,
+        session: AsyncSession,
+        context_dir: Optional[Path | str] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> CandidateSyncResponse:
         """
         Kích hoạt đồng bộ hóa dữ liệu từ context/ (candidate-profile.yaml, master-resume.tex, master-resume.md, master-resume.pdf).
+        Dành cho Quản trị viên (Superuser) hoặc internal initialization.
         """
         target_dir = Path(context_dir) if context_dir else cls.get_default_context_dir()
         if not target_dir.exists():
@@ -125,7 +150,9 @@ class CandidateService:
             )
 
         parsed = CandidateProfileParser.load_and_merge_context(target_dir)
-        candidate = await CandidateRepository.sync_from_parsed_context(session, parsed)
+        candidate = await CandidateRepository.sync_from_parsed_context(
+            session, parsed, user_id=user_id
+        )
 
         return CandidateSyncResponse(
             success=True,
@@ -137,3 +164,4 @@ class CandidateService:
             certifications_count=len(candidate.certifications),
             message="Candidate profile successfully synchronized from context files.",
         )
+

@@ -73,7 +73,7 @@ graph TD
 1. **Web Application is the Primary Interface**: All product interactions (Dashboard, Job Search, Match Details, Profile Management, Resume Tailoring, Application Tracking) are served through the Web Application.
 2. **Business Logic MUST NOT Depend on Discord**: Discord is decoupled into an optional notification adapter. No domain rules, matching algorithms, or application state reside in the Discord bot.
 3. **PostgreSQL is the Single Source of Truth at Runtime**: All runtime state (User, Candidate Profile, Jobs, Matches, Resumes, Applications) is persisted in PostgreSQL. File templates in `context/` serve solely as initial baseline seed and import/export targets.
-4. **User 1–1 CandidateProfile Identity**: Every user account maps directly to one candidate profile, ensuring clean domain modeling without premature multi-tenant complexity.
+4. **User 1–1 CandidateProfile Identity & Dual-Token Auth**: Every user account maps directly to one candidate profile, ensuring clean domain modeling and strict Anti-IDOR boundary. Authenticated via Enterprise Dual-Token Architecture (30m Access Token + 30d Refresh Token Rotation with Token Family Revocation & Argon2id password hashing, documented in [AUTHENTICATION_AND_JWT.md](AUTHENTICATION_AND_JWT.md)).
 5. **Strict API Contracts & Domain Boundaries**: Domain services are encapsulated behind explicit DTO interfaces (`backend/app/schemas/`), decoupled from presentation frameworks.
 6. **Pluggable Notification Abstraction**: Background workers and domain services emit events to `NotificationService`, which delegates delivery to configured providers (Discord, Email).
 
@@ -82,6 +82,7 @@ graph TD
 ## 3. Services and Responsibilities
 
 ### 3.1 Web Application (`frontend/`)
+
 - **Role**: Primary user interface.
 - **Architecture**: Modular ES6 Single Page Application (SPA) without monolithic files:
   - `core/`: Reactive state store (`store.js`), Hash-based router (`router.js`) with auth navigation guards, Decoupled event bus (`events.js`).
@@ -94,6 +95,7 @@ graph TD
 - **Design Characteristics**: Clean, professional, responsive, information-dense, Simple Blue design system (`--primary: #2563eb`).
 
 ### 3.2 Backend API & Domain Core (`backend/`)
+
 - **Role**: Application behavior, API contracts, domain logic, and AI orchestration.
 - **Layers**:
   - `api/v1/`: HTTP route handlers (`/auth`, `/profile`, `/jobs`, `/matches`, `/resumes`, `/applications`).
@@ -118,6 +120,7 @@ graph TD
     - `notifications/`: `NotificationService` and notification provider abstractions.
 
 ### 3.3 Background Workers (`backend/app/worker.py` & `daily_runner.py`)
+
 - **Role**: Autonomous job scanning, taxonomy sync, batch scoring, and daily notification dispatch.
 - **Modes**:
   - `--daily-batch`: Executes full daily scan (Sync context -> Ingest jobs with 0 LLM cost -> Batch match -> Rank top jobs -> Emit notification summary).
@@ -125,6 +128,7 @@ graph TD
   - Daemon mode: Periodic collection loop.
 
 ### 3.4 Discord Notification Adapter (`discord-bot/`)
+
 - **Role**: Supplementary notification receiver and legacy command adapter.
 - **Behavior**:
   - Receives alerts (High match alerts, Daily digest) with summary cards and direct web links (`http://localhost:3000/jobs/{id}`).
@@ -138,7 +142,7 @@ graph TD
 erDiagram
     User ||--|| Candidate : "has (1-1)"
     User ||--o{ SavedJob : "saves"
-    
+
     Candidate ||--o{ CandidateSkill : "possesses"
     Candidate ||--o{ CandidateProject : "built"
     Candidate ||--o{ CandidateExperience : "worked"
@@ -163,6 +167,7 @@ erDiagram
 ```
 
 ### Entity Summary
+
 - **User**: Authentication and user identity (`id`, `email`, `hashed_password`, `full_name`, `is_active`).
 - **Candidate**: Source of Truth candidate profile (`user_id`, `headline`, `summary`, `education`, `target_roles`, `target_locations`, `preferences`).
 - **CandidateSkill / Project / Experience**: Atomic candidate facts, verifiable metrics, and claims.
@@ -198,12 +203,12 @@ Forbidden:
 
 ## 6. Technology Stack
 
-| Component | Technology | Role |
-| :--- | :--- | :--- |
-| **Web Frontend** | HTML5 / JavaScript / CSS (Simple Blue Design Tokens) | Primary Product Interface |
-| **Backend API** | Python 3.11+, FastAPI, Pydantic 2.0 | API Contracts & AI Orchestration |
-| **Database** | PostgreSQL 16 + pgvector | Single Source of Truth & Vector Search |
-| **ORM & Migrations** | Async SQLAlchemy 2.0 (`asyncpg`), Alembic | Data Persistence |
-| **Background Processing**| Asyncio Worker, Redis | Batch Ingestion & Scheduled Jobs |
-| **Notification Channel**| Discord Webhook / Bot API (discord.js v14) | Notification Adapter |
-| **PDF Compilation** | `pdflatex` / `xelatex` (TeXLive Sandbox) | Resume Generation |
+| Component                 | Technology                                           | Role                                   |
+| :------------------------ | :--------------------------------------------------- | :------------------------------------- |
+| **Web Frontend**          | HTML5 / JavaScript / CSS (Simple Blue Design Tokens) | Primary Product Interface              |
+| **Backend API**           | Python 3.11+, FastAPI, Pydantic 2.0                  | API Contracts & AI Orchestration       |
+| **Database**              | PostgreSQL 16 + pgvector                             | Single Source of Truth & Vector Search |
+| **ORM & Migrations**      | Async SQLAlchemy 2.0 (`asyncpg`), Alembic            | Data Persistence                       |
+| **Background Processing** | Asyncio Worker, Redis                                | Batch Ingestion & Scheduled Jobs       |
+| **Notification Channel**  | Discord Webhook / Bot API (discord.js v14)           | Notification Adapter                   |
+| **PDF Compilation**       | `pdflatex` / `xelatex` (TeXLive Sandbox)             | Resume Generation                      |

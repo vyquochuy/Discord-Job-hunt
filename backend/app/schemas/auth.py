@@ -30,4 +30,20 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "Bearer"
+    refresh_token: Optional[str] = None
     user: UserResponse
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str = Field(..., description="Refresh Token hợp lệ nhận được khi login/register")
+
+
+class TokenRefreshResponse(BaseModel):
+    access_token: str
+    token_type: str = "Bearer"
+    refresh_token: str
+
+
+class TokenLogoutRequest(BaseModel):
+    refresh_token: Optional[str] = Field(None, description="Refresh Token cần thu hồi khi đăng xuất")
+
