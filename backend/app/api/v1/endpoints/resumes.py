@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from typing import Optional
 import unicodedata
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.limiter import limiter
-from app.core.security import get_authenticated_user_or_internal
+from app.core.security import get_authenticated_user_or_internal, get_current_user_optional
 from app.models.candidate import Candidate
 from app.models.resume import TailoredResume
 from app.models.user import User
@@ -150,20 +151,18 @@ async def download_resume_pdf(
     id: uuid.UUID,
     download: bool = Query(False, description="Nếu True sẽ trả về attachment để tải xuống, ngược lại inline để xem trước"),
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_authenticated_user_or_internal),
+    _user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Xem trước hoặc tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.
-    Bảo vệ bằng xác thực tài khoản và kiểm tra quyền sở hữu.
+    Cho phép truy cập trực tiếp qua UUID v4 ngẫu nhiên (Capability URL) cho iframe và link tải.
     """
-    cand = await get_candidate_for_current_user(db, _user)
     resume = await resume_service.get_tailored_resume_by_id(db, id)
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Tailored resume with ID {id} not found",
         )
-    verify_resume_ownership(resume, cand, _user)
 
     if not resume.pdf_path or not os.path.exists(resume.pdf_path):
         raise HTTPException(

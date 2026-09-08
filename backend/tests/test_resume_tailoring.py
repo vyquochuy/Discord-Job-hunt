@@ -317,14 +317,14 @@ async def test_resumes_and_applications_rest_apis(test_client, setup_candidate_a
     assert res_tex.status_code == 200
     assert "\\documentclass" in res_tex.text
 
-    # 5. GET /api/v1/resumes/{id}/pdf (inline vs attachment)
-    res_pdf_inline = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=false", headers=headers)
+    # 5. GET /api/v1/resumes/{id}/pdf (inline vs attachment, truy cập công khai qua capability UUID cho iframe/download)
+    res_pdf_inline = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=false")
     assert res_pdf_inline.status_code == 200
     assert res_pdf_inline.headers["content-type"] == "application/pdf"
     assert "inline" in res_pdf_inline.headers.get("content-disposition", "")
     assert len(res_pdf_inline.content) > 0
 
-    res_pdf_attach = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=true", headers=headers)
+    res_pdf_attach = await client.get(f"/api/v1/resumes/{resume_id}/pdf?download=true")
     assert res_pdf_attach.status_code == 200
     assert "attachment" in res_pdf_attach.headers.get("content-disposition", "")
 

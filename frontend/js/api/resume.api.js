@@ -30,5 +30,9 @@ export function updateResumeLatex(resumeId, latexSource) {
 }
 
 export function getResumePdfUrl(resumeId, download = false) {
-  return `${client.getBaseUrl()}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
+  let url = `${client.getBaseUrl()}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
+  if (client.token) {
+    url += `&token=${encodeURIComponent(client.token)}`;
+  }
+  return url;
 }

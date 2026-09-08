@@ -557,7 +557,11 @@ class ApiClient {
   }
 
   getResumePdfUrl(resumeId, download = false) {
-    return `${this.baseUrl}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
+    let url = `${this.baseUrl}/resumes/${resumeId}/pdf?download=${download ? 'true' : 'false'}`;
+    if (this.token) {
+      url += `&token=${encodeURIComponent(this.token)}`;
+    }
+    return url;
   }
 
   async getApplications(page = 1, pageSize = 20) {
