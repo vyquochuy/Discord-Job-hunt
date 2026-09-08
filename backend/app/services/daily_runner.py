@@ -127,12 +127,21 @@ class DailyBatchRunnerService:
             if candidate_id:
                 candidate = await CandidateRepository.get_by_id(session, candidate_id)
             else:
-                await CandidateService.sync_profile_from_context(session, context_dir=context_dir)
+                # Thử đồng bộ từ /context nếu tồn tại (local Docker), bỏ qua nếu không có (cloud Render)
+                import os
+                resolved_context = context_dir or os.getenv("CONTEXT_DIR", "/context")
+                if os.path.isdir(resolved_context):
+                    await CandidateService.sync_profile_from_context(session, context_dir=resolved_context)
+                    logger.info(f"Context directory found at '{resolved_context}', profile synced.")
+                else:
+                    logger.info(f"Context directory '{resolved_context}' not found (cloud deployment) — skipping sync, using existing DB profile.")
                 candidate = await CandidateRepository.get_profile(session)
 
             if not candidate:
-                raise ValueError("Candidate profile not found.")
+                raise ValueError("Candidate profile not found in database. Please upload a resume or sync profile first.")
             logger.info(f"✅ Candidate profile resolved: {candidate.full_name} ({candidate.headline})")
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"❌ Failed to resolve candidate profile: {e}", exc_info=True)
             raise RuntimeError(f"Candidate profile resolution failed: {e}")
