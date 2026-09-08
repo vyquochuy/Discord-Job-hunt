@@ -1,9 +1,10 @@
 import asyncio
 import os
 from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
@@ -21,25 +22,30 @@ target_metadata = Base.metadata
 def get_async_database_url() -> str:
     """
     Lấy Database URL từ biến môi trường DATABASE_URL hoặc Settings.
-    Tự động chuẩn hóa tiền tố sang postgresql+asyncpg:// cho Async Engine.
+    Chuẩn hóa sang postgresql+asyncpg:// và loại bỏ sslmode không hỗ trợ bởi asyncpg.
     """
     url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
     if not url:
         raise ValueError("DATABASE_URL is not set. Please configure it in your environment or .env file.")
-    cleaned = url.strip()
-    if cleaned.startswith("postgres://"):
-        cleaned = cleaned.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
-        cleaned = cleaned.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return cleaned
+
+    parsed = make_url(url.strip())
+
+    # Normalize driver
+    if parsed.drivername in {"postgres", "postgresql", "postgresql+psycopg2"}:
+        parsed = parsed.set(drivername="postgresql+asyncpg")
+
+    # asyncpg không dùng sslmode trong query string
+    query = dict(parsed.query)
+    query.pop("sslmode", None)
+    parsed = parsed.set(query=query)
+
+    return str(parsed)
 
 
 def get_sync_database_url() -> str:
-    """Lấy Database URL cho chế độ offline (loại bỏ +asyncpg driver)."""
+    """Lấy Database URL cho chế độ offline."""
     url = get_async_database_url()
-    if "+asyncpg" in url:
-        url = url.replace("+asyncpg", "")
-    return url
+    return url.replace("+asyncpg", "")
 
 
 def run_migrations_offline() -> None:
