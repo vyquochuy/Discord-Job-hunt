@@ -1,0 +1,13 @@
+name: Daily Job Ingestion Crawler
+on:
+  schedule:
+    - cron: "0 0 * * *" # Chạy 7:00 AM mỗi ngày (giờ VN)
+  workflow_dispatch:
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Batch Ingestion
+        run: |
+          curl -X POST "${{ secrets.BACKEND_API_URL }}/api/v1/jobs/daily-batch" \
+               -H "X-Internal-Secret: ${{ secrets.INTERNAL_API_SECRET }}"

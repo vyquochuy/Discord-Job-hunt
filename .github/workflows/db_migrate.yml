@@ -1,0 +1,33 @@
+name: Database Migration to Supabase
+
+on:
+  workflow_dispatch: # Cho phép bấm nút chạy thủ công trên web GitHub
+  push:
+    paths:
+      - "backend/alembic/**" # Tự động chạy khi có file migration mới
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Alembic Upgrade Head to Supabase
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd backend
+          python -m alembic upgrade head
