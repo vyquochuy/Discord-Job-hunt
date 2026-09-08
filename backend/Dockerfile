@@ -45,14 +45,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy toàn bộ Python packages đã build từ Stage 1
 COPY --from=builder /install /usr/local
 
+# Thiết lập non-root user theo chuẩn bảo mật Hugging Face Spaces (UID 1000)
+RUN useradd -m -u 1000 user
+
 WORKDIR /app
 
-# Copy mã nguồn backend
-COPY . /app
+# Copy mã nguồn backend và cấp quyền cho user 1000
+COPY --chown=user:user . /app
 
-# Khởi tạo thư mục lưu trữ PDF/Resume
-RUN mkdir -p /app/storage/resumes
+# Khởi tạo thư mục lưu trữ PDF/Resume và phân quyền ghi
+RUN mkdir -p /app/storage/resumes && chown -R user:user /app
+
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PORT=8000
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def normalize_database_url(cls, v: str) -> str:
-        """Tự động chuẩn hóa postgres:// hoặc postgresql:// sang postgresql+asyncpg://"""
+        """Tự động chuẩn hóa postgres:// hoặc postgresql:// sang postgresql+asyncpg:// và loại bỏ sslmode cho asyncpg."""
         if not v or not isinstance(v, str):
             return v
         cleaned = v.strip()
@@ -75,6 +75,9 @@ class Settings(BaseSettings):
             cleaned = cleaned.replace("postgres://", "postgresql+asyncpg://", 1)
         elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
             cleaned = cleaned.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if "sslmode=" in cleaned:
+            import re
+            cleaned = re.sub(r"[?&]sslmode=[^&]*", "", cleaned).rstrip("?")
         return cleaned
 
 

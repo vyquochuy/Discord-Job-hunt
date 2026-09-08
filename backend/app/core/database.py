@@ -10,12 +10,18 @@ from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 # Khởi tạo Async Engine cho PostgreSQL
+connect_args = {}
+db_url = settings.DATABASE_URL
+if "supabase.com" in db_url or "neon.tech" in db_url or "ssl=require" in db_url:
+    connect_args["ssl"] = "require"
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     echo=(settings.LOG_LEVEL.lower() == "debug"),
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    connect_args=connect_args,
 )
 
 # Async Session Factory

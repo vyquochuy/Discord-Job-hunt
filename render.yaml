@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: job-hunt-backend
+    runtime: docker
+    dockerContext: backend
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: INTERNAL_API_SECRET
+        generateValue: true
+      - key: ALLOWED_CORS_ORIGINS
+        value: "*"
+      - key: ADMIN_EMAIL
+        value: admin@example.com
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
