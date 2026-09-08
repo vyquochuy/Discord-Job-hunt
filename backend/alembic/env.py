@@ -4,8 +4,8 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection, make_url
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
 from app.core.database import Base
@@ -19,32 +19,30 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def get_async_database_url() -> str:
+def get_database_url() -> str:
     """
-    Lấy Database URL từ biến môi trường DATABASE_URL hoặc Settings.
-    Chuẩn hóa sang postgresql+asyncpg:// và loại bỏ sslmode không hỗ trợ bởi asyncpg.
+    Lấy DATABASE_URL từ env var (raw string, không qua make_url).
+    Tự chuẩn hóa prefix sang postgresql+asyncpg://.
     """
-    url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
-    if not url:
-        raise ValueError("DATABASE_URL is not set. Please configure it in your environment or .env file.")
-
-    parsed = make_url(url.strip())
-
-    # Normalize driver
-    if parsed.drivername in {"postgres", "postgresql", "postgresql+psycopg2"}:
-        parsed = parsed.set(drivername="postgresql+asyncpg")
-
-    # asyncpg không dùng sslmode trong query string
-    query = dict(parsed.query)
-    query.pop("sslmode", None)
-    parsed = parsed.set(query=query)
-
-    return str(parsed)
+    raw = os.getenv("DATABASE_URL") or settings.DATABASE_URL
+    if not raw:
+        raise ValueError("DATABASE_URL is not set.")
+    url = raw.strip()
+    # Normalize prefix
+    if url.startswith("postgres://"):
+        url = "postgresql+asyncpg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://") and "+" not in url.split("://")[0]:
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    # Remove sslmode from query string (asyncpg không hỗ trợ)
+    if "sslmode=" in url:
+        import re
+        url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?")
+    return url
 
 
 def get_sync_database_url() -> str:
-    """Lấy Database URL cho chế độ offline."""
-    url = get_async_database_url()
+    """Lấy Database URL cho chế độ offline (loại bỏ +asyncpg driver)."""
+    url = get_database_url()
     return url.replace("+asyncpg", "")
 
 
@@ -71,26 +69,24 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Chạy migrations ở chế độ online với Async Engine."""
-    configuration = config.get_section(config.config_ini_section, {})
-    db_url = get_async_database_url()
-    configuration["sqlalchemy.url"] = db_url
+    db_url = get_database_url()
 
-    # Với Supabase hoặc các host cloud PostgreSQL, asyncpg yêu cầu ssl='require'
+    # Với Supabase / Neon cloud: asyncpg cần ssl='require'
     connect_args = {}
-    if "supabase.com" in db_url or "pooler.supabase.com" in db_url or "neon.tech" in db_url:
+    if "supabase.com" in db_url or "neon.tech" in db_url:
         connect_args["ssl"] = "require"
 
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+    # Dùng create_async_engine trực tiếp — tránh make_url parse URL Supabase sai
+    engine = create_async_engine(
+        db_url,
         poolclass=pool.NullPool,
         connect_args=connect_args,
     )
 
-    async with connectable.connect() as connection:
+    async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
-    await connectable.dispose()
+    await engine.dispose()
 
 
 def run_migrations_online() -> None:
