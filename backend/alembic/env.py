@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
@@ -17,9 +18,33 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def get_async_database_url() -> str:
+    """
+    Lấy Database URL từ biến môi trường DATABASE_URL hoặc Settings.
+    Tự động chuẩn hóa tiền tố sang postgresql+asyncpg:// cho Async Engine.
+    """
+    url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
+    if not url:
+        raise ValueError("DATABASE_URL is not set. Please configure it in your environment or .env file.")
+    cleaned = url.strip()
+    if cleaned.startswith("postgres://"):
+        cleaned = cleaned.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
+        cleaned = cleaned.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return cleaned
+
+
+def get_sync_database_url() -> str:
+    """Lấy Database URL cho chế độ offline (loại bỏ +asyncpg driver)."""
+    url = get_async_database_url()
+    if "+asyncpg" in url:
+        url = url.replace("+asyncpg", "")
+    return url
+
+
 def run_migrations_offline() -> None:
     """Chạy migrations ở chế độ offline."""
-    url = settings.DATABASE_URL_SYNC
+    url = get_sync_database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -41,7 +66,7 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """Chạy migrations ở chế độ online với Async Engine."""
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    configuration["sqlalchemy.url"] = get_async_database_url()
 
     connectable = async_engine_from_config(
         configuration,

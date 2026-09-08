@@ -64,6 +64,19 @@ class Settings(BaseSettings):
 
         return cleaned
 
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        """Tự động chuẩn hóa postgres:// hoặc postgresql:// sang postgresql+asyncpg://"""
+        if not v or not isinstance(v, str):
+            return v
+        cleaned = v.strip()
+        if cleaned.startswith("postgres://"):
+            cleaned = cleaned.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
+            cleaned = cleaned.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return cleaned
+
 
     # Cơ sở dữ liệu (PostgreSQL + pgvector)
     POSTGRES_USER: str = "jobhunter"
