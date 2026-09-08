@@ -164,10 +164,8 @@ export async function testApiConnection() {
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
           <div><strong style="color: var(--color-text-primary);">Trạng thái API:</strong> <span style="color: var(--color-success); font-weight: 600;">Sẵn sàng (200 OK)</span></div>
           <div><strong style="color: var(--color-text-primary);">Độ trễ (Latency):</strong> <span>${health.latencyMs} ms</span></div>
-          <div><strong style="color: var(--color-text-primary);">PostgreSQL DB:</strong> <span style="color: ${health.data?.components?.database === 'connected' ? 'var(--color-success)' : 'var(--color-danger)'}; font-weight: 600;">${health.data?.components?.database || 'connected'}</span></div>
-          <div><strong style="color: var(--color-text-primary);">Redis Cache/Queue:</strong> <span style="color: ${health.data?.components?.redis === 'connected' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight: 600;">${health.data?.components?.redis || 'connected'}</span></div>
-          <div><strong style="color: var(--color-text-primary);">Phiên bản Backend:</strong> <span>v${health.data?.version || '1.0.0'}</span></div>
-          <div><strong style="color: var(--color-text-primary);">Môi trường:</strong> <span>${health.data?.environment || 'production'}</span></div>
+          <div><strong style="color: var(--color-text-primary);">Dịch vụ:</strong> <span>${health.data?.service || 'job-hunt-backend'}</span></div>
+          <div><strong style="color: var(--color-text-primary);">Liveness Probe:</strong> <span style="color: var(--color-success); font-weight: 600;">${health.data?.status || 'ok'}</span></div>
         </div>
       `;
     }

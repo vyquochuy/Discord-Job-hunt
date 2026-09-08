@@ -167,6 +167,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Lắng nghe trạng thái Backend waking (Render Free cold start)
+  let isWakingNoticeActive = false;
+  events.on(APP_EVENTS.BACKEND_WAKING, (detail) => {
+    if (!isWakingNoticeActive) {
+      isWakingNoticeActive = true;
+      const attempt = detail?.attempt || 1;
+      const maxAttempts = detail?.maxAttempts || 3;
+      showToast(`Máy chủ đang khởi động lại (Render cold start, thử lại ${attempt}/${maxAttempts}). Vui lòng đợi trong giây lát...`, 'info');
+      setTimeout(() => { isWakingNoticeActive = false; }, 6000);
+    }
+  });
+
+  events.on(APP_EVENTS.BACKEND_READY, () => {
+    if (isWakingNoticeActive) {
+      isWakingNoticeActive = false;
+      showToast('Máy chủ Backend đã sẵn sàng!', 'success');
+    }
+  });
+
   // 3. Đóng Auth Modal khi click vào vùng backdrop
   const authModalEl = document.getElementById('auth-modal');
   if (authModalEl) {

@@ -30,4 +30,6 @@ export const APP_EVENTS = {
   AUTH_LOGOUT: 'jh:auth_logout',
   PROFILE_UPDATED: 'jh:profile_updated',
   VIEW_CHANGED: 'jh:view_changed',
+  BACKEND_WAKING: 'jh:backend_waking',
+  BACKEND_READY: 'jh:backend_ready',
 };

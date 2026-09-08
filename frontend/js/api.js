@@ -137,6 +137,46 @@ class ApiClient {
     return headers;
   }
 
+  async executeFetch(url, options, headers, timeoutMs) {
+    const controller = new AbortController();
+    let timeoutId = null;
+    let didTimeout = false;
+
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        didTimeout = true;
+        controller.abort();
+      }, timeoutMs);
+    }
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (err) {
+      if (didTimeout || err.name === 'AbortError') {
+        const timeoutErr = new Error('Yêu cầu hết thời gian chờ (Backend cold start / Network timeout).');
+        timeoutErr.name = 'TimeoutError';
+        timeoutErr.isTimeout = true;
+        throw timeoutErr;
+      }
+      throw err;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
   async request(endpoint, options = {}) {
     let url;
     if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
@@ -146,40 +186,113 @@ class ApiClient {
       url = `${this.baseUrl}${cleanEndpoint}`;
     }
 
-    const headers = this.getHeaders(options.headers);
-    
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+    const method = (options.method || 'GET').toUpperCase();
+    const isSafeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const canRetry = isSafeMethod || options.safeRetry === true;
+    const maxRetries = canRetry ? (options.maxRetries !== undefined ? options.maxRetries : 2) : 0;
+    const timeoutMs = options.timeout !== undefined ? options.timeout : 25000;
 
-      if (response.status === 401) {
-        console.warn('Unauthorized request — user session might be expired or missing.');
-        if (this.token && typeof window !== 'undefined') {
-          this.setToken(null);
-          window.dispatchEvent(new CustomEvent('jh:auth_expired'));
+    let lastError = null;
+    let hadTransientFailure = false;
+
+    for (let attempt = 1; attempt <= 1 + maxRetries; attempt++) {
+      const headers = this.getHeaders(options.headers);
+
+      try {
+        const response = await this.executeFetch(url, options, headers, timeoutMs);
+
+        if (response.status === 401) {
+          console.warn('Unauthorized request — user session might be expired or missing.');
+          if (this.token && typeof window !== 'undefined') {
+            this.setToken(null);
+            window.dispatchEvent(new CustomEvent('jh:auth_expired'));
+          }
         }
-      }
 
-      if (!response.ok) {
-        let errorMsg = `HTTP Error ${response.status}`;
-        try {
-          const errData = await response.json();
-          errorMsg = errData.detail || errData.message || errorMsg;
-        } catch (_) {}
-        throw new Error(errorMsg);
-      }
+        // Lỗi gateway / cold-start 502/503/504
+        if ([502, 503, 504].includes(response.status)) {
+          hadTransientFailure = true;
+          if (attempt <= maxRetries) {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('jh:backend_waking', {
+                detail: { attempt, maxAttempts: 1 + maxRetries, status: response.status }
+              }));
+            }
+            const backoffMs = Math.min(1500 * Math.pow(2, attempt - 1), 5000);
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            continue;
+          }
 
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+          const err = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
+          err.isBackendWaking = true;
+          err.status = response.status;
+          throw err;
+        }
+
+        // Lỗi ứng dụng (400, 403, 404, 422, 500...)
+        if (!response.ok) {
+          let errorMsg = `HTTP Error ${response.status}`;
+          try {
+            const errData = await response.json();
+            errorMsg = errData.detail || errData.message || errorMsg;
+          } catch (_) {}
+          const appErr = new Error(errorMsg);
+          appErr.status = response.status;
+          throw appErr;
+        }
+
+        if (hadTransientFailure && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('jh:backend_ready'));
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        return await response.text();
+      } catch (err) {
+        lastError = err;
+
+        // Nếu là lỗi ứng dụng (status < 500), rethrow ngay lập tức
+        if (err.status && err.status < 500) {
+          throw err;
+        }
+
+        const isTransientNetwork = err.isTimeout ||
+                                   err.name === 'TimeoutError' ||
+                                   err.name === 'AbortError' ||
+                                   err.name === 'TypeError' ||
+                                   (err.message && (
+                                     err.message.includes('fetch') ||
+                                     err.message.includes('network') ||
+                                     err.message.includes('NetworkError') ||
+                                     err.message.includes('Failed to fetch')
+                                   ));
+
+        if (isTransientNetwork && canRetry && attempt <= maxRetries) {
+          hadTransientFailure = true;
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('jh:backend_waking', {
+              detail: { attempt, maxAttempts: 1 + maxRetries }
+            }));
+          }
+          const backoffMs = Math.min(1500 * Math.pow(2, attempt - 1), 5000);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        if (isTransientNetwork) {
+          const friendlyErr = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
+          friendlyErr.isBackendWaking = true;
+          friendlyErr.status = 503;
+          throw friendlyErr;
+        }
+
+        throw err;
       }
-      return await response.text();
-    } catch (err) {
-      console.error(`API Error [${options.method || 'GET'} ${endpoint}] -> ${url}:`, err);
-      throw err;
     }
+
+    throw lastError || new Error('Yêu cầu không thành công');
   }
 
   // --- Health Check & Ping ---
@@ -213,7 +326,7 @@ class ApiClient {
 
       const data = await response.json();
       return {
-        healthy: data.status === 'healthy',
+        healthy: data.status === 'ok' || data.status === 'healthy' || data.status === 'ready',
         status: response.status,
         latencyMs,
         data,
@@ -222,6 +335,44 @@ class ApiClient {
       const latencyMs = Math.round(performance.now() - startTime);
       return {
         healthy: false,
+        status: 0,
+        latencyMs,
+        error: err.message || 'Không thể kết nối tới máy chủ Backend',
+      };
+    }
+  }
+
+  // --- Database Readiness Probe ---
+  async checkReadiness() {
+    const startTime = performance.now();
+    let readyUrl;
+    
+    if (this.baseUrl.startsWith('http://') || this.baseUrl.startsWith('https://')) {
+      const rootBase = this.baseUrl.replace(/\/api\/v1\/?$/, '');
+      readyUrl = `${rootBase}/health/ready`;
+    } else {
+      readyUrl = '/health/ready';
+    }
+
+    try {
+      const response = await fetch(readyUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-cache',
+      });
+      const latencyMs = Math.round(performance.now() - startTime);
+      const data = await response.json().catch(() => ({}));
+      
+      return {
+        ready: response.status === 200 && data.status === 'ready',
+        status: response.status,
+        latencyMs,
+        data,
+      };
+    } catch (err) {
+      const latencyMs = Math.round(performance.now() - startTime);
+      return {
+        ready: false,
         status: 0,
         latencyMs,
         error: err.message || 'Không thể kết nối tới máy chủ Backend',

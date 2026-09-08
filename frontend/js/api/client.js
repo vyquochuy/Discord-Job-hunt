@@ -139,7 +139,47 @@ export class ApiClient {
     return headers;
   }
 
-  async request(endpoint, options = {}, isRetry = false) {
+  async executeFetch(url, options, headers, timeoutMs) {
+    const controller = new AbortController();
+    let timeoutId = null;
+    let didTimeout = false;
+
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        didTimeout = true;
+        controller.abort();
+      }, timeoutMs);
+    }
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (err) {
+      if (didTimeout || err.name === 'AbortError') {
+        const timeoutErr = new Error('Yêu cầu hết thời gian chờ (Backend cold start / Network timeout).');
+        timeoutErr.name = 'TimeoutError';
+        timeoutErr.isTimeout = true;
+        throw timeoutErr;
+      }
+      throw err;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  async request(endpoint, options = {}, isAuthRetry = false) {
     let url;
     if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
       url = endpoint;
@@ -148,63 +188,134 @@ export class ApiClient {
       url = `${this.baseUrl}${cleanEndpoint}`;
     }
 
-    const headers = this.getHeaders(options.headers);
-    
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+    const method = (options.method || 'GET').toUpperCase();
+    const isSafeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const canRetry = isSafeMethod || options.safeRetry === true;
+    const maxRetries = canRetry ? (options.maxRetries !== undefined ? options.maxRetries : 2) : 0;
+    const timeoutMs = options.timeout !== undefined ? options.timeout : 25000;
 
-      // Tự động làm mới phiên với Refresh Token Mutex Queue khi gặp 401
-      if (response.status === 401) {
-        const isAuthEndpoint = endpoint.includes('/auth/login') ||
-                               endpoint.includes('/auth/register') ||
-                               endpoint.includes('/auth/refresh');
+    let lastError = null;
+    let hadTransientFailure = false;
 
-        if (!isRetry && !isAuthEndpoint && this.refreshToken) {
-          try {
-            console.info('Access token expired, triggering automatic refresh with mutex...');
-            await this.refreshAuthToken();
-            // Thử lại request gốc với access token vừa được làm mới
-            return await this.request(endpoint, options, true);
-          } catch (refreshErr) {
-            console.warn('Token refresh failed, session terminated:', refreshErr);
-          }
-        } else {
-          console.warn('Unauthorized request — user session might be expired or missing.');
-          if (this.token || this.refreshToken) {
-            this.token = null;
-            this.refreshToken = null;
-            if (typeof localStorage !== 'undefined') {
-              localStorage.removeItem('jh_access_token');
-              localStorage.removeItem('jh_refresh_token');
+    for (let attempt = 1; attempt <= 1 + maxRetries; attempt++) {
+      const headers = this.getHeaders(options.headers);
+
+      try {
+        const response = await this.executeFetch(url, options, headers, timeoutMs);
+
+        // 401 Unauthorized: Refresh Token Mutex Queue (Không retry vô hạn, chỉ 1 lần qua isAuthRetry)
+        if (response.status === 401) {
+          const isAuthEndpoint = endpoint.includes('/auth/login') ||
+                                 endpoint.includes('/auth/register') ||
+                                 endpoint.includes('/auth/refresh');
+
+          if (!isAuthRetry && !isAuthEndpoint && this.refreshToken) {
+            try {
+              console.info('Access token expired, triggering automatic refresh with mutex...');
+              await this.refreshAuthToken();
+              return await this.request(endpoint, options, true);
+            } catch (refreshErr) {
+              console.warn('Token refresh failed, session terminated:', refreshErr);
             }
-            events.emit(APP_EVENTS.AUTH_EXPIRED);
+          } else {
+            console.warn('Unauthorized request — user session might be expired or missing.');
+            if (this.token || this.refreshToken) {
+              this.token = null;
+              this.refreshToken = null;
+              if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('jh_access_token');
+                localStorage.removeItem('jh_refresh_token');
+              }
+              events.emit(APP_EVENTS.AUTH_EXPIRED);
+            }
           }
         }
-      }
 
-      if (!response.ok) {
-        let errorMsg = `HTTP Error ${response.status}`;
-        try {
-          const errData = await response.json();
-          errorMsg = errData.detail || errData.message || errorMsg;
-        } catch (_) {}
-        throw new Error(errorMsg);
-      }
+        // Kiểm tra lỗi tạm thời 502/503/504 từ Render / Gateway khi cold start
+        if ([502, 503, 504].includes(response.status)) {
+          hadTransientFailure = true;
+          if (attempt <= maxRetries) {
+            events.emit(APP_EVENTS.BACKEND_WAKING, {
+              attempt,
+              maxAttempts: 1 + maxRetries,
+              status: response.status,
+            });
+            const backoffMs = Math.min(1500 * Math.pow(2, attempt - 1), 5000);
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            continue;
+          }
 
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+          const err = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
+          err.isBackendWaking = true;
+          err.status = response.status;
+          throw err;
+        }
+
+        // Xử lý các lỗi ứng dụng khác (400, 403, 404, 422, 500...) — TUYỆT ĐỐI KHÔNG coi là backend waking
+        if (!response.ok) {
+          let errorMsg = `HTTP Error ${response.status}`;
+          try {
+            const errData = await response.json();
+            errorMsg = errData.detail || errData.message || errorMsg;
+          } catch (_) {}
+          const appErr = new Error(errorMsg);
+          appErr.status = response.status;
+          throw appErr;
+        }
+
+        // Nếu trước đó có retry do lỗi tạm thời và lần này thành công, thông báo backend sẵn sàng
+        if (hadTransientFailure) {
+          events.emit(APP_EVENTS.BACKEND_READY);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        return await response.text();
+      } catch (err) {
+        lastError = err;
+
+        // Nếu là lỗi ứng dụng (400, 401, 403, 404, 422...) đã throw có status, rethrow ngay lập tức không retry
+        if (err.status && err.status < 500) {
+          throw err;
+        }
+
+        // Kiểm tra lỗi mạng / timeout
+        const isTransientNetwork = err.isTimeout ||
+                                   err.name === 'TimeoutError' ||
+                                   err.name === 'AbortError' ||
+                                   err.name === 'TypeError' ||
+                                   (err.message && (
+                                     err.message.includes('fetch') ||
+                                     err.message.includes('network') ||
+                                     err.message.includes('NetworkError') ||
+                                     err.message.includes('Failed to fetch')
+                                   ));
+
+        if (isTransientNetwork && canRetry && attempt <= maxRetries) {
+          hadTransientFailure = true;
+          events.emit(APP_EVENTS.BACKEND_WAKING, {
+            attempt,
+            maxAttempts: 1 + maxRetries,
+          });
+          const backoffMs = Math.min(1500 * Math.pow(2, attempt - 1), 5000);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        if (isTransientNetwork) {
+          const friendlyErr = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
+          friendlyErr.isBackendWaking = true;
+          friendlyErr.status = 503;
+          throw friendlyErr;
+        }
+
+        throw err;
       }
-      return await response.text();
-    } catch (err) {
-      if (!isRetry) {
-        console.error(`API Error [${options.method || 'GET'} ${endpoint}] -> ${url}:`, err);
-      }
-      throw err;
     }
+
+    throw lastError || new Error('Yêu cầu không thành công');
   }
 
 

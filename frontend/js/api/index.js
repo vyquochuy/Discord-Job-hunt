@@ -66,6 +66,7 @@ export const api = {
 
   // System
   checkHealth: systemApi.checkHealth,
+  checkReadiness: systemApi.checkReadiness,
   purgeDatabase: systemApi.purgeDatabase,
   resetDemo: systemApi.resetDemo,
 };

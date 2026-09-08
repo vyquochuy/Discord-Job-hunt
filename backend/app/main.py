@@ -22,6 +22,19 @@ logging.basicConfig(
 logger = logging.getLogger("backend")
 
 
+# Observability: Lọc bớt access log định kỳ của /health khi trả về 200 OK để tránh làm tràn log trên Render Free
+class HealthAccessFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if " 200 " in msg or " 200" in msg:
+            if '"GET /health ' in msg or '"HEAD /health ' in msg or " /health " in msg:
+                return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(HealthAccessFilter())
+
+
 async def ensure_admin_superuser():
     """Tự động kiểm tra và khởi tạo tài khoản Superuser cấu hình khi khởi động ứng dụng."""
     try:
@@ -227,6 +240,7 @@ async def root(request: Request):
             "environment": settings.ENVIRONMENT,
             "docs": "/docs",
             "health": "/health",
+            "ready": "/health/ready",
             "web_app": "/static/index.html" if index_file.exists() else None,
         }
     
@@ -240,48 +254,63 @@ async def root(request: Request):
         "environment": settings.ENVIRONMENT,
         "docs": "/docs",
         "health": "/health",
+        "ready": "/health/ready",
         "web_app": None,
     }
 
 
 @app.api_route("/health", methods=["GET", "HEAD"], tags=["system"])
-async def health_check(request: Request):
+async def liveness_health_check(request: Request):
     """
-    Endpoint kiểm tra sức khỏe hệ thống:
-    - Trạng thái FastAPI Backend & Database (core readiness)
-    - Trạng thái kết nối Redis Queue/Cache (optional / background)
+    Lightweight Liveness probe:
+    - Trả về HTTP 200 khi tiến trình FastAPI backend đang hoạt động.
+    - TUYỆT ĐỐI KHÔNG truy vấn PostgreSQL, Redis hoặc gọi external APIs.
+    - Phục vụ Render liveness healthcheck và phát hiện cold-start từ frontend.
     """
     if request.method == "HEAD":
         return Response(status_code=status.HTTP_200_OK)
 
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "ok",
+            "service": "job-hunt-backend",
+        }
+    )
+
+
+@app.api_route("/health/ready", methods=["GET", "HEAD"], tags=["system"])
+async def readiness_health_check(request: Request):
+    """
+    Readiness probe:
+    - Xác nhận core dependencies (PostgreSQL database) đã sẵn sàng phục vụ lưu lượng.
+    - Thực thi truy vấn tối thiểu SELECT 1 thông qua connection pool async hiện có.
+    - Trả về HTTP 200 khi sẵn sàng, HTTP 503 Service Unavailable khi mất kết nối DB.
+    - An toàn bảo mật: Tuyệt đối KHÔNG rò rỉ chuỗi kết nối, credentials hay stack traces.
+    """
     db_healthy = await check_db_health()
 
-    redis_healthy = False
-    try:
-        r = aioredis.from_url(settings.REDIS_URL, socket_timeout=1.0)
-        redis_healthy = await r.ping()
-        await r.aclose()
-    except Exception as e:
-        logger.debug(f"Redis health check optional ping failed: {e}")
-        redis_healthy = False
+    if not db_healthy:
+        if request.method == "HEAD":
+            return Response(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "not_ready",
+                "database": "unavailable",
+            }
+        )
 
-    # Core API hoạt động bình thường khi Database kết nối thành công (Redis là phụ trợ background)
-    is_core_healthy = db_healthy
-    http_status = status.HTTP_200_OK if is_core_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    if request.method == "HEAD":
+        return Response(status_code=status.HTTP_200_OK)
 
-    response_data = {
-        "status": "healthy" if (db_healthy and redis_healthy) else ("degraded" if db_healthy else "unhealthy"),
-        "timestamp": time.time(),
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT,
-        "components": {
-            "api": "healthy",
-            "database": "connected" if db_healthy else "disconnected",
-            "redis": "connected" if redis_healthy else "disconnected",
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "ready",
+            "database": "ok",
         }
-    }
-
-    return JSONResponse(status_code=http_status, content=response_data)
+    )
 
 
 # Gắn router API v1

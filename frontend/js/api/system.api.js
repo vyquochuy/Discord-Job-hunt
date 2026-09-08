@@ -35,7 +35,7 @@ export async function checkHealth() {
 
     const data = await response.json();
     return {
-      healthy: data.status === 'healthy',
+      healthy: data.status === 'ok' || data.status === 'healthy' || data.status === 'ready',
       status: response.status,
       latencyMs,
       data,
@@ -44,6 +44,44 @@ export async function checkHealth() {
     const latencyMs = Math.round(performance.now() - startTime);
     return {
       healthy: false,
+      status: 0,
+      latencyMs,
+      error: err.message || 'Không thể kết nối tới máy chủ Backend',
+    };
+  }
+}
+
+export async function checkReadiness() {
+  const startTime = performance.now();
+  let readyUrl;
+  const baseUrl = client.getBaseUrl();
+
+  if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
+    const rootBase = baseUrl.replace(/\/api\/v1\/?$/, '');
+    readyUrl = `${rootBase}/health/ready`;
+  } else {
+    readyUrl = '/health/ready';
+  }
+
+  try {
+    const response = await fetch(readyUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-cache',
+    });
+    const latencyMs = Math.round(performance.now() - startTime);
+    const data = await response.json().catch(() => ({}));
+
+    return {
+      ready: response.status === 200 && data.status === 'ready',
+      status: response.status,
+      latencyMs,
+      data,
+    };
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - startTime);
+    return {
+      ready: false,
       status: 0,
       latencyMs,
       error: err.message || 'Không thể kết nối tới máy chủ Backend',

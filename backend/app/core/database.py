@@ -1,3 +1,4 @@
+import logging
 from typing import AsyncGenerator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
+
+logger = logging.getLogger("backend.database")
 
 # Khởi tạo Async Engine cho PostgreSQL
 connect_args = {}
@@ -49,10 +52,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def check_db_health() -> bool:
-    """Kiểm tra kết nối thực tế tới PostgreSQL."""
+    """Kiểm tra kết nối thực tế tới PostgreSQL (an toàn, không rò rỉ thông tin hay credentials)."""
     try:
         async with AsyncSessionLocal() as session:
             result = await session.execute(text("SELECT 1"))
             return result.scalar() == 1
-    except Exception:
+    except Exception as e:
+        logger.error(f"Database readiness check failed: {type(e).__name__}")
         return False
