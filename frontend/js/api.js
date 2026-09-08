@@ -13,26 +13,35 @@
  * 5. File protocol auto-detection (if on file:// -> http://localhost:8000/api/v1)
  * 6. Default relative path (`/api/v1`)
  */
+function normalizeBaseUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  let cleaned = url.trim().replace(/\/+$/, '');
+  if (!cleaned.endsWith('/api/v1') && !cleaned.includes('/api/')) {
+    cleaned += '/api/v1';
+  }
+  return cleaned;
+}
+
 function resolveApiBaseUrl() {
   // 1. localStorage override
   try {
     const saved = localStorage.getItem('jh_api_base');
     if (saved && saved.trim()) {
-      return saved.trim().replace(/\/+$/, '');
+      return normalizeBaseUrl(saved);
     }
   } catch (_) {}
 
   // 2. window.ENV / runtime config
   const envUrl = window.ENV?.API_URL || window.__RUNTIME_CONFIG__?.API_URL || window.API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
+    return normalizeBaseUrl(envUrl);
   }
 
   // 3. Meta tag
   if (typeof document !== 'undefined') {
     const metaTag = document.querySelector('meta[name="api-base"]');
     if (metaTag && metaTag.content && metaTag.content.trim()) {
-      return metaTag.content.trim().replace(/\/+$/, '');
+      return normalizeBaseUrl(metaTag.content);
     }
   }
 

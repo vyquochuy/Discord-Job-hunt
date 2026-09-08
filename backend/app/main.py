@@ -282,6 +282,10 @@ async def health_check(request: Request):
 # Gắn router API v1
 app.include_router(api_router, prefix="/api/v1")
 
+# Hỗ trợ alias tương thích nếu client gọi thẳng /auth/... thay vì /api/v1/auth/...
+from app.api.v1.endpoints import auth
+app.include_router(auth.router, prefix="/auth", include_in_schema=False)
+
 
 FRONTEND_ROUTES = {
     "dashboard",
