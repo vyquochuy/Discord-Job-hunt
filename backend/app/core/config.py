@@ -30,9 +30,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30    # 30 ngày cho refresh token
     ROTATION_GRACE_PERIOD_SECONDS: int = 15  # Cửa sổ ân hạn concurrency chống duplicate refresh
     DISCORD_WEBHOOK_URL: Optional[str] = None
-    ADMIN_NAME: str = "Administrator"
-    ADMIN_EMAIL: str = "admin@example.com"
-    ADMIN_INITIAL_PASSWORD: str = "Admin@123456"
+    ADMIN_NAME: str = "Quoc Huy"
+    ADMIN_EMAIL: str = "vyquochuy3005@gmail.com"
+    ADMIN_INITIAL_PASSWORD: Optional[str] = None
     MAX_RESUME_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     @field_validator("JWT_SECRET_KEY", "INTERNAL_API_SECRET", mode="after")

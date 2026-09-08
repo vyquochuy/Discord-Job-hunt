@@ -34,26 +34,43 @@ async def ensure_admin_superuser():
 
         admin_email = settings.ADMIN_EMAIL.lower().strip()
         async with AsyncSessionLocal() as session:
+            # 1. Xóa hoàn toàn tài khoản mặc định admin@example.com nếu tồn tại trong Database
+            if admin_email != "admin@example.com":
+                from sqlalchemy import delete
+                old_admin_res = await session.execute(select(User).where(User.email == "admin@example.com"))
+                old_admin = old_admin_res.scalar_one_or_none()
+                if old_admin:
+                    await session.execute(delete(Candidate).where(Candidate.user_id == old_admin.id))
+                    await session.execute(delete(User).where(User.id == old_admin.id))
+                    logger.info("Purged deprecated default 'admin@example.com' account from database.")
+
+            # 2. Khởi tạo hoặc cập nhật tài khoản Admin theo cấu hình
             stmt = select(User).where(User.email == admin_email)
             result = await session.execute(stmt)
             admin_user = result.scalar_one_or_none()
 
+            admin_name = getattr(settings, "ADMIN_NAME", "Quoc Huy")
             if not admin_user:
-                admin_user = User(
-                    id=uuid.uuid4(),
-                    email=admin_email,
-                    hashed_password=get_password_hash(settings.ADMIN_INITIAL_PASSWORD),
-                    full_name=os.getenv("ADMIN_NAME", "Administrator"),
-                    is_active=True,
-                    is_superuser=True,
-                )
-                session.add(admin_user)
-                await session.flush()
-                logger.info(f"Initialized Superuser account: {admin_email}")
+                if settings.ADMIN_INITIAL_PASSWORD:
+                    admin_user = User(
+                        id=uuid.uuid4(),
+                        email=admin_email,
+                        hashed_password=get_password_hash(settings.ADMIN_INITIAL_PASSWORD),
+                        full_name=admin_name,
+                        is_active=True,
+                        is_superuser=True,
+                    )
+                    session.add(admin_user)
+                    await session.flush()
+                    logger.info(f"Initialized Superuser account: {admin_email}")
+                else:
+                    logger.info(f"Superuser account '{admin_email}' not created yet. Provide ADMIN_INITIAL_PASSWORD env var or insert directly via SQL.")
+                    return
             else:
-                if not admin_user.is_superuser:
-                    admin_user.is_superuser = True
-                    logger.info(f"Updated {admin_email} to Superuser status.")
+                admin_user.is_superuser = True
+                if settings.ADMIN_INITIAL_PASSWORD:
+                    admin_user.hashed_password = get_password_hash(settings.ADMIN_INITIAL_PASSWORD)
+                logger.info(f"Updated credentials and Superuser status for: {admin_email}")
 
             cand_stmt = select(Candidate).where((Candidate.user_id == admin_user.id) | (Candidate.user_id.is_(None))).order_by(Candidate.created_at.asc()).limit(1)
             cand_res = await session.execute(cand_stmt)

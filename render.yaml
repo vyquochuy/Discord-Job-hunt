@@ -19,7 +19,7 @@ services:
       - key: ALLOWED_CORS_ORIGINS
         value: "http://localhost:3000,http://localhost:5173"
       - key: ADMIN_EMAIL
-        value: admin@example.com
+        value: vyquochuy3005@gmail.com
       - key: ADMIN_INITIAL_PASSWORD
         sync: false
       - key: OPENAI_API_KEY
