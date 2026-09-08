@@ -72,19 +72,19 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """Chạy migrations ở chế độ online với Async Engine."""
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = get_async_database_url()
+    db_url = get_async_database_url()
+    configuration["sqlalchemy.url"] = db_url
 
-    # Cấu hình SSL context cho kết nối cloud (Supabase / Neon pooler)
-    import ssl
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    # Với Supabase hoặc các host cloud PostgreSQL, asyncpg yêu cầu ssl='require'
+    connect_args = {}
+    if "supabase.com" in db_url or "pooler.supabase.com" in db_url or "neon.tech" in db_url:
+        connect_args["ssl"] = "require"
 
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args={"ssl": ssl_context},
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:
