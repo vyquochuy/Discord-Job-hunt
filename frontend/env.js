@@ -1,11 +1,10 @@
 /**
  * Job Hunter Platform — Runtime Environment Configuration
  * 
- * Default configuration: empty API_URL enables automatic resolution
- * (uses localStorage override, meta tag, dev port fallback, or relative /api/v1).
+ * Default configuration: points to Render production backend API.
  */
 
 window.ENV = window.ENV || {
-  API_URL: '',
+  API_URL: 'https://job-hunt-backend-0hrl.onrender.com',
   ENVIRONMENT: 'production',
 };

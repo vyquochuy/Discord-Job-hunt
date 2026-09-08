@@ -106,14 +106,31 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 cors_origins = [
     origin.strip()
     for origin in settings.ALLOWED_CORS_ORIGINS.split(",")
-    if origin.strip()
+    if origin.strip() and origin.strip() != "*"
 ]
+
+# Whitelist các domain cục bộ và domain Vercel cụ thể
+default_allowed = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000",
+]
+for origin in default_allowed:
+    if origin not in cors_origins:
+        cors_origins.append(origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins if cors_origins else ["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=cors_origins,
+    # Cho phép tất cả subdomain an toàn thuộc về vercel.app (production & preview deployments)
+    allow_origin_regex=r"^https://[a-zA-Z0-9_-]+\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-Internal-Secret", "Accept", "Origin", "X-Requested-With"],
+    expose_headers=["Content-Disposition", "Content-Length"],
+    max_age=86400,  # Cache kết quả Preflight OPTIONS 24 giờ để giảm request tải server
 )
 
 
