@@ -1,14 +1,15 @@
 name: Database Migration to Supabase
 
 on:
-  workflow_dispatch: # Cho phép bấm nút chạy thủ công trên web GitHub
+  workflow_dispatch:
   push:
     paths:
-      - "backend/alembic/**" # Tự động chạy khi có file migration mới
+      - "backend/alembic/**"
 
 jobs:
   migrate:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -22,12 +23,244 @@ jobs:
       - name: Install Dependencies
         run: |
           cd backend
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Alembic Upgrade Head to Supabase
+      # ============================================================
+      # 1. Inspect DATABASE_URL safely
+      # ============================================================
+      - name: Debug Database URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          url = os.environ.get("DATABASE_URL")
+
+          if not url:
+              print("❌ DATABASE_URL is empty or not configured")
+              raise SystemExit(1)
+
+          parsed = urlparse(url)
+
+          print("=== DATABASE CONFIG ===")
+          print(f"Scheme : {parsed.scheme}")
+          print(f"Host   : {parsed.hostname}")
+          print(f"Port   : {parsed.port}")
+          print(f"DB     : {parsed.path}")
+          print(f"User   : {parsed.username}")
+          print(f"Password configured: {'YES' if parsed.password else 'NO'}")
+          print("=======================")
+          PY
+
+      # ============================================================
+      # 2. DNS resolution
+      # ============================================================
+      - name: Debug DNS Resolution
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          import socket
+          from urllib.parse import urlparse
+
+          url = os.environ["DATABASE_URL"]
+          host = urlparse(url).hostname
+
+          print(f"=== DNS RESOLUTION ===")
+          print(f"Host: {host}")
+          print()
+
+          try:
+              addresses = socket.getaddrinfo(
+                  host,
+                  None,
+                  socket.AF_UNSPEC,
+                  socket.SOCK_STREAM
+              )
+
+              seen = set()
+
+              for family, socktype, proto, canonname, sockaddr in addresses:
+                  ip = sockaddr[0]
+
+                  if ip in seen:
+                      continue
+
+                  seen.add(ip)
+
+                  if family == socket.AF_INET:
+                      print(f"IPv4: {ip}")
+                  elif family == socket.AF_INET6:
+                      print(f"IPv6: {ip}")
+
+              if not seen:
+                  print("❌ No IP addresses returned")
+                  raise SystemExit(1)
+
+          except Exception as e:
+              print(f"❌ DNS resolution failed: {e}")
+              raise
+          PY
+
+      # ============================================================
+      # 3. Test IPv4 / IPv6 TCP connectivity
+      # ============================================================
+      - name: Debug TCP Connectivity
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          import socket
+          from urllib.parse import urlparse
+
+          url = os.environ["DATABASE_URL"]
+          parsed = urlparse(url)
+
+          host = parsed.hostname
+          port = parsed.port or 5432
+
+          print("=== TCP CONNECTIVITY ===")
+          print(f"Target: {host}:{port}")
+          print()
+
+          try:
+              addresses = socket.getaddrinfo(
+                  host,
+                  port,
+                  socket.AF_UNSPEC,
+                  socket.SOCK_STREAM
+              )
+          except Exception as e:
+              print(f"❌ getaddrinfo failed: {e}")
+              raise SystemExit(1)
+
+          tested = set()
+
+          for family, socktype, proto, canonname, sockaddr in addresses:
+              ip = sockaddr[0]
+
+              if ip in tested:
+                  continue
+
+              tested.add(ip)
+
+              protocol = (
+                  "IPv4"
+                  if family == socket.AF_INET
+                  else "IPv6"
+              )
+
+              print(f"Testing {protocol}: {ip}:{port}")
+
+              try:
+                  with socket.socket(family, socket.SOCK_STREAM) as sock:
+                      sock.settimeout(10)
+                      sock.connect(sockaddr)
+
+                  print(f"  ✅ TCP connection successful")
+
+              except socket.timeout:
+                  print(f"  ❌ TIMEOUT")
+
+              except OSError as e:
+                  print(f"  ❌ OS ERROR: {e}")
+                  print(f"     errno: {e.errno}")
+
+              except Exception as e:
+                  print(f"  ❌ ERROR: {e}")
+
+              print()
+
+          print("TCP diagnostic complete.")
+          PY
+
+      # ============================================================
+      # 4. Test PostgreSQL SSL connection
+      # ============================================================
+      - name: Debug PostgreSQL SSL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          import ssl
+          from urllib.parse import urlparse
+
+          import asyncpg
+
+          url = os.environ["DATABASE_URL"]
+          parsed = urlparse(url)
+
+          host = parsed.hostname
+          port = parsed.port or 5432
+          user = parsed.username
+          password = parsed.password
+          database = parsed.path.lstrip("/")
+
+          print("=== POSTGRESQL SSL TEST ===")
+          print(f"Host    : {host}")
+          print(f"Port    : {port}")
+          print(f"Database: {database}")
+          print(f"User    : {user}")
+          print()
+
+          async def test():
+              try:
+                  ssl_context = ssl.create_default_context()
+
+                  print("Attempting asyncpg SSL connection...")
+
+                  conn = await asyncpg.connect(
+                      host=host,
+                      port=port,
+                      user=user,
+                      password=password,
+                      database=database,
+                      ssl=ssl_context,
+                      timeout=15,
+                  )
+
+                  print("✅ PostgreSQL SSL connection successful")
+
+                  result = await conn.fetchval(
+                      "SELECT version();"
+                  )
+
+                  print("PostgreSQL version:")
+                  print(result)
+
+                  await conn.close()
+
+                  print("✅ PostgreSQL connection closed cleanly")
+
+              except Exception as e:
+                  print(f"❌ PostgreSQL connection failed")
+                  print(f"Exception type: {type(e).__name__}")
+                  print(f"Exception     : {e}")
+                  raise
+
+          asyncio.run(test())
+          PY
+
+      # ============================================================
+      # 5. Run Alembic only if all diagnostics pass
+      # ============================================================
+      - name: Run Alembic Upgrade Head
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           cd backend
+
+          echo "=== RUNNING ALEMBIC MIGRATION ==="
+
+          python -m alembic current
           python -m alembic upgrade head
+          python -m alembic current
+
+          echo "✅ Migration completed successfully"
