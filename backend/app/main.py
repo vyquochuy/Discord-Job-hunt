@@ -68,9 +68,14 @@ async def ensure_admin_superuser():
                     return
             else:
                 admin_user.is_superuser = True
-                if settings.ADMIN_INITIAL_PASSWORD:
+                # NOTE: Không overwrite password mỗi lần restart!
+                # Chỉ set password lần đầu tạo user. Sau đó password được quản lý qua API.
+                # Nếu muốn reset password, dùng ADMIN_FORCE_RESET_PASSWORD=true env var.
+                if settings.ADMIN_INITIAL_PASSWORD and os.getenv("ADMIN_FORCE_RESET_PASSWORD", "").lower() == "true":
                     admin_user.hashed_password = get_password_hash(settings.ADMIN_INITIAL_PASSWORD)
-                logger.info(f"Updated credentials and Superuser status for: {admin_email}")
+                    logger.info(f"Force-reset password for Superuser: {admin_email}")
+                else:
+                    logger.info(f"Updated Superuser status for: {admin_email} (password unchanged)")
 
             cand_stmt = select(Candidate).where((Candidate.user_id == admin_user.id) | (Candidate.user_id.is_(None))).order_by(Candidate.created_at.asc()).limit(1)
             cand_res = await session.execute(cand_stmt)
