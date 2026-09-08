@@ -4,7 +4,7 @@ import logging
 import traceback
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -171,9 +171,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 
-@app.get("/", tags=["system"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["system"])
 async def root(request: Request):
     """Serve Web Application chính hoặc JSON info nếu request header là application/json thuần túy."""
+    if request.method == "HEAD":
+        return Response(status_code=status.HTTP_200_OK)
+
     index_file = frontend_dir / "index.html"
     accept_header = request.headers.get("accept", "")
     
@@ -202,30 +205,33 @@ async def root(request: Request):
     }
 
 
-@app.get("/health", tags=["system"])
-async def health_check():
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["system"])
+async def health_check(request: Request):
     """
-    Endpoint kiểm tra toàn diện sức khỏe hệ thống:
-    - Trạng thái FastAPI Backend
-    - Trạng thái kết nối PostgreSQL Database
-    - Trạng thái kết nối Redis Queue/Cache
+    Endpoint kiểm tra sức khỏe hệ thống:
+    - Trạng thái FastAPI Backend & Database (core readiness)
+    - Trạng thái kết nối Redis Queue/Cache (optional / background)
     """
+    if request.method == "HEAD":
+        return Response(status_code=status.HTTP_200_OK)
+
     db_healthy = await check_db_health()
 
     redis_healthy = False
     try:
-        r = aioredis.from_url(settings.REDIS_URL, socket_timeout=2.0)
+        r = aioredis.from_url(settings.REDIS_URL, socket_timeout=1.0)
         redis_healthy = await r.ping()
         await r.aclose()
     except Exception as e:
-        logger.warning(f"Redis health check failed: {e}")
+        logger.debug(f"Redis health check optional ping failed: {e}")
         redis_healthy = False
 
-    is_overall_healthy = db_healthy and redis_healthy
-    http_status = status.HTTP_200_OK if is_overall_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    # Core API hoạt động bình thường khi Database kết nối thành công (Redis là phụ trợ background)
+    is_core_healthy = db_healthy
+    http_status = status.HTTP_200_OK if is_core_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
     response_data = {
-        "status": "healthy" if is_overall_healthy else "degraded",
+        "status": "healthy" if (db_healthy and redis_healthy) else ("degraded" if db_healthy else "unhealthy"),
         "timestamp": time.time(),
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
