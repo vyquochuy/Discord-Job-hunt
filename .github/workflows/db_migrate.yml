@@ -180,71 +180,69 @@ jobs:
           PY
 
       # ============================================================
-      # 4. Test PostgreSQL SSL connection
+      # 4. Test PostgreSQL connection with asyncpg
       # ============================================================
-      - name: Debug PostgreSQL SSL
+      - name: Debug PostgreSQL Connection
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python - <<'PY'
           import asyncio
           import os
-          import ssl
           from urllib.parse import urlparse
 
           import asyncpg
 
-          url = os.environ["DATABASE_URL"]
-          parsed = urlparse(url)
+          raw_url = os.environ["DATABASE_URL"]
 
-          host = parsed.hostname
-          port = parsed.port or 5432
-          user = parsed.username
-          password = parsed.password
-          database = parsed.path.lstrip("/")
+          # asyncpg expects postgresql:// or postgres://
+          dsn = raw_url.replace(
+              "postgresql+asyncpg://",
+              "postgresql://",
+              1
+          )
 
-          print("=== POSTGRESQL SSL TEST ===")
-          print(f"Host    : {host}")
-          print(f"Port    : {port}")
-          print(f"Database: {database}")
-          print(f"User    : {user}")
+          parsed = urlparse(dsn)
+
+          print("=" * 60)
+          print("POSTGRESQL CONNECTION TEST")
+          print("=" * 60)
+
+          print(f"Scheme : {parsed.scheme}")
+          print(f"Host   : {parsed.hostname}")
+          print(f"Port   : {parsed.port}")
+          print(f"DB     : {parsed.path}")
+          print(f"User   : {parsed.username}")
+          print(f"Password present: {'YES' if parsed.password else 'NO'}")
+          print(f"Password length: {len(parsed.password or '')}")
           print()
 
           async def test():
               try:
-                  ssl_context = ssl.create_default_context()
-                  ssl_context.check_hostname = False
-                  ssl_context.verify_mode = ssl.CERT_NONE
-
-                  print("Attempting asyncpg SSL connection...")
+                  print("Connecting using asyncpg DSN...")
 
                   conn = await asyncpg.connect(
-                      host=host,
-                      port=port,
-                      user=user,
-                      password=password,
-                      database=database,
-                      ssl=ssl_context,
+                      dsn=dsn,
+                      ssl="require",
                       timeout=15,
                   )
 
-                  print("✅ PostgreSQL SSL connection successful")
+                  print("✅ PostgreSQL authentication SUCCESS")
 
-                  result = await conn.fetchval(
+                  version = await conn.fetchval(
                       "SELECT version();"
                   )
 
-                  print("PostgreSQL version:")
-                  print(result)
+                  print(f"PostgreSQL: {version}")
 
                   await conn.close()
 
-                  print("✅ PostgreSQL connection closed cleanly")
+                  print("✅ Connection closed")
 
               except Exception as e:
-                  print(f"❌ PostgreSQL connection failed")
-                  print(f"Exception type: {type(e).__name__}")
-                  print(f"Exception     : {e}")
+                  print("❌ PostgreSQL connection FAILED")
+                  print(f"Type : {type(e).__name__}")
+                  print(f"Error: {e}")
                   raise
 
           asyncio.run(test())
