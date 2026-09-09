@@ -360,4 +360,30 @@
 - [x] **Cloudflare Pages SPA Ready**:
   - Tích hợp quy tắc `_redirects` (`/* /index.html 200`), file cấu hình môi trường runtime `env.js` và thuật toán dynamic `API_BASE` resolution đa tầng.
 
+---
+
+## Phase 8.2 — Public Production Deployment & Cloud Hardening (Completed)
+
+- [x] **Render Free Web Service Backend Deployment**:
+  - Triển khai FastAPI backend trên Render Free (`https://job-hunt-backend-0hrl.onrender.com`).
+  - Phân tách probe liveness (`GET /health` & `HEAD /health`) trả về 200 OK tức thì với 0 database query và probe readiness (`GET /health/ready`) chạy `SELECT 1` async.
+  - Lọc log 200 OK của `/health` và `HEAD /` trong uvicorn access log để tránh spam log trên Render console.
+- [x] **Bảo vệ Connection Pool của Supabase PostgreSQL**:
+  - Định cấu hình `render.yaml` trỏ `healthCheckPath: /health`. Tuyệt đối không để health check định kỳ tự động làm cạn kiệt connection pool của Supabase Free tier.
+- [x] **Kiến trúc Zero Frontend Polling & Tuân thủ Cơ chế Sleep của Render Free**:
+  - Hoàn toàn tôn trọng cơ chế ngủ tiết kiệm tài nguyên của Render Free (spin down sau 15 phút không có request). Tuyệt đối không gắn loop ping nhân tạo từ frontend.
+- [x] **Frontend Cold-Start Handling & Idempotent Safe Retry**:
+  - Nâng timeout mặc định lên 25s qua `AbortController` trong `frontend/js/api/client.js` và `frontend/js/api.js` (phù hợp với cold start 15–25s của Render Free).
+  - Tự động retry tối đa 2 lần (backoff 1.5s $\rightarrow$ 3s) an toàn tuyệt đối, CHỈ áp dụng cho các request đọc mang tính bình đẳng trạng thái (`GET`, `HEAD`, `OPTIONS`). Tuyệt đối không retry các phương thức ghi (`POST`, `PUT`, `PATCH`, `DELETE`) để tránh duplicate side-effects.
+  - Bắn sự kiện `jh:backend_waking` và `jh:backend_ready` thông báo Toast trực quan ("Hệ thống đang thức dậy...") cho người dùng khi backend đang cold-start.
+  - Giữ nguyên lỗi nghiệp vụ (400, 401, 403, 404, 422) hiển thị chi tiết từ server, không bị nuốt bởi thông báo mạng chung chung.
+- [x] **JIT PDF Recompilation cho Ổ Đĩa Ephemeral của Cloud Container**:
+  - Ổ đĩa Render là tạm thời (ephemeral), file PDF trên `/app/storage/resumes/` sẽ bị xóa sạch khi container restart hoặc redeploy.
+  - Triển khai cơ chế JIT (Just-In-Time) tự động biên dịch lại PDF từ `latex_source` lưu trong PostgreSQL trong 1–2 giây khi người dùng tải/xem nếu file trên đĩa bị mất.
+- [x] **Capability UUID Cho Phép Xem và Nhúng PDF Public**:
+  - Mở quyền truy cập `GET /api/v1/resumes/{id}/pdf` sử dụng Capability UUID 128-bit unguessable, cho phép thẻ `<iframe src="...">` hoặc `<embed>` trên trình duyệt hiển thị PDF mượt mà mà không bị chặn lỗi thiếu Header Authorization Bearer.
+- [x] **Chống Ghi Đè Mật Khẩu Admin Khi Khởi Động Container**:
+  - Điều chỉnh `ensure_admin_superuser()` trong `backend/app/main.py` để không bao giờ ghi đè lại mật khẩu đã đổi của Admin khi restart container.
+
+
 
