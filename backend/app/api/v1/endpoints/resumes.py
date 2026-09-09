@@ -21,6 +21,7 @@ from app.schemas.resume import (
     UpdateLatexRequest,
 )
 from app.services.tailoring.resume_service import resume_service
+from app.services.tailoring.latex_compiler import latex_compiler
 
 logger = logging.getLogger("resumes")
 router = APIRouter()
@@ -163,6 +164,23 @@ async def download_resume_pdf(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Tailored resume with ID {id} not found",
         )
+
+    # Tự động phục hồi (JIT Recompile): Nếu tệp PDF chưa tồn tại trên đĩa container (do Render restart/ephemeral disk)
+    if not resume.pdf_path or not os.path.exists(resume.pdf_path):
+        if resume.latex_source:
+            logger.info("PDF artifact missing on container disk for resume_id=%s. Recompiling JIT from stored LaTeX...", id)
+            compile_ok, new_pdf_path, comp_err = await latex_compiler.compile_tex(
+                tex_content=resume.latex_source,
+                job_id=str(resume.job_id),
+                file_prefix=f"resume_{resume.job_id}",
+                candidate_id=str(resume.candidate_id),
+            )
+            if new_pdf_path and os.path.exists(new_pdf_path):
+                resume.pdf_path = new_pdf_path
+                await db.commit()
+                logger.info("Successfully recompiled PDF on-demand for resume_id=%s: %s", id, new_pdf_path)
+            else:
+                logger.error("JIT PDF recompilation failed for resume_id=%s: %s", id, comp_err)
 
     if not resume.pdf_path or not os.path.exists(resume.pdf_path):
         raise HTTPException(
