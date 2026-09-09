@@ -42,7 +42,7 @@ class TopDevJobCollector(BaseJobCollector):
             timeout_cfg = httpx.Timeout(10.0, connect=5.0)
             async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
                 while page <= max_pages and len(results) < limit:
-                    target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
+                    target_url = f"{self.SEARCH_URL}?ordering=latest_jobs&page={page}" if page > 1 else f"{self.SEARCH_URL}?ordering=latest_jobs"
                     logger.info(f"TopDev: Fetching page {page}/{max_pages} from {target_url}...")
 
                     response = await client.get(target_url, headers=headers)
@@ -56,18 +56,85 @@ class TopDevJobCollector(BaseJobCollector):
                     )
 
                     if not job_cards:
-                        # Fallback query for common TopDev card layouts
                         job_cards = soup.find_all("div", class_=re.compile(r"job.*item|job.*card", re.I))
 
+                    # 1. Fallback nếu TopDev đổi class card: Quét trực tiếp các thẻ link việc làm
+                    seen_urls_in_page = set()
                     if not job_cards:
-                        logger.info(f"TopDev: No job cards found on page {page}.")
-                        break
+                        detail_links = soup.select("a[href*='/detail-jobs/']")
+                        if not detail_links:
+                            logger.info(f"TopDev: No job cards or detail links found on page {page}.")
+                            break
+                        for link in detail_links:
+                            if len(results) >= limit:
+                                break
+                            rel_url = link.get("href", "")
+                            if not rel_url:
+                                continue
+                            url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                            # Làm sạch query params để deduplicate
+                            clean_url = url.split("?")[0]
+                            if clean_url in seen_urls_in_page:
+                                continue
+                            seen_urls_in_page.add(clean_url)
 
+                            title = link.get("title") or link.get_text(strip=True)
+                            if not title or len(title) < 3:
+                                continue
+
+                            # Tìm container cha để lấy thêm thông tin công ty, địa điểm, lương
+                            parent = link.find_parent("div", class_=re.compile(r"card|item|job|box", re.I)) or link.parent
+
+                            company = "TopDev Tech Employer"
+                            location = "Vietnam"
+                            salary_text = ""
+                            skills = []
+
+                            if parent:
+                                comp_elem = parent.select_one("a[href*='/companies/'], .company-name, .company, p.company")
+                                if comp_elem:
+                                    company = comp_elem.get_text(strip=True)
+                                loc_elem = parent.select_one(".address, .location, .city")
+                                if loc_elem:
+                                    location = loc_elem.get_text(strip=True)
+                                sal_elem = parent.select_one(".salary, .text-salary, span.salary")
+                                if sal_elem:
+                                    salary_text = sal_elem.get_text(strip=True)
+                                tag_elems = parent.select("a[href*='keyword='], .tag, .badge")
+                                skills = [t.get_text(strip=True) for t in tag_elems if t.get_text(strip=True)]
+
+                            card_payload = {
+                                "title": title,
+                                "company": company,
+                                "location": location,
+                                "url": url,
+                                "salary_text": salary_text,
+                                "skills": skills,
+                            }
+                            content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
+                            job_id_match = re.search(r"[-/](\d+)(?:\.html|\?|$)", url)
+                            source_job_id = job_id_match.group(1) if job_id_match else None
+
+                            results.append(
+                                RawJobData(
+                                    source=self.source_name,
+                                    source_url=url,
+                                    source_job_id=source_job_id,
+                                    raw_payload=card_payload,
+                                    raw_html=str(parent) if parent else str(link),
+                                    content_hash=content_hash,
+                                )
+                            )
+                        page += 1
+                        if page <= max_pages and len(results) < limit:
+                            await asyncio.sleep(0.35)
+                        continue
+
+                    # 2. Bóc tách khi có job_cards thông thường
                     for card in job_cards:
                         if len(results) >= limit:
                             break
 
-                        # 1. Title & URL
                         title_elem = card.select_one(
                             "h3 a, .job-title a, a.title, a[href*='/detail-jobs/'], a[href*='/viec-lam/']"
                         )
@@ -78,21 +145,22 @@ class TopDevJobCollector(BaseJobCollector):
                         rel_url = title_elem.get("href", "")
                         url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
 
-                        # 2. Company Name
+                        clean_url = url.split("?")[0]
+                        if clean_url in seen_urls_in_page:
+                            continue
+                        seen_urls_in_page.add(clean_url)
+
                         company_elem = card.select_one(
                             ".company-name, a.company, .employer-name, p.company, .company a"
                         )
                         company = company_elem.get_text(strip=True) if company_elem else "TopDev Tech Company"
 
-                        # 3. Location
                         location_elem = card.select_one(".address, .location, .city, span.location")
                         location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
 
-                        # 4. Salary
                         salary_elem = card.select_one(".salary, .text-salary, span.salary, .salary-text")
                         salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
 
-                        # 5. Skills tags
                         skill_elems = card.select(".tag, .skill-tag, .tag-item, a.tag, span.skill, .badge")
                         skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
 

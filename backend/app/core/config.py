@@ -105,11 +105,14 @@ class Settings(BaseSettings):
     AI_MODEL_STANDARD: str = "gpt-4o"
     AI_MODEL_GENERATION: str = "gpt-4o"
 
-    # Gemini Integration
+    # Gemini & Groq Integration
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-3.7-flash"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
     GEMINI_API_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
+    GROQ_API_KEY: Optional[str] = None
+
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

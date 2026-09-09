@@ -53,6 +53,8 @@ class JobIngestionPipeline:
         # 1. Thu thập dữ liệu thô từ Collector
         raw_items: List[RawJobData] = await collector.fetch_jobs(limit=limit)
         stats.total_fetched = len(raw_items)
+        consecutive_unchanged = 0
+        MAX_CONSECUTIVE_UNCHANGED = 30  # Chặn lãng phí tài nguyên khi cào từ mới nhất
 
         # 2. Xử lý từng Raw Item
         for raw_data in raw_items:
@@ -67,8 +69,19 @@ class JobIngestionPipeline:
                     existing_raw.last_seen_at = datetime.now(timezone.utc)
                     await db.commit()
                     stats.unchanged += 1
+                    consecutive_unchanged += 1
                     logger.debug(f"[Ingestion] Job unchanged (hash match): {raw_data.source_url}")
+
+                    # Nếu duyệt từ mới nhất và gặp 30 tin cũ liên tiếp, toàn bộ tin mới hơn đã được thu nạp
+                    if consecutive_unchanged >= MAX_CONSECUTIVE_UNCHANGED:
+                        logger.info(
+                            f"[Ingestion] Gặp {consecutive_unchanged} tin cũ liên tiếp từ nguồn '{collector.source_name}'. "
+                            f"Toàn bộ tin mới nhất đã được đồng bộ. Kết thúc sớm chu kỳ cào."
+                        )
+                        break
                     continue
+
+                consecutive_unchanged = 0
 
                 # BƯỚC 2: Lưu Raw Job vào Database (Source of Truth)
                 stmt_url = select(RawJob).where(

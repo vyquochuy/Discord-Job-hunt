@@ -291,7 +291,153 @@ class CoverLetterGenerator:
         return featured[:2]
 
     @classmethod
-    def _generate_structured_draft(
+    def _call_llm_for_draft(
+        cls,
+        candidate: Candidate,
+        parsed_jd: ParsedJD,
+        featured_projects: List[FeaturedProjectDraft],
+        strategy: Optional[Any] = None,
+        recipient_name: Optional[str] = None,
+    ) -> Optional[CoverLetterDraft]:
+        """
+        Gọi Gemini / Groq API để sinh bản nháp Cover Letter chân thực, sắc sảo.
+        Tuân thủ nghiêm ngặt Zero-Hallucination và Anti-Cliché.
+        """
+        import json
+        import httpx
+        from app.core.config import settings
+
+        api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
+        groq_key = getattr(settings, "GROQ_API_KEY", None)
+
+        if not api_key and not groq_key:
+            return None
+
+        # Chuẩn bị context
+        edu_str = "Computer Science"
+        if candidate.education and len(candidate.education) > 0:
+            edu_0 = candidate.education[0]
+            edu_str = f"{edu_0.get('degree', 'Bachelor')} in {edu_0.get('field', 'Computer Science')} from {edu_0.get('institution', 'University')}"
+
+        projects_summary = "\n".join([
+            f"- Project: {fp.project_name}\n  Architecture: {fp.architecture_summary}\n  Verified Impact: {fp.impact_or_metric}"
+            for fp in featured_projects
+        ])
+
+        priority_skills = []
+        if strategy and getattr(strategy, "priority_skills", None):
+            priority_skills = strategy.priority_skills[:5]
+        elif parsed_jd.core_requirements:
+            priority_skills = parsed_jd.core_requirements[:5]
+
+        system_instruction = (
+            "You are an expert technical career coach specializing in authentic, high-impact cover letters for software engineers. "
+            "Write in a direct, humble, professional tone with ZERO fluff and ZERO clichés. "
+            "STRICT RULES:\n"
+            "1. NEVER use generic AI clichés: 'thrilled to apply', 'delve into', 'seamlessly', 'testament to', 'spearheaded', 'passionate about', 'dynamic environment', 'beacon', 'tapestry'.\n"
+            "2. ZERO HALLUCINATION: Only reference the provided candidate projects, skills, and background. Do NOT invent new achievements or metrics.\n"
+            "3. Return ONLY a valid JSON object matching the requested schema. No markdown wrappers, no backticks."
+        )
+
+        user_prompt = f"""Generate a concise, compelling cover letter draft for the following candidate and target role:
+
+TARGET COMPANY: {parsed_jd.company_name}
+TARGET ROLE: {parsed_jd.target_role} ({parsed_jd.seniority})
+CORE REQUIREMENTS: {', '.join(parsed_jd.core_requirements)}
+RECIPIENT: {recipient_name or parsed_jd.company_name + ' Hiring Team'}
+
+CANDIDATE BACKGROUND:
+Name: {candidate.full_name or 'Candidate'}
+Education: {edu_str}
+Top Skills: {', '.join(priority_skills)}
+Verified Projects:
+{projects_summary}
+
+Required JSON Output Schema:
+{{
+  "recipient_company": "{parsed_jd.company_name}",
+  "target_role": "{parsed_jd.target_role}",
+  "salutation": "Dear {recipient_name or parsed_jd.company_name + ' Hiring Team'},",
+  "hook": "1-2 sentences stating specific interest in the role and primary engineering foundation",
+  "technical_highlights": [
+    "3 concise bullet points showing technical alignment with the target requirements"
+  ],
+  "featured_projects": [
+    {{
+      "project_name": "Must be one of the candidate verified projects above",
+      "architecture_summary": "1 sentence technical architecture explanation",
+      "impact_or_metric": "Verifiable metric or achievement"
+    }}
+  ],
+  "company_alignment": "1-2 sentences explaining why the candidate's engineering discipline fits the company's technical standards",
+  "call_to_action": "1 sentence polite and humble closing"
+}}"""
+
+        # 1. Thử gọi Gemini
+        if api_key:
+            models_to_try = [settings.GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+            payload = {
+                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                "systemInstruction": {"parts": [{"text": system_instruction}]},
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "responseMimeType": "application/json",
+                },
+            }
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    for model in models_to_try:
+                        url = f"{settings.GEMINI_API_BASE_URL}/models/{model}:generateContent?key={api_key}"
+                        resp = client.post(url, json=payload)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            candidates_resp = data.get("candidates", [])
+                            if candidates_resp:
+                                parts = candidates_resp[0].get("content", {}).get("parts", [])
+                                raw_text = parts[0].get("text", "").strip() if parts else ""
+                                if raw_text:
+                                    # Clean possible backticks
+                                    if raw_text.startswith("```json"):
+                                        raw_text = raw_text[7:]
+                                    if raw_text.startswith("```"):
+                                        raw_text = raw_text[3:]
+                                    if raw_text.endswith("```"):
+                                        raw_text = raw_text[:-3]
+                                    parsed_json = json.loads(raw_text.strip())
+                                    logger.info(f"[CoverLetterGenerator] Generated LLM draft via Gemini model {model}")
+                                    return CoverLetterDraft(**parsed_json)
+            except Exception as e:
+                logger.warning(f"[CoverLetterGenerator] Gemini call failed: {e}")
+
+        # 2. Fallback sang Groq nếu có
+        if groq_key:
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": "llama-3.3-70b-versatile",
+                            "messages": [
+                                {"role": "system", "content": system_instruction},
+                                {"role": "user", "content": user_prompt},
+                            ],
+                            "response_format": {"type": "json_object"},
+                            "temperature": 0.3,
+                        },
+                    )
+                    if resp.status_code == 200:
+                        raw_text = resp.json()["choices"][0]["message"]["content"]
+                        parsed_json = json.loads(raw_text.strip())
+                        logger.info("[CoverLetterGenerator] Generated LLM draft via Groq")
+                        return CoverLetterDraft(**parsed_json)
+            except Exception as e:
+                logger.warning(f"[CoverLetterGenerator] Groq fallback failed: {e}")
+
+        return None
+
+    @classmethod
+    def _generate_deterministic_draft(
         cls,
         candidate: Candidate,
         parsed_jd: ParsedJD,
@@ -299,7 +445,7 @@ class CoverLetterGenerator:
         strategy: Optional[Any] = None,
         recipient_name: Optional[str] = None,
     ) -> CoverLetterDraft:
-        """Tầng 3: Sinh bản nháp có cấu trúc chặt chẽ (Structured Drafting)."""
+        """Sinh bản nháp có cấu trúc xác định dự phòng khi không có API key."""
         company = parsed_jd.company_name
         role_title = parsed_jd.target_role
 
@@ -322,7 +468,7 @@ class CoverLetterGenerator:
 
         # Technical highlights (3 bullets)
         skills_list = []
-        if strategy and strategy.priority_skills:
+        if strategy and getattr(strategy, "priority_skills", None):
             skills_list = strategy.priority_skills[:4]
         elif parsed_jd.core_requirements:
             skills_list = parsed_jd.core_requirements[:4]
@@ -369,7 +515,7 @@ class CoverLetterGenerator:
             f"how my technical background can support {company}'s engineering goals."
         )
 
-        draft = CoverLetterDraft(
+        return CoverLetterDraft(
             recipient_company=company,
             target_role=role_title,
             salutation=salutation,
@@ -380,7 +526,37 @@ class CoverLetterGenerator:
             call_to_action=cta,
         )
 
-        return draft
+    @classmethod
+    def _generate_structured_draft(
+        cls,
+        candidate: Candidate,
+        parsed_jd: ParsedJD,
+        featured_projects: List[FeaturedProjectDraft],
+        strategy: Optional[Any] = None,
+        recipient_name: Optional[str] = None,
+    ) -> CoverLetterDraft:
+        """Tầng 3: Sinh bản nháp (thử LLM trước, nếu không có API key / lỗi thì dùng fallback xác định)."""
+        llm_draft = cls._call_llm_for_draft(
+            candidate=candidate,
+            parsed_jd=parsed_jd,
+            featured_projects=featured_projects,
+            strategy=strategy,
+            recipient_name=recipient_name,
+        )
+
+        if llm_draft:
+            # Bảo đảm featured_projects bám sát các dự án đã được prune
+            if not llm_draft.featured_projects:
+                llm_draft.featured_projects = featured_projects
+            return llm_draft
+
+        return cls._generate_deterministic_draft(
+            candidate=candidate,
+            parsed_jd=parsed_jd,
+            featured_projects=featured_projects,
+            strategy=strategy,
+            recipient_name=recipient_name,
+        )
 
     @classmethod
     def _render_to_markdown(cls, candidate: Candidate, draft: CoverLetterDraft) -> str:

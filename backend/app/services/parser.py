@@ -158,88 +158,24 @@ class CandidateProfileParser:
     @classmethod
     def parse_text_resume(cls, raw_text: str) -> Dict[str, Any]:
         """
-        Phân tích văn bản thô (từ PDF, DOCX, TXT) thành cấu trúc hồ sơ Candidate.
+        Phân tích văn bản thô (từ PDF, DOCX, TXT, MD) thành cấu trúc hồ sơ Candidate
+        bằng bộ phân tích quy tắc nâng cao (Enhanced Deterministic Extractor).
         """
-        result: Dict[str, Any] = {
-            "candidate": {},
-            "education": [],
-            "skills": {},
-            "projects": [],
-            "experience": [],
-            "raw_master_resume_md": raw_text,
-        }
-
-        if not raw_text or not raw_text.strip():
-            return result
-
-        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-
-        # 1. Trích xuất Tên ứng viên (thường ở dòng đầu tiên)
-        if lines:
-            first_line = lines[0]
-            # Nếu dòng đầu ngắn và không phải tiêu đề mục
-            if len(first_line.split()) <= 6 and not any(kw in first_line.lower() for kw in ["resume", "curriculum", "cv", "page"]):
-                result["candidate"]["name"] = first_line
-
-        # 2. Trích xuất Email
-        email_match = re.search(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", raw_text)
-        if email_match:
-            result["candidate"]["email"] = email_match.group(1).strip()
-
-        # 3. Trích xuất Phone
-        phone_match = re.search(r"(?:\+84|0|\(\+84\))[\s.-]?\d{2,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}", raw_text)
-        if phone_match:
-            result["candidate"]["phone"] = phone_match.group(0).strip()
-
-        # 4. Trích xuất GitHub & LinkedIn
-        github_match = re.search(r"(?:https?://)?github\.com/([a-zA-Z0-9_-]+)", raw_text, re.IGNORECASE)
-        if github_match:
-            result["candidate"]["github"] = f"https://github.com/{github_match.group(1).strip()}"
-
-        linkedin_match = re.search(r"(?:https?://)?(?:www\.)?linkedin\.com/in/([a-zA-Z0-9_-]+)", raw_text, re.IGNORECASE)
-        if linkedin_match:
-            result["candidate"]["linkedin"] = f"https://www.linkedin.com/in/{linkedin_match.group(1).strip()}/"
-
-        # 5. Trích xuất Headline / Summary
-        summary_match = re.search(
-            r"(?:Summary|Objective|Profile|About Me)[:\n]\s*([\s\S]*?)(?=(?:Education|Skills|Experience|Projects|Certifications|\Z))",
-            raw_text,
-            re.IGNORECASE,
-        )
-        if summary_match:
-            result["candidate"]["summary"] = summary_match.group(1).strip()
-
-        # 6. Trích xuất Kỹ năng phổ biến (heuristic taxonomy extraction)
-        known_prog_languages = ["Python", "JavaScript", "TypeScript", "C++", "C#", "Java", "Go", "Golang", "Rust", "PHP", "Ruby", "Swift", "Kotlin", "Dart", "SQL"]
-        known_frameworks = ["FastAPI", "React", "NextJS", "Vue", "Angular", "Express", "NestJS", "Django", "Flask", "Spring Boot", "Flutter", "Tailwind CSS", "Hono"]
-        known_tools = ["PostgreSQL", "MySQL", "MongoDB", "Redis", "Docker", "Kubernetes", "Git", "Linux", "AWS", "GCP", "Cloudflare", "Alembic", "SQLAlchemy"]
-
-        found_langs = [kw for kw in known_prog_languages if re.search(r"\b" + re.escape(kw) + r"\b", raw_text, re.IGNORECASE)]
-        found_fw = [kw for kw in known_frameworks if re.search(r"\b" + re.escape(kw) + r"\b", raw_text, re.IGNORECASE)]
-        found_tools = [kw for kw in known_tools if re.search(r"\b" + re.escape(kw) + r"\b", raw_text, re.IGNORECASE)]
-
-        if found_langs:
-            result["skills"]["programming"] = found_langs
-        if found_fw:
-            result["skills"]["frameworks"] = found_fw
-        if found_tools:
-            result["skills"]["tools_databases"] = found_tools
-
-        return result
+        from app.services.resume_extractor import AIResumeExtractor
+        return AIResumeExtractor.enhanced_deterministic_extract(raw_text)
 
     @classmethod
     def parse_raw_file(cls, filename: str, content_bytes: bytes) -> Dict[str, Any]:
         """
-        Tự động nhận diện định dạng file (.pdf, .tex, .yaml, .yml, .json, .md) và phân tích cú pháp.
+        Tự động nhận diện định dạng file (.pdf, .tex, .yaml, .yml, .json, .md) và phân tích cú pháp đồng bộ.
         """
         ext = Path(filename).suffix.lower()
         if ext == ".pdf":
             return cls.parse_pdf(content_bytes)
-        
+
         text_content = content_bytes.decode("utf-8", errors="ignore")
         if ext in [".yaml", ".yml"]:
             parsed = cls.parse_yaml(text_content)
-            # Nếu YAML có root 'candidate', chuẩn hóa theo merged format
             if isinstance(parsed, dict) and "candidate" in parsed:
                 return parsed
             return {"candidate": parsed}
@@ -259,6 +195,35 @@ class CandidateProfileParser:
             return parsed
         else:
             return cls.parse_text_resume(text_content)
+
+    @classmethod
+    async def parse_raw_file_async(cls, filename: str, content_bytes: bytes) -> Dict[str, Any]:
+        """
+        Nhận diện định dạng file và phân tích cú pháp bất đồng bộ có sự hỗ trợ của LLM (nếu có API Key).
+        """
+        from app.services.resume_extractor import AIResumeExtractor
+
+        ext = Path(filename).suffix.lower()
+        if ext == ".pdf":
+            try:
+                reader = PdfReader(io.BytesIO(content_bytes))
+                raw_text = "\n".join([page.extract_text() or "" for page in reader.pages])
+            except Exception as e:
+                logger.error(f"Failed to read PDF file in async parse: {e}")
+                return {}
+            return await AIResumeExtractor.extract_profile_from_text(raw_text)
+
+        text_content = content_bytes.decode("utf-8", errors="ignore")
+        if ext in [".yaml", ".yml", ".tex", ".json"]:
+            # Với cấu trúc đã chuẩn hóa rõ ràng, dùng bộ parse cấu trúc hiện có
+            return cls.parse_raw_file(filename, content_bytes)
+        else:
+            # File dạng văn bản thô (.md, .txt, .docx) -> sử dụng AIResumeExtractor
+            parsed = await AIResumeExtractor.extract_profile_from_text(text_content)
+            if ext == ".md":
+                parsed["raw_master_resume_md"] = text_content
+            return parsed
+
 
     @classmethod
     def load_and_merge_context(cls, context_dir: Path | str) -> Dict[str, Any]:

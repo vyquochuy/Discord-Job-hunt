@@ -109,7 +109,7 @@ class CandidateService:
                 detail="Uploaded file is empty.",
             )
 
-        parsed = CandidateProfileParser.parse_raw_file(filename, file_bytes)
+        parsed = await CandidateProfileParser.parse_raw_file_async(filename, file_bytes)
         if not parsed or (not parsed.get("candidate") and not parsed.get("skills")):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -237,7 +237,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 6. Router Initialization (Navigation links, History API, Popstate)
+  // 6. Mobile Sidebar Drawer Toggle
+  const sidebarEl = document.querySelector('.app-sidebar');
+  const toggleBtnEl = document.getElementById('btn-sidebar-toggle');
+  const backdropEl = document.getElementById('sidebar-backdrop');
+
+  const openMobileSidebar = () => {
+    if (sidebarEl) sidebarEl.classList.add('drawer-open');
+    if (backdropEl) backdropEl.classList.add('active');
+  };
+
+  const closeMobileSidebar = () => {
+    if (sidebarEl) sidebarEl.classList.remove('drawer-open');
+    if (backdropEl) backdropEl.classList.remove('active');
+  };
+
+  if (toggleBtnEl) {
+    toggleBtnEl.addEventListener('click', () => {
+      if (sidebarEl?.classList.contains('drawer-open')) {
+        closeMobileSidebar();
+      } else {
+        openMobileSidebar();
+      }
+    });
+  }
+
+  if (backdropEl) {
+    backdropEl.addEventListener('click', closeMobileSidebar);
+  }
+
+  // Auto-close sidebar on mobile navigation
+  document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        closeMobileSidebar();
+      }
+    });
+  });
+
+  window.openMobileSidebar = openMobileSidebar;
+  window.closeMobileSidebar = closeMobileSidebar;
+
+  // 7. Router Initialization (Navigation links, History API, Popstate)
   initRouter();
   refreshIcons();
 });
+

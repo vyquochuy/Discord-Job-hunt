@@ -30,6 +30,8 @@ export const api = {
   login: authApi.login,
   getMe: authApi.getMe,
 
+
+
   // Jobs
   getJobs: jobsApi.getJobs,
   getJobDetail: jobsApi.getJobDetail,

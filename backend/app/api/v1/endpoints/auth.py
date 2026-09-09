@@ -1,10 +1,12 @@
+import logging
 import uuid
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.security import (
@@ -28,7 +30,10 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import AuthService
 
+logger = logging.getLogger("auth")
 router = APIRouter()
+
+
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -55,9 +60,6 @@ async def register_user(
         )
 
     # 2. Xác định quyền Superuser (tài khoản đầu tiên hoặc email quản trị cấu hình)
-    from sqlalchemy import func
-    from app.core.config import settings
-
     count_stmt = select(func.count(User.id))
     user_count = (await db.execute(count_stmt)).scalar() or 0
     is_admin = (email_clean == settings.ADMIN_EMAIL.lower().strip()) or (user_count == 0)
@@ -299,4 +301,6 @@ async def get_me(
         candidate_id=candidate_id,
         created_at=user.created_at,
     )
+
+
 

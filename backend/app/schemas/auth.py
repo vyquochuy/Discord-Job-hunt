@@ -47,3 +47,5 @@ class TokenRefreshResponse(BaseModel):
 class TokenLogoutRequest(BaseModel):
     refresh_token: Optional[str] = Field(None, description="Refresh Token cần thu hồi khi đăng xuất")
 
+
+

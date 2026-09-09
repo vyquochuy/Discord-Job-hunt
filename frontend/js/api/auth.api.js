@@ -15,3 +15,5 @@ export function login(email, password) {
 export function getMe() {
   return client.get('/auth/me');
 }
+
+

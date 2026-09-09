@@ -48,11 +48,18 @@ class TopCVJobCollector(BaseJobCollector):
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
                 while page <= max_pages and len(results) < limit:
-                    target_url = f"{self.SEARCH_URL}?sort=new&page={page}" if page > 1 else self.SEARCH_URL
+                    target_url = f"{self.SEARCH_URL}?sort=new&page={page}" if page > 1 else f"{self.SEARCH_URL}?sort=new"
                     logger.info(f"TopCV: Fetching page {page}/{max_pages} from {target_url}...")
                     
                     response = await client.get(target_url, headers=headers)
-                    if response.status_code != 200:
+                    if response.status_code == 403:
+                        logger.warning(
+                            "TopCV.vn trả về HTTP 403 (Cloudflare Bot Management / WAF). "
+                            "Tự động bỏ qua cào tự động cho nguồn này. Khuyến nghị người dùng sử dụng tính năng "
+                            "'Nhập JD thủ công' (POST /api/v1/jobs/ingest-manual) để nhập tin TopCV."
+                        )
+                        break
+                    elif response.status_code != 200:
                         logger.warning(
                             f"TopCV.vn page {page} returned status {response.status_code}"
                         )

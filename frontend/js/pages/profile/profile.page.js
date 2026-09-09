@@ -113,7 +113,10 @@ export async function handleResumeFileUpload(event) {
     if (statusText) {
       statusText.textContent = `Đã phân tích và cập nhật hồ sơ từ ${file.name}!`;
     }
-    showToast(`Đã nạp ${res.skills_imported} kỹ năng, ${res.projects_imported} dự án, ${res.experiences_imported} kinh nghiệm!`, 'success');
+    const skillsCount = res.skills_count ?? res.skills_imported ?? 0;
+    const projectsCount = res.projects_count ?? res.projects_imported ?? 0;
+    const expCount = res.experiences_count ?? res.experiences_imported ?? 0;
+    showToast(`Đã nạp ${skillsCount} kỹ năng, ${projectsCount} dự án, ${expCount} kinh nghiệm!`, 'success');
     loadProfile();
   } catch (err) {
     if (statusText) {

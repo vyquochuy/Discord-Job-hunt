@@ -1,8 +1,10 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
 import httpx
+
 
 from app.core.config import settings
 from app.schemas.tailoring_ir import (
@@ -39,20 +41,19 @@ class ResumeSemanticWriter:
         api_key: Optional[str] = None,
         api_base_url: Optional[str] = None,
     ):
-        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash")
+        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash")
         self.api_key = api_key or getattr(settings, "GEMINI_API_KEY", None) or getattr(settings, "GOOGLE_API_KEY", None) or getattr(settings, "OPENAI_API_KEY", None)
         self.api_base_url = api_base_url or getattr(settings, "GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
+        self.groq_api_key = getattr(settings, "GROQ_API_KEY", None) or os.environ.get("GROQ_API_KEY")
 
     async def _call_gemini_json(self, system_instruction: str, user_prompt: str) -> Optional[Dict[str, Any]]:
         """Gọi REST API của Gemini với định dạng Structured JSON mode và cơ chế Model Cascade + Retry tự động."""
-        if not self.api_key:
-            return None
-
-        # Danh sách model theo thứ tự ưu tiên thử nghiệm (Cascade Fallback)
-        models_to_try = [self.model]
-        for fallback in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"]:
-            if fallback not in models_to_try:
-                models_to_try.append(fallback)
+        # 1. Thử gọi Gemini nếu có API key
+        if self.api_key:
+            models_to_try = [self.model]
+            for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
+                if fallback not in models_to_try:
+                    models_to_try.append(fallback)
 
         payload = {
             "contents": [
@@ -115,7 +116,33 @@ class ResumeSemanticWriter:
                             continue
                         break
 
-        logger.info("[ResumeSemanticWriter] All Gemini model attempts failed. Falling back to deterministic composition.")
+        # 2. Thử Groq fallback nếu có GROQ_API_KEY
+        if self.groq_api_key:
+            try:
+                groq_url = "https://api.groq.com/openai/v1/chat/completions"
+                groq_headers = {
+                    "Authorization": f"Bearer {self.groq_api_key}",
+                    "Content-Type": "application/json",
+                }
+                groq_payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.2,
+                }
+                async with httpx.AsyncClient(timeout=45.0) as client:
+                    resp = await client.post(groq_url, headers=groq_headers, json=groq_payload)
+                    if resp.status_code == 200:
+                        content = resp.json()["choices"][0]["message"]["content"]
+                        logger.info("[ResumeSemanticWriter] Groq fallback succeeded with llama-3.3-70b-versatile.")
+                        return json.loads(content)
+            except Exception as e:
+                logger.warning(f"Groq fallback in ResumeSemanticWriter failed: {e}")
+
+        logger.info("[ResumeSemanticWriter] All LLM attempts failed. Falling back to deterministic composition.")
         return None
 
     async def generate_resume_draft(self, bundle: EvidenceBundle) -> StructuredResumeDraft:

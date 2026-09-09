@@ -66,7 +66,7 @@ class ITNaviJobCollector(BaseJobCollector):
                         if len(results) >= limit:
                             break
 
-                        # 1. Title & URL
+                        # 1. Title
                         title_elem = card.select_one(
                             ".jsl-item__name, h2, h3, a[class*='title'], a[href*='/viec-lam-'], a[href*='/job/']"
                         )
@@ -78,14 +78,6 @@ class ITNaviJobCollector(BaseJobCollector):
                             continue
 
                         job_id = card.get("data-id") or card.get("id") or ""
-                        link_elem = card.select_one("a[href*='/job/'], a[href*='/viec-lam-']")
-                        if link_elem and link_elem.get("href"):
-                            rel_url = link_elem.get("href")
-                            url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
-                        elif job_id:
-                            url = f"{self.BASE_URL}/job/{job_id}"
-                        else:
-                            url = self.SEARCH_URL
 
                         # 2. Company Name
                         company_elem = card.select_one(
@@ -111,24 +103,66 @@ class ITNaviJobCollector(BaseJobCollector):
                         )
                         skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
 
+                        # 6. Canonical URL và chi tiết qua AJAX get-job-by-id
+                        url = None
+                        description = ""
+                        min_salary = None
+                        max_salary = None
+
+                        if job_id:
+                            try:
+                                ajax_url = f"{self.BASE_URL}/ajax/get-job-by-id/{job_id}"
+                                ajax_resp = await client.get(ajax_url, headers=headers, timeout=5.0)
+                                if ajax_resp.status_code == 200:
+                                    ajax_data = ajax_resp.json().get("data", {})
+                                    canonical_slug = ajax_data.get("job_slug")
+                                    if canonical_slug:
+                                        url = canonical_slug if canonical_slug.startswith("http") else f"{self.BASE_URL}{canonical_slug}"
+                                    if ajax_data.get("job_content"):
+                                        description = BeautifulSoup(ajax_data["job_content"], "html.parser").get_text(separator="\n").strip()
+                                    min_salary = ajax_data.get("job_salary_min")
+                                    max_salary = ajax_data.get("job_salary_max")
+                                    # Bổ sung kỹ năng từ AJAX nếu có
+                                    for sk in ajax_data.get("skill", []):
+                                        sk_name = sk.get("name") if isinstance(sk, dict) else str(sk)
+                                        if sk_name and sk_name not in skills:
+                                            skills.append(sk_name)
+                            except Exception as e:
+                                logger.debug(f"ITNavi AJAX detail fetch error for job_id={job_id}: {e}")
+
+                        # Fallback URL nếu AJAX không trả về slug
+                        if not url:
+                            copy_elem = card.select_one("[data-copy]")
+                            if copy_elem and copy_elem.get("data-copy"):
+                                url = copy_elem.get("data-copy")
+                            else:
+                                link_elem = card.select_one("a[href*='/job-detail/'], a[href*='/job/'], a[href*='/viec-lam-']")
+                                if link_elem and link_elem.get("href"):
+                                    rel_url = link_elem.get("href")
+                                    url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+                                elif job_id:
+                                    url = f"{self.BASE_URL}/job-detail/{job_id}"
+                                else:
+                                    url = self.SEARCH_URL
+
                         card_payload = {
                             "title": title,
                             "company": company,
                             "location": location,
                             "url": url,
                             "salary_text": salary_text,
+                            "min_salary": min_salary,
+                            "max_salary": max_salary,
+                            "description": description,
                             "skills": skills,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
-                        job_id_match = re.search(r"[-/](\d+)(?:\.html|\?|$)", url)
-                        source_job_id = job_id or (job_id_match.group(1) if job_id_match else None)
-
                         results.append(
                             RawJobData(
                                 source=self.source_name,
                                 source_url=url,
-                                source_job_id=source_job_id,
+                                source_job_id=job_id or None,
                                 raw_payload=card_payload,
                                 raw_html=str(card),
                                 content_hash=content_hash,
@@ -148,11 +182,11 @@ class ITNaviJobCollector(BaseJobCollector):
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
 
-        desc = ""
-        if raw.raw_html:
+        desc = payload.get("description") or ""
+        if not desc and raw.raw_html:
             desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
             desc = " ".join(desc.split())
-        else:
+        if not desc:
             desc = f"{payload.get('title', '')} tại {payload.get('company', '')}"
 
         title_lower = (payload.get("title") or "").lower()
@@ -168,6 +202,8 @@ class ITNaviJobCollector(BaseJobCollector):
             location=payload.get("location", "Vietnam"),
             work_mode=work_mode,
             level=JobLevelEnum.UNKNOWN,
+            min_salary=payload.get("min_salary"),
+            max_salary=payload.get("max_salary"),
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
