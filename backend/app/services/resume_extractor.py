@@ -194,7 +194,10 @@ class AIResumeExtractor:
         truncated_text = raw_text[:25000]
 
         # Danh sách model chính thức có hỗ trợ JSON Mode
-        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+        primary_model = getattr(settings, "GEMINI_MODEL", "gemini-flash-latest")
+        deprecated_models = {"gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"}
+        candidate_models = [primary_model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-pro-latest"]
+        models_to_try = [m for m in dict.fromkeys(candidate_models) if m and m not in deprecated_models]
         base_url = getattr(settings, "GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
 
         payload = {

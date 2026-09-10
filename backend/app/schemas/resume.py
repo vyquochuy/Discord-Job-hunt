@@ -41,6 +41,21 @@ class CoverLetterResponse(BaseModel):
     created_at: datetime
 
 
+class ResumeJobSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    company_name: str
+    location: Optional[str] = None
+    work_mode: Optional[str] = None
+    level: Optional[str] = None
+    min_salary: Optional[float] = None
+    max_salary: Optional[float] = None
+    salary_currency: Optional[str] = "VND"
+    apply_url: Optional[str] = None
+
+
 class TailoredResumeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,6 +78,7 @@ class TailoredResumeResponse(BaseModel):
 
     evidence_items: List[EvidenceMapItem] = []
     cover_letter: Optional[CoverLetterResponse] = None
+    job: Optional[ResumeJobSummary] = None
 
 
 class TailoredResumeSummaryResponse(BaseModel):
@@ -77,6 +93,7 @@ class TailoredResumeSummaryResponse(BaseModel):
     pdf_path: Optional[str] = None
     matched_skills: List[str] = []
     created_at: datetime
+    job: Optional[ResumeJobSummary] = None
 
 
 class TailorResumeRequest(BaseModel):

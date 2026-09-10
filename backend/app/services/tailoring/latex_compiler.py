@@ -19,17 +19,33 @@ class LaTeXCompiler:
 
     @staticmethod
     def get_storage_root() -> Path:
-        """Lấy đường dẫn thư mục lưu trữ artifacts."""
-        # Kiểm tra nếu chạy trong Docker
-        docker_storage = Path("/app/storage/resumes")
-        if docker_storage.parent.exists():
-            docker_storage.mkdir(parents=True, exist_ok=True)
-            return docker_storage
-        
-        # Local workspace path
-        local_storage = Path(__file__).resolve().parent.parent.parent.parent / "storage" / "resumes"
-        local_storage.mkdir(parents=True, exist_ok=True)
-        return local_storage
+        """
+        Lấy đường dẫn thư mục lưu trữ artifacts.
+        Tự động kiểm tra quyền ghi thực tế và fallback sang /tmp nếu gặp PermissionError.
+        """
+        import tempfile
+
+        candidates = [
+            Path("/app/storage/resumes"),
+            Path(__file__).resolve().parent.parent.parent.parent / "storage" / "resumes",
+            Path(tempfile.gettempdir()) / "jobhunter_resumes",
+        ]
+
+        for path in candidates:
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+                # Kiểm tra quyền ghi thực tế
+                test_file = path / ".perm_check"
+                test_file.touch()
+                test_file.unlink(missing_ok=True)
+                return path
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Storage path '{path}' is not writable ({e}). Trying next fallback...")
+                continue
+
+        fallback = Path(tempfile.gettempdir()) / "jobhunter_resumes"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
     @classmethod
     async def compile_tex(
@@ -44,11 +60,19 @@ class LaTeXCompiler:
         Hỗ trợ lưu trữ cô lập theo candidate_id: storage/resumes/{candidate_id}/{job_id}/
         Trả về: (success, pdf_file_path, error_message).
         """
+        storage_root = cls.get_storage_root()
         if candidate_id:
-            storage_dir = cls.get_storage_root() / str(candidate_id) / str(job_id)
+            storage_dir = storage_root / str(candidate_id) / str(job_id)
         else:
-            storage_dir = cls.get_storage_root() / str(job_id)
-        storage_dir.mkdir(parents=True, exist_ok=True)
+            storage_dir = storage_root / str(job_id)
+
+        try:
+            storage_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Permission denied creating {storage_dir}: {e}. Falling back to /tmp...")
+            import tempfile
+            storage_dir = Path(tempfile.gettempdir()) / "jobhunter_resumes" / str(job_id)
+            storage_dir.mkdir(parents=True, exist_ok=True)
 
         tex_path = storage_dir / f"{file_prefix}.tex"
         pdf_path = storage_dir / f"{file_prefix}.pdf"

@@ -44,7 +44,11 @@ export async function startResumeTailoring(jobId, forceRegenerate = false, custo
   try {
     const tailoredResume = await api.tailorResume(jobId, forceRegenerate, customTone);
     state.selectedResume = tailoredResume;
-    renderResumeWorkspace(tailoredResume);
+    if (typeof window.navigateTo === 'function') {
+      window.navigateTo('resume', true, tailoredResume.id);
+    } else {
+      renderResumeWorkspace(tailoredResume);
+    }
     showToast(forceRegenerate ? 'Đã tái tạo CV và Cover Letter mới!' : 'Đã hoàn thành sinh CV tạo thiết kế cá nhân hóa!', 'success');
   } catch (err) {
     if (resumeContainer) {
@@ -55,10 +59,16 @@ export async function startResumeTailoring(jobId, forceRegenerate = false, custo
           </div>
           <h3 class="empty-state-title">Lỗi tạo hồ sơ tạo thiết kế</h3>
           <p class="empty-state-text">${escapeHtml(err.message)}</p>
-          <button class="btn btn-primary btn-sm" onclick="navigateTo('jobs')">
-            <i data-lucide="arrow-left" class="icon-sm"></i>
-            <span>Quay lại Khám phá việc làm</span>
-          </button>
+          <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="navigateTo('resume')">
+              <i data-lucide="file-text" class="icon-sm"></i>
+              <span>Xem Kho lưu trữ CV</span>
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="navigateTo('jobs')">
+              <i data-lucide="arrow-left" class="icon-sm"></i>
+              <span>Quay lại Khám phá việc làm</span>
+            </button>
+          </div>
         </div>
       `;
       refreshIcons();
@@ -421,6 +431,10 @@ export async function renderResumeWorkspace(resume) {
         </div>
 
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-outline btn-sm" onclick="navigateTo('resume')" title="Quay lại danh sách tất cả các CV đã tạo">
+            <i data-lucide="arrow-left" class="icon-sm"></i>
+            <span>Kho lưu trữ CV</span>
+          </button>
           <button class="btn btn-outline btn-sm" onclick="openJobDetailModal('${jobId}')" title="Xem toàn bộ nội dung bản mô tả công việc (JD)">
             <i data-lucide="file-text" class="icon-sm"></i>
             <span>Xem chi tiết JD</span>
@@ -608,3 +622,259 @@ export async function renderResumeWorkspace(resume) {
 
   refreshIcons();
 }
+
+/**
+ * Tải và hiển thị danh sách tất cả các bản CV đã tạo (Resume Hub)
+ */
+export async function loadResumeHub() {
+  const container = document.getElementById('resume-workspace-content');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="text-align: center; padding: 4rem 1.5rem;">
+      <div class="spinner spinner-primary" style="width: 32px; height: 32px; margin-bottom: 1rem;"></div>
+      <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem;">
+        Đang tải Kho lưu trữ CV & Hồ sơ thiết kế...
+      </h4>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">
+        Truy vấn toàn bộ các bản CV ATS đã được tạo riêng biệt theo từng tin tuyển dụng.
+      </p>
+    </div>
+  `;
+
+  try {
+    const resumes = await api.getTailoredResumes();
+    state.tailoredResumes = resumes || [];
+
+    if (!resumes || resumes.length === 0) {
+      container.innerHTML = `
+        <div class="card empty-state-card">
+          <div class="empty-state-icon-box">
+            <i data-lucide="file-text" class="icon-lg"></i>
+          </div>
+          <h3 class="empty-state-title">
+            Kho lưu trữ Hồ sơ tạo thiết kế (Resume Hub)
+          </h3>
+          <p class="empty-state-text">
+            Bạn chưa có bản CV cá nhân hóa nào được tạo. Hãy chuyển sang mục <strong>Khám phá việc làm</strong>, chọn một vị trí phù hợp và nhấn <em>"tạo thiết kế hồ sơ"</em> để hệ thống tự động sinh CV LaTeX và biên dịch PDF.
+          </p>
+          <button class="btn btn-primary" onclick="navigateTo('jobs')">
+            <i data-lucide="search" class="icon-sm"></i>
+            <span>Khám phá việc làm ngay</span>
+          </button>
+        </div>
+      `;
+      refreshIcons();
+      return;
+    }
+
+    renderResumeHubList(resumes);
+  } catch (err) {
+    container.innerHTML = `
+      <div class="card empty-state-card">
+        <div class="empty-state-icon-box" style="color: var(--danger-600); background-color: var(--danger-50);">
+          <i data-lucide="alert-circle" class="icon-lg"></i>
+        </div>
+        <h3 class="empty-state-title">Không thể tải danh sách CV</h3>
+        <p class="empty-state-text">${escapeHtml(err.message || 'Đã có lỗi xảy ra khi kết nối máy chủ.')}</p>
+        <button class="btn btn-primary btn-sm" onclick="loadResumeHub()">
+          <i data-lucide="rotate-cw" class="icon-sm"></i>
+          <span>Thử lại</span>
+        </button>
+      </div>
+    `;
+    refreshIcons();
+  }
+}
+
+/**
+ * Hiển thị giao diện danh sách thẻ các CV đã tạo trong Resume Hub
+ */
+export function renderResumeHubList(resumes) {
+  const container = document.getElementById('resume-workspace-content');
+  if (!container) return;
+
+  const cardsHtml = resumes.map(r => {
+    const resumeId = r.id;
+    const jobTitle = (r.job && r.job.title) || r.target_title || 'Vị trí Ứng tuyển';
+    const companyName = (r.job && r.job.company_name) || (r.cover_letter && r.cover_letter.company_name) || 'Công ty Tuyển dụng';
+    const location = (r.job && r.job.location) || 'Việt Nam';
+    const monogram = getCompanyMonogram(companyName);
+
+    // Status badge
+    let statusBadge = '';
+    if (r.status === 'COMPILED') {
+      statusBadge = `<span class="badge badge-green" style="font-size: 0.75rem;"><i data-lucide="check-circle" class="icon-sm"></i> Đã biên dịch PDF</span>`;
+    } else if (r.status === 'DRAFT') {
+      statusBadge = `<span class="badge badge-blue" style="font-size: 0.75rem;"><i data-lucide="file-edit" class="icon-sm"></i> Bản nháp</span>`;
+    } else {
+      statusBadge = `<span class="badge badge-gray" style="font-size: 0.75rem;">${escapeHtml(r.status)}</span>`;
+    }
+
+    // Provenance score badge
+    const provScore = Math.round(r.provenance_score || 100);
+    const provBadge = `<span class="badge badge-blue" style="font-size: 0.75rem;"><i data-lucide="shield-check" class="icon-sm"></i> ${provScore}% Khớp JD</span>`;
+
+    // Created date
+    const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) : '';
+
+    const pdfUrl = api.getResumePdfUrl(resumeId, true);
+
+    const skillsPills = (r.matched_skills || []).slice(0, 3).map(
+      s => `<span class="badge badge-gray" style="font-size: 0.72rem;">${escapeHtml(s)}</span>`
+    ).join(' ');
+
+    return `
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; padding: 1.25rem; border-top: 3px solid var(--primary-600);">
+        <div>
+          <!-- Header: Monogram & Company & Status -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; gap: 0.75rem; align-items: center; min-width: 0;">
+              <div class="company-avatar" style="width: 42px; height: 42px; font-size: 1rem; font-weight: 700; border-radius: var(--radius-md); flex-shrink: 0;">${monogram}</div>
+              <div style="min-width: 0;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-main); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(jobTitle)}">
+                  ${escapeHtml(jobTitle)}
+                </h3>
+                <div style="font-size: 0.85rem; font-weight: 600; color: var(--primary-700); margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${escapeHtml(companyName)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Badges & Location -->
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem;">
+            ${statusBadge}
+            ${provBadge}
+            <span class="badge badge-gray" style="font-size: 0.75rem;"><i data-lucide="map-pin" class="icon-sm"></i> ${escapeHtml(location)}</span>
+          </div>
+
+          <!-- Matched skills preview -->
+          ${skillsPills ? `<div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.85rem;">${skillsPills}</div>` : ''}
+        </div>
+
+        <!-- Footer Meta & Actions -->
+        <div style="border-top: 1px solid var(--border-default); padding-top: 0.75rem; margin-top: 0.5rem;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem;">
+            <i data-lucide="clock" class="icon-sm"></i>
+            <span>Tạo lúc: ${dateStr}</span>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: space-between;">
+            <button class="btn btn-primary btn-sm" onclick="navigateTo('resume', true, '${resumeId}')" style="flex: 1;">
+              <i data-lucide="external-link" class="icon-sm"></i>
+              <span>Mở Workspace</span>
+            </button>
+            <a href="${pdfUrl}" target="_blank" class="btn btn-outline btn-sm" title="Tải nhanh PDF CV">
+              <i data-lucide="download" class="icon-sm"></i>
+              <span>PDF</span>
+            </a>
+            <button class="btn btn-outline btn-sm" onclick="deleteResumeFromHub('${resumeId}')" title="Xóa bản CV này" style="color: var(--danger-600); border-color: var(--border-default);">
+              <i data-lucide="trash-2" class="icon-sm"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <!-- Resume Hub Header Banner -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-muted) 100%); border-left: 4px solid var(--primary-600);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--text-main);">
+              Kho lưu trữ Hồ sơ tạo thiết kế (Resume Hub)
+            </h2>
+            <span class="badge badge-primary" style="font-size: 0.8rem; font-weight: 700;">${resumes.length} CV</span>
+          </div>
+          <p style="margin: 0.35rem 0 0 0; font-size: 0.875rem; color: var(--text-muted);">
+            Toàn bộ các bản CV LaTeX và PDF đã được tối ưu hóa riêng biệt theo từng tin tuyển dụng. Bạn có thể mở lại để chỉnh sửa hoặc tải về bất kỳ lúc nào.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button class="btn btn-primary btn-sm" onclick="navigateTo('jobs')">
+            <i data-lucide="plus" class="icon-sm"></i>
+            <span>Tạo thêm CV từ Việc làm</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumes Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem;">
+      ${cardsHtml}
+    </div>
+  `;
+
+  refreshIcons();
+}
+
+/**
+ * Tải trực tiếp một bản CV theo ID và mở Workspace
+ */
+export async function loadResumeById(resumeId) {
+  const container = document.getElementById('resume-workspace-content');
+  if (!container) return;
+
+  if (state.selectedResume && state.selectedResume.id === resumeId) {
+    renderResumeWorkspace(state.selectedResume);
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="text-align: center; padding: 4rem 1.5rem;">
+      <div class="spinner spinner-primary" style="width: 32px; height: 32px; margin-bottom: 1rem;"></div>
+      <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem;">
+        Đang mở Không gian làm việc CV...
+      </h4>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">
+        Đang tải dữ liệu CV LaTeX, Evidence Map và bản xem trước PDF...
+      </p>
+    </div>
+  `;
+
+  try {
+    const resume = await api.getTailoredResumeById(resumeId);
+    state.selectedResume = resume;
+    renderResumeWorkspace(resume);
+  } catch (err) {
+    container.innerHTML = `
+      <div class="card empty-state-card">
+        <div class="empty-state-icon-box" style="color: var(--danger-600); background-color: var(--danger-50);">
+          <i data-lucide="alert-circle" class="icon-lg"></i>
+        </div>
+        <h3 class="empty-state-title">Không tìm thấy bản CV</h3>
+        <p class="empty-state-text">${escapeHtml(err.message || 'Bản CV không tồn tại hoặc bạn không có quyền truy cập.')}</p>
+        <button class="btn btn-primary btn-sm" onclick="navigateTo('resume')">
+          <i data-lucide="arrow-left" class="icon-sm"></i>
+          <span>Quay lại Kho lưu trữ CV</span>
+        </button>
+      </div>
+    `;
+    refreshIcons();
+  }
+}
+
+/**
+ * Xóa một bản CV trực tiếp từ giao diện Resume Hub
+ */
+export async function deleteResumeFromHub(resumeId) {
+  if (!confirm('Bạn có chắc chắn muốn xóa bản CV này khỏi hệ thống?')) return;
+  try {
+    showToast('Đang xóa bản CV...', 'info');
+    await api.deleteTailoredResumeById(resumeId);
+    showToast('Đã xóa thành công bản CV!', 'success');
+    if (state.selectedResume && state.selectedResume.id === resumeId) {
+      state.selectedResume = null;
+    }
+    loadResumeHub();
+  } catch (err) {
+    showToast(`Lỗi xóa CV: ${err.message}`, 'error');
+  }
+}
+

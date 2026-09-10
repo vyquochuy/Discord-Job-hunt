@@ -4,6 +4,14 @@
 
 import { client } from './client.js';
 
+export function getTailoredResumes() {
+  return client.get('/resumes');
+}
+
+export function getTailoredResumeById(resumeId) {
+  return client.get(`/resumes/${resumeId}`);
+}
+
 export function getTailoredResume(jobId) {
   return client.get(`/resumes/job/${jobId}`);
 }

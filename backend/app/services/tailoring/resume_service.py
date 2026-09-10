@@ -1,7 +1,7 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -273,6 +273,25 @@ class ResumeTailorService:
         )
         res = await session.execute(stmt)
         return res.scalars().first()
+
+    @classmethod
+    async def get_tailored_resumes_for_candidate(
+        cls, session: AsyncSession, candidate_id: uuid.UUID
+    ) -> List[TailoredResume]:
+        """Truy vấn danh sách tất cả các bản Tailored Resume của ứng viên, sắp xếp mới nhất lên đầu."""
+        stmt = (
+            select(TailoredResume)
+            .where(TailoredResume.candidate_id == candidate_id)
+            .options(
+                selectinload(TailoredResume.evidence_items),
+                selectinload(TailoredResume.cover_letter),
+                selectinload(TailoredResume.job),
+                selectinload(TailoredResume.candidate),
+            )
+            .order_by(TailoredResume.created_at.desc())
+        )
+        res = await session.execute(stmt)
+        return list(res.scalars().all())
 
     @classmethod
     async def update_and_recompile_latex(

@@ -148,8 +148,11 @@ cors_origins = [
 default_allowed = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5500",
     "http://localhost:8000",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5500",
     "http://127.0.0.1:8000",
 ]
 for origin in default_allowed:
@@ -339,5 +342,18 @@ async def serve_spa_view(view_name: str, request: Request):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": f"Route '/{view_name}' not found."}
+    )
+
+
+@app.get("/{view_name}/{sub_id:path}", tags=["frontend"])
+async def serve_spa_sub_view(view_name: str, sub_id: str, request: Request):
+    """Phục vụ file index.html cho các sub-route SPA frontend như /resume/{resume_id}."""
+    if view_name.lower() in FRONTEND_ROUTES:
+        index_file = frontend_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": f"Route '/{view_name}/{sub_id}' not found."}
     )
 

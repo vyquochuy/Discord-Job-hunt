@@ -54,6 +54,8 @@ export const api = {
   uploadResumeFile: profileApi.uploadResumeFile,
 
   // Tailored Resumes
+  getTailoredResumes: resumeApi.getTailoredResumes,
+  getTailoredResumeById: resumeApi.getTailoredResumeById,
   getTailoredResume: resumeApi.getTailoredResume,
   tailorResume: resumeApi.tailorResume,
   deleteTailoredResume: resumeApi.deleteTailoredResume,

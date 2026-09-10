@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from typing import Optional
+from typing import Optional, List
 import unicodedata
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -105,6 +105,20 @@ async def tailor_resume(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal server error occurred while tailoring resume.",
         )
+
+
+@router.get("", response_model=List[TailoredResumeResponse])
+async def list_tailored_resumes(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_authenticated_user_or_internal),
+):
+    """
+    Liệt kê toàn bộ các bản Tailored Resume của Candidate hiện tại,
+    sắp xếp từ mới nhất đến cũ nhất.
+    """
+    cand = await get_candidate_for_current_user(db, _user)
+    resumes = await resume_service.get_tailored_resumes_for_candidate(db, cand.id)
+    return resumes
 
 
 @router.get("/{id}", response_model=TailoredResumeResponse)

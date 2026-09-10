@@ -136,7 +136,7 @@ class ITNaviJobCollector(BaseJobCollector):
                             if copy_elem and copy_elem.get("data-copy"):
                                 url = copy_elem.get("data-copy")
                             else:
-                                link_elem = card.select_one("a[href*='/job-detail/'], a[href*='/job/'], a[href*='/viec-lam-']")
+                                link_elem = card.select_one("a[href*='/job-detail/'], a[href*='/viec-lam-']")
                                 if link_elem and link_elem.get("href"):
                                     rel_url = link_elem.get("href")
                                     url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"

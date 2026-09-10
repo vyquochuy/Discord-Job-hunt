@@ -34,11 +34,13 @@ export function unsaveJob(jobId) {
 }
 
 export function triggerDailyBatch(limitPerSource = 50) {
-  return client.post(`/jobs/daily-batch?limit_per_source=${limitPerSource}`);
+  // Quét đa nguồn cào 10 website có thể mất từ 1-3 phút.
+  // Đặt timeout 5 phút (300,000ms) để không bị trình duyệt tự ngắt abort sau 25s
+  return client.post(`/jobs/daily-batch?limit_per_source=${limitPerSource}`, null, { timeout: 300000 });
 }
 
 export function triggerCollection(source = 'mock', limit = 5) {
-  return client.post(`/jobs/collect?source=${source}&limit=${limit}`);
+  return client.post(`/jobs/collect?source=${source}&limit=${limit}`, null, { timeout: 120000 });
 }
 
 export function ingestManualJob(payload) {

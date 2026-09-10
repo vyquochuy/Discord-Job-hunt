@@ -2,7 +2,7 @@
  * Job Hunter Platform — HTTP Client Base
  */
 
-import { resolveApiBaseUrl, getApiResolutionSource } from '../config/config.js';
+import { resolveApiBaseUrl, getApiResolutionSource, isLocalDevEnvironment } from '../config/config.js';
 import { events, APP_EVENTS } from '../core/events.js';
 
 export class ApiClient {
@@ -245,8 +245,12 @@ export class ApiClient {
             continue;
           }
 
-          const err = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
-          err.isBackendWaking = true;
+          const isLocal = isLocalDevEnvironment();
+          const msg = isLocal
+            ? `Máy chủ Backend phản hồi lỗi ${response.status}. Vui lòng kiểm tra lại dịch vụ Backend local.`
+            : 'Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.';
+          const err = new Error(msg);
+          err.isBackendWaking = !isLocal;
           err.status = response.status;
           throw err;
         }
@@ -282,9 +286,8 @@ export class ApiClient {
         }
 
         // Kiểm tra lỗi mạng / timeout
-        const isTransientNetwork = err.isTimeout ||
-                                   err.name === 'TimeoutError' ||
-                                   err.name === 'AbortError' ||
+        const isTimeout = err.isTimeout || err.name === 'TimeoutError' || err.name === 'AbortError';
+        const isTransientNetwork = isTimeout ||
                                    err.name === 'TypeError' ||
                                    (err.message && (
                                      err.message.includes('fetch') ||
@@ -305,8 +308,19 @@ export class ApiClient {
         }
 
         if (isTransientNetwork) {
-          const friendlyErr = new Error('Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.');
-          friendlyErr.isBackendWaking = true;
+          const isLocal = isLocalDevEnvironment();
+          let friendlyMsg;
+          if (isTimeout) {
+            friendlyMsg = isLocal
+              ? 'Tác vụ xử lý quá thời gian chờ (Timeout). Backend local vẫn đang chạy ngầm trong nền, vui lòng đợi ít phút rồi làm mới danh sách.'
+              : 'Tác vụ mất nhiều thời gian hơn dự kiến (Timeout). Quá trình quét vẫn đang chạy ngầm trên máy chủ, vui lòng đợi ít phút rồi làm mới danh sách.';
+          } else {
+            friendlyMsg = isLocal
+              ? 'Không thể kết nối đến máy chủ Backend local (http://localhost:8000). Vui lòng kiểm tra xem Backend FastAPI / Docker đã chạy chưa.'
+              : 'Máy chủ Backend đang khởi động lại (Render cold start). Vui lòng đợi trong giây lát và thử lại.';
+          }
+          const friendlyErr = new Error(friendlyMsg);
+          friendlyErr.isBackendWaking = !isLocal && !isTimeout;
           friendlyErr.status = 503;
           throw friendlyErr;
         }

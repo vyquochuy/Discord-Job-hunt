@@ -41,7 +41,9 @@ class ResumeSemanticWriter:
         api_key: Optional[str] = None,
         api_base_url: Optional[str] = None,
     ):
-        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash")
+        raw_model = model or getattr(settings, "GEMINI_MODEL", "gemini-flash-latest")
+        deprecated_models = {"gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"}
+        self.model = "gemini-flash-latest" if (not raw_model or raw_model in deprecated_models) else raw_model
         self.api_key = api_key or getattr(settings, "GEMINI_API_KEY", None) or getattr(settings, "GOOGLE_API_KEY", None) or getattr(settings, "OPENAI_API_KEY", None)
         self.api_base_url = api_base_url or getattr(settings, "GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
         self.groq_api_key = getattr(settings, "GROQ_API_KEY", None) or os.environ.get("GROQ_API_KEY")
@@ -50,9 +52,10 @@ class ResumeSemanticWriter:
         """Gọi REST API của Gemini với định dạng Structured JSON mode và cơ chế Model Cascade + Retry tự động."""
         # 1. Thử gọi Gemini nếu có API key
         if self.api_key:
-            models_to_try = [self.model]
-            for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
-                if fallback not in models_to_try:
+            deprecated_models = {"gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"}
+            models_to_try = [self.model] if self.model not in deprecated_models else ["gemini-flash-latest"]
+            for fallback in ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-pro-latest"]:
+                if fallback not in models_to_try and fallback not in deprecated_models:
                     models_to_try.append(fallback)
 
         payload = {

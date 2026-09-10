@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     BACKEND_API_URL: str = "http://localhost:8000"
-    ALLOWED_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173"
+    ALLOWED_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5500,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5500,http://127.0.0.1:8000"
 
     # Bảo mật API nội bộ & Web Auth
     INTERNAL_API_SECRET: str = "change_me_to_a_secure_random_string_32_chars"
@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     # Gemini & Groq Integration
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-flash-latest"
     GEMINI_API_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
     GROQ_API_KEY: Optional[str] = None
 

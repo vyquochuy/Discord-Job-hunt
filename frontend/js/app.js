@@ -8,6 +8,7 @@ import { events, APP_EVENTS } from './core/events.js';
 import { navigateTo, initRouter } from './core/router.js';
 import { showToast } from './components/common/toast.js';
 import { refreshIcons } from './utils/dom.js';
+import { isLocalDevEnvironment } from './config/config.js';
 
 import {
   openAuthModal,
@@ -56,7 +57,10 @@ import {
   renderResumeWorkspace,
   copyCoverLetterCleanEmail,
   copyCoverLetterSubject,
-  openCoverLetterInMailClient
+  openCoverLetterInMailClient,
+  loadResumeHub,
+  loadResumeById,
+  deleteResumeFromHub
 } from './pages/resume/resume.page.js';
 import {
   loadApplications,
@@ -115,6 +119,9 @@ Object.assign(window, {
   copyCoverLetterCleanEmail,
   copyCoverLetterSubject,
   openCoverLetterInMailClient,
+  loadResumeHub,
+  loadResumeById,
+  deleteResumeFromHub,
   loadApplications,
   changeApplicationStatus,
   prepareApplicationModal,
@@ -172,10 +179,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   events.on(APP_EVENTS.BACKEND_WAKING, (detail) => {
     if (!isWakingNoticeActive) {
       isWakingNoticeActive = true;
-      const attempt = detail?.attempt || 1;
-      const maxAttempts = detail?.maxAttempts || 3;
-      showToast(`Máy chủ đang khởi động lại (Render cold start, thử lại ${attempt}/${maxAttempts}). Vui lòng đợi trong giây lát...`, 'info');
-      setTimeout(() => { isWakingNoticeActive = false; }, 6000);
+      const isLocal = isLocalDevEnvironment();
+      const msg = isLocal
+        ? `Đang kết nối lại Backend local (thử lại ${attempt}/${maxAttempts}). Vui lòng đợi trong giây lát...`
+        : `Máy chủ đang khởi động lại (Render cold start, thử lại ${attempt}/${maxAttempts}). Vui lòng đợi trong giây lát...`;
+      showToast(msg, 'info');
+      setTimeout(() => { isWakingNoticeActive = false; }, 15000);
     }
   });
 

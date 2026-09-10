@@ -11,11 +11,15 @@ import { loadDashboard } from '../pages/dashboard/dashboard.page.js';
 import { loadJobs } from '../pages/jobs/jobs.page.js';
 import { loadRecommendations } from '../pages/recommendations/recommendations.page.js';
 import { loadProfile } from '../pages/profile/profile.page.js';
-import { renderResumeWorkspace } from '../pages/resume/resume.page.js';
+import {
+  renderResumeWorkspace,
+  loadResumeHub,
+  loadResumeById,
+} from '../pages/resume/resume.page.js';
 import { loadApplications } from '../pages/applications/applications.page.js';
 import { loadSystemView } from '../pages/system/system.page.js';
 
-export function navigateTo(viewName, pushState = true) {
+export function navigateTo(viewName, pushState = true, param = null) {
   const targetView = VALID_VIEWS.includes(viewName) ? viewName : 'dashboard';
   state.activeView = targetView;
 
@@ -43,10 +47,16 @@ export function navigateTo(viewName, pushState = true) {
 
   // Update browser URL (HTML5 History API)
   if (pushState) {
-    const targetPath = targetView === 'dashboard' ? '/dashboard' : `/${targetView}`;
+    let targetPath = targetView === 'dashboard' ? '/dashboard' : `/${targetView}`;
+    if (targetView === 'resume' && param) {
+      targetPath = `/resume/${param}`;
+    } else if (targetView === 'resume' && state.selectedResume && !param) {
+      targetPath = `/resume/${state.selectedResume.id}`;
+    }
+
     const currentPath = window.location.pathname;
     if (currentPath !== targetPath && !(targetView === 'dashboard' && currentPath === '/')) {
-      window.history.pushState({ view: targetView }, '', targetPath);
+      window.history.pushState({ view: targetView, param }, '', targetPath);
     }
   }
 
@@ -56,10 +66,32 @@ export function navigateTo(viewName, pushState = true) {
   if (targetView === 'recommendations') loadRecommendations();
   if (targetView === 'profile') loadProfile();
   if (targetView === 'applications') loadApplications();
-  if (targetView === 'resume' && state.selectedResume) renderResumeWorkspace(state.selectedResume);
+  if (targetView === 'resume') {
+    if (param) {
+      loadResumeById(param);
+    } else if (state.selectedResume) {
+      renderResumeWorkspace(state.selectedResume);
+    } else {
+      loadResumeHub();
+    }
+  }
   if (targetView === 'system') loadSystemView();
 
   refreshIcons();
+}
+
+function resolveUrlAndNavigate(pushState = false) {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  const segments = path.split('/');
+  const baseView = (segments[0] || 'dashboard').toLowerCase();
+  const subParam = segments[1] || null;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryId = urlParams.get('id');
+  const param = subParam || queryId || null;
+
+  const targetView = VALID_VIEWS.includes(baseView) ? baseView : 'dashboard';
+  navigateTo(targetView, pushState, param);
 }
 
 export function initRouter() {
@@ -70,13 +102,23 @@ export function initRouter() {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       const view = link.dataset.view;
-      if (view) navigateTo(view);
+      if (view) {
+        if (view === 'resume') {
+          state.selectedResume = null;
+        }
+        navigateTo(view);
+      }
     });
     link.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const view = link.dataset.view;
-        if (view) navigateTo(view);
+        if (view) {
+          if (view === 'resume') {
+            state.selectedResume = null;
+          }
+          navigateTo(view);
+        }
       }
     });
   });
@@ -84,17 +126,14 @@ export function initRouter() {
   // Handle Browser Back / Forward Buttons
   window.addEventListener('popstate', (e) => {
     const viewFromState = e.state?.view;
+    const paramFromState = e.state?.param;
     if (viewFromState && VALID_VIEWS.includes(viewFromState)) {
-      navigateTo(viewFromState, false);
+      navigateTo(viewFromState, false, paramFromState);
     } else {
-      const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-      const targetView = VALID_VIEWS.includes(currentPath) ? currentPath : 'dashboard';
-      navigateTo(targetView, false);
+      resolveUrlAndNavigate(false);
     }
   });
 
-  // Initial load based on current browser URL pathname (e.g. /jobs, /recommendations, /resume,...)
-  const pathSegment = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-  const initialView = VALID_VIEWS.includes(pathSegment) ? pathSegment : 'dashboard';
-  navigateTo(initialView, false);
+  // Initial load based on current browser URL pathname (e.g. /jobs, /recommendations, /resume/xxx,...)
+  resolveUrlAndNavigate(false);
 }

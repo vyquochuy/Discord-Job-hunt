@@ -375,7 +375,10 @@ Required JSON Output Schema:
 
         # 1. Thử gọi Gemini
         if api_key:
-            models_to_try = [settings.GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+            primary_model = getattr(settings, "GEMINI_MODEL", "gemini-flash-latest")
+            deprecated_models = {"gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"}
+            candidate_models = [primary_model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-pro-latest"]
+            models_to_try = [m for m in dict.fromkeys(candidate_models) if m and m not in deprecated_models]
             payload = {
                 "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
                 "systemInstruction": {"parts": [{"text": system_instruction}]},
