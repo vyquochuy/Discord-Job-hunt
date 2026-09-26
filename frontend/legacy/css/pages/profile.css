@@ -1,0 +1,31 @@
+/* ==========================================================================
+   Candidate Profile Page & Resume Upload Styles
+   ========================================================================== */
+
+.upload-status-text {
+  margin-top: 0.75rem;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--primary-600);
+}
+
+.profile-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.profile-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-default);
+  padding-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .profile-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}

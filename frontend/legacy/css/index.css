@@ -1,0 +1,19 @@
+/* ==========================================================================
+   Job Hunter Platform — Master Stylesheet
+   Architecture: Modular Design System (Vanilla CSS)
+   ========================================================================== */
+
+/* Design Tokens, Fonts & Base Reset */
+@import url('./variables.css');
+
+/* Layout Shell (Header, Sidebar, Navigation, Containers) */
+@import url('./layout.css');
+
+/* Reusable Components (Buttons, Forms, Badges, Modals, Tables, Toast) */
+@import url('./components.css');
+
+/* Feature / Page Specific Styles */
+@import url('./pages/jobs.css');
+@import url('./pages/profile.css');
+@import url('./pages/resume.css');
+@import url('./pages/system.css');

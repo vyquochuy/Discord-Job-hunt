@@ -197,7 +197,21 @@ if not frontend_dir.exists():
 if not frontend_dir.exists():
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 
+def get_frontend_index() -> Path:
+    """Trả về file index.html của bản build production (dist) nếu tồn tại, ngược lại fallback về index gốc."""
+    dist_index = frontend_dir / "dist" / "index.html"
+    if dist_index.exists():
+        return dist_index
+    return frontend_dir / "index.html"
+
+
 if frontend_dir.exists():
+    dist_dir = frontend_dir / "dist"
+    if (dist_dir / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(dist_dir / "assets")), name="assets")
+    elif (frontend_dir / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+
     app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
     if (frontend_dir / "css").exists():
         app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
@@ -232,7 +246,7 @@ async def root(request: Request):
     if request.method == "HEAD":
         return Response(status_code=status.HTTP_200_OK)
 
-    index_file = frontend_dir / "index.html"
+    index_file = get_frontend_index()
     accept_header = request.headers.get("accept", "")
     
     # Nếu request client chỉ định yêu cầu JSON (API client / curl)
@@ -332,12 +346,14 @@ FRONTEND_ROUTES = {
 }
 
 
-@app.get("/{view_name}", tags=["frontend"])
+@app.api_route("/{view_name}", methods=["GET", "HEAD"], tags=["frontend"])
 async def serve_spa_view(view_name: str, request: Request):
     """Phục vụ file index.html cho các route SPA frontend (dashboard, jobs, recommendations, resume, applications, profile, system)."""
     if view_name.lower() in FRONTEND_ROUTES:
-        index_file = frontend_dir / "index.html"
+        index_file = get_frontend_index()
         if index_file.exists():
+            if request.method == "HEAD":
+                return Response(status_code=status.HTTP_200_OK, media_type="text/html")
             return FileResponse(str(index_file))
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -345,12 +361,14 @@ async def serve_spa_view(view_name: str, request: Request):
     )
 
 
-@app.get("/{view_name}/{sub_id:path}", tags=["frontend"])
+@app.api_route("/{view_name}/{sub_id:path}", methods=["GET", "HEAD"], tags=["frontend"])
 async def serve_spa_sub_view(view_name: str, sub_id: str, request: Request):
     """Phục vụ file index.html cho các sub-route SPA frontend như /resume/{resume_id}."""
     if view_name.lower() in FRONTEND_ROUTES:
-        index_file = frontend_dir / "index.html"
+        index_file = get_frontend_index()
         if index_file.exists():
+            if request.method == "HEAD":
+                return Response(status_code=status.HTTP_200_OK, media_type="text/html")
             return FileResponse(str(index_file))
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,

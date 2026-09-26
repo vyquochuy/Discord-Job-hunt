@@ -183,19 +183,46 @@
 
 ---
 
-## Phase 9 — Comprehensive Responsive Design & Multi-Device SaaS Experience
+## Phase 9 — Enterprise SaaS Dashboard Modernization & Comprehensive Responsive Architecture (React + TypeScript + Tailwind CSS)
+
+**Status:** COMPLETED
+
+**Goal:** Hiện đại hóa toàn bộ giao diện Web của Job Hunter thành một SaaS dashboard production-grade đẳng cấp (Linear / Vercel-inspired), chuyển đổi sang kiến trúc React + TypeScript + Tailwind CSS + Lucide + Radix Primitives, tối ưu trải nghiệm đa thiết bị và bảo toàn 100% logic nghiệp vụ:
+
+- [x] **Project Foundation & Modern Stack**:
+  - Khởi tạo kiến trúc hiện đại: React 18, TypeScript 5.7+, Tailwind CSS 3.4, Vite 6, Lucide React, và Radix UI Primitives.
+  - Cấu hình path mapping `@/*`, loại bỏ hoàn toàn dependency bloat (không dùng Redux/Zustand nặng nề).
+  - Sao lưu toàn bộ mã nguồn cũ vào `frontend/legacy/` đảm bảo tính an toàn và khả năng phục hồi (recoverability).
+- [x] **Design System & Reusable Component Primitives**:
+  - Xây dựng Design Tokens chuẩn mực: Primary `#2563EB`, Surface `#FFFFFF`, Background `#F8FAFC`, Border `#E2E8F0`, Semantic (Success, Warning, Danger, Critical).
+  - Phân tầng Typography nhất quán: `Inter` (UI/Nội dung) và `JetBrains Mono` (LaTeX/Monospace code).
+  - Thư viện UI Primitives tái sử dụng: `Button` (6 biến thể), `Card`, `Badge`, `Input`, `Select`, `Dialog` (Radix), `Sheet` (Slide-out Drawer), `Tabs`, `Skeleton`, `EmptyState`, `MatchScoreBadge`.
+  - `DangerConfirmDialog`: Loại bỏ hoàn toàn `window.confirm()`, bắt buộc người dùng gõ chính xác chữ `DELETE` mới mở khóa thao tác phá hủy.
+- [x] **AppShell & Responsive-First Architecture (320px – 1440px)**:
+  - Sidebar Desktop 240px phân chia rõ ràng các khối TỔNG QUAN, ỨNG TUYỂN & HỒ SƠ, CẤU HÌNH, kèm khu vực định danh người dùng.
+  - Topbar tinh gọn chỉ chứa thông tin ngữ cảnh, trạng thái kết nối và menu tài khoản.
+  - Mobile Drawer với Backdrop làm mờ, mở bằng nút Hamburger, hỗ trợ đóng bằng phím Escape và chống tràn ngang (zero horizontal overflow).
+- [x] **Migrate Toàn Bộ 7 Trang Chức Năng**:
+  - `/dashboard`: 4 thẻ KPI nhanh, danh sách đề xuất hàng đầu, kết nối trực tiếp database (2,300+ jobs).
+  - `/jobs`: Tìm kiếm tức thì có debounce, bộ lọc đa năng (Work Mode, Level, Source), hỗ trợ Mobile Sheet Filter.
+  - `/recommendations`: Bảng xếp hạng theo thuật toán tất định 7 chỉ số, nhãn phân loại Eligibility (`ELIGIBLE`, `BORDERLINE`, `INELIGIBLE`).
+  - `/resume`: Resume Hub quản lý danh sách CV + Workspace 4 tabs (Bản xem PDF live, Trình soạn thảo LaTeX kèm nút lưu/biên dịch, Bảng đối soát Evidence Map, và Trình tạo Cover Letter).
+  - `/applications`: Bảng quản lý ứng tuyển cho desktop và tự động chuyển sang thẻ Card cho mobile kèm dropdown đổi trạng thái trực tiếp.
+  - `/profile`: Single Source of Truth cho ứng viên, tích hợp Dropzone kéo thả file CV tự động trích xuất thông tin.
+  - `/system`: Phân chia 3 khối rõ ràng: Infrastructure (Ping health, latency ms), Maintenance (Dọn cache, reset điểm), Danger Zone (Purge DB có xác nhận nghiêm ngặt).
+- [x] **Bảo Toàn Cơ Chế Xác Thực & API Client (Behaviorally Identical)**:
+  - Giữ nguyên 100% cơ chế 30m Access Token + 30d Refresh Token Rotation (`localStorage`).
+  - Bảo tồn Refresh Mutex Queue (`refreshPromise`) giải quyết triệt để xung đột 401 từ các API gọi đồng thời.
+  - Tự động thử lại với Exponential Backoff khi gặp các mã lỗi tạm thời (502/503/504) và phát hiện cold-start backend.
+- [x] **Docker & Production Serving**:
+  - Tối ưu hóa bundle Vite (`dist/index.html`, `dist/assets/`).
+  - Tích hợp FastAPI StaticFiles tự động mount `/assets` và phục vụ trực tiếp bản build production qua Docker container backend port 8000.
+
+---
+
+## Phase 10 — Train Model LLM Chuyên Biệt Cho Viết CV & Cover Letter
 
 **Status:** PLANNED (Backlog)
 
-**Goal:** Tối ưu hóa trải nghiệm giao diện người dùng trên toàn bộ các thiết bị (Mobile, Tablet, Desktop, Ultra-Wide) và màn hình cảm ứng:
+**Goal:** Tự train / fine-tune mô hình ngôn ngữ mã nguồn mở chuyên biệt để viết CV và cover letter dựa theo JD thu thập được và profile người dùng cung cấp, tối ưu hóa chi phí token và nâng cao độ tự nhiên của văn phong.
 
-- [ ] **Mobile & Tablet Adaptability (320px – 1024px)**:
-  - Sidebar dạng Drawer / Off-canvas trượt mở mượt mà trên Mobile & Tablet.
-  - Resume Workspace: Tự động chuyển đổi layout từ 2 cột song song (50%-50%) sang dạng 1 cột dạng thẻ xếp tầng trên thiết bị di động.
-  - Tối ưu hóa khung hiển thị PDF viewer và LaTeX editor trên màn hình nhỏ.
-- [ ] **Touch & Gesture Enhancements**:
-  - Hỗ trợ thao tác vuốt (swipe) chuyển đổi giữa các tab và thẻ công việc.
-  - Tối ưu kích thước các nút bấm đạt chuẩn 44x44px của mobile accessibility.
-- [ ] **Dark / Light Theme & Ultra-Wide Layouts**:
-  - Hỗ trợ giao diện Dark Mode toàn diện.
-  - Giới hạn max-width hợp lý trên màn hình lớn (Ultra-Wide 2K/4K) tránh kéo giãn giao diện quá mức.

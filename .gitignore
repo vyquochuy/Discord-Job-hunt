@@ -36,7 +36,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Node.js / Discord Bot
+# Node.js / Discord Bot / Frontend
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -45,6 +45,8 @@ lerna-debug.log*
 .pnpm-debug.log*
 discord-bot/dist/
 discord-bot/build/
+frontend/dist/
+*.tsbuildinfo
 
 # Database data & Local files
 postgres_data/
