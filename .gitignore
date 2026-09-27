@@ -46,6 +46,7 @@ lerna-debug.log*
 discord-bot/dist/
 discord-bot/build/
 frontend/dist/
+.vite/
 *.tsbuildinfo
 
 # Database data & Local files
@@ -69,10 +70,10 @@ temp/
 *.pdf
 !docs/*.pdf
 
-# Resume files
-context/
-!context.example/
-!context.example/**
+# Resume files (Root context folder only)
+/context/
+!/context.example/
+!/context.example/**
 
 
 backend/storage/
