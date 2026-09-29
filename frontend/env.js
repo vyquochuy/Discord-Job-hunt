@@ -9,6 +9,6 @@
 
 window.ENV = window.ENV || {
   API_URL: 'https://job-hunt-backend-0hrl.onrender.com',
-  ENVIRONMENT: 'development',
+  ENVIRONMENT: 'production',
 };
 

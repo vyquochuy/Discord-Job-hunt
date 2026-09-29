@@ -1,6 +1,9 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!env\\.js$).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
