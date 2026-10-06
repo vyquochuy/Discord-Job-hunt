@@ -1,8 +1,10 @@
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -64,27 +66,23 @@ async def register_user(
     user_count = (await db.execute(count_stmt)).scalar() or 0
     is_admin = (email_clean == settings.ADMIN_EMAIL.lower().strip()) or (user_count == 0)
 
-    # 3. Tạo User
-    user = User(
-        id=uuid.uuid4(),
-        email=email_clean,
-        hashed_password=get_password_hash(payload.password),
-        full_name=payload.full_name.strip(),
-        is_active=True,
-        is_superuser=is_admin,
-    )
-    db.add(user)
-    await db.flush()
+    try:
+        # 3. Tạo User
+        now = datetime.now(timezone.utc)
+        user = User(
+            id=uuid.uuid4(),
+            email=email_clean,
+            hashed_password=get_password_hash(payload.password),
+            full_name=payload.full_name.strip(),
+            is_active=True,
+            is_superuser=is_admin,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(user)
+        await db.flush()
 
-    # 4. Tạo hoặc gán Candidate Profile 1–1 (User 1-1 Candidate)
-    cand_stmt = select(Candidate).where(Candidate.user_id.is_(None)).order_by(Candidate.created_at.asc()).limit(1)
-    cand_res = await db.execute(cand_stmt)
-    unassigned_cand = cand_res.scalar_one_or_none()
-
-    if unassigned_cand:
-        unassigned_cand.user_id = user.id
-        candidate_id = unassigned_cand.id
-    else:
+        # 4. Tạo hồ sơ Ứng viên 1–1 độc lập cho User (không chiếm đoạt unassigned candidate)
         new_cand = Candidate(
             id=uuid.uuid4(),
             user_id=user.id,
@@ -95,18 +93,23 @@ async def register_user(
         await db.flush()
         candidate_id = new_cand.id
 
-    # 5. Phát hành Cặp Token (RTR)
-    user_agent = request.headers.get("user-agent")
-    ip_address = request.client.host if request.client else None
-    access_token, refresh_token = await AuthService.issue_token_pair(
-        db=db,
-        user=user,
-        user_agent=user_agent,
-        ip_address=ip_address,
-    )
+        # 5. Phát hành Cặp Token (RTR)
+        user_agent = request.headers.get("user-agent")
+        ip_address = request.client.host if request.client else None
+        access_token, refresh_token = await AuthService.issue_token_pair(
+            db=db,
+            user=user,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
 
-    await db.commit()
-    await db.refresh(user)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email đã được đăng ký trong hệ thống",
+        )
 
     user_resp = UserResponse(
         id=user.id,
@@ -115,7 +118,7 @@ async def register_user(
         is_active=user.is_active,
         is_superuser=user.is_superuser,
         candidate_id=candidate_id,
-        created_at=user.created_at,
+        created_at=user.created_at or now,
     )
 
     return TokenResponse(

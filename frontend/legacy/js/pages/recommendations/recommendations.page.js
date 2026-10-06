@@ -63,7 +63,7 @@ export async function loadRecommendations() {
       const sourceBadge = formatSourceBadge(rec.source, rec.source_url);
 
       return `
-        <div class="card card-hover" style="margin-bottom: 0.85rem; cursor: pointer;" onclick="openJobDetailModal('${rec.job_id}')">
+        <div class="card card-hover" style="margin-bottom: 0.85rem; cursor: pointer;" onclick="openJobDetailModal('${escapeHtml(rec.job_id)}')">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
             <div style="display: flex; gap: 0.85rem; align-items: center; flex: 1; min-width: 0;">
               <div style="font-size: 1.15rem; font-weight: 700; color: var(--slate-400); width: 32px; text-align: center;">#${idx + 1}</div>
@@ -85,10 +85,10 @@ export async function loadRecommendations() {
 
           <div style="margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <span class="badge ${rec.eligibility === 'ELIGIBLE' ? 'badge-green' : 'badge-amber'}">${rec.eligibility}</span>
+              <span class="badge ${escapeHtml(rec.eligibility) === 'ELIGIBLE' ? 'badge-green' : 'badge-amber'}">${escapeHtml(rec.eligibility)}</span>
               ${rec.recommendation ? `<span style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(rec.recommendation)}</span>` : ''}
             </div>
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openJobDetailModal('${rec.job_id}')">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openJobDetailModal('${escapeHtml(rec.job_id)}')">
               <span>Phân tích & tạo thiết kế</span>
               <i data-lucide="chevron-right" class="icon-sm"></i>
             </button>

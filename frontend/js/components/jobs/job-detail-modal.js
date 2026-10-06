@@ -98,7 +98,7 @@ export async function openJobDetailModal(jobId) {
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <div>
               <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-700); letter-spacing: 0.04em;">ĐIỂM TƯƠNG THÍCH 7 CHỈ SỐ TẤT ĐỊNH</div>
-              <h4 style="font-size: 1.1rem; color: var(--primary-900); margin-top: 0.2rem;">${match.recommendation || 'Đề xuất ứng tuyển'}</h4>
+              <h4 style="font-size: 1.1rem; color: var(--primary-900); margin-top: 0.2rem;">${escapeHtml(match.recommendation || 'Đề xuất ứng tuyển')}</h4>
             </div>
             <div class="score-badge ${scoreClass}" style="font-size: 1.35rem; padding: 0.4rem 0.85rem;">
               ${match.score.toFixed(0)}/100

@@ -166,18 +166,20 @@ async def download_resume_pdf(
     id: uuid.UUID,
     download: bool = Query(False, description="Nếu True sẽ trả về attachment để tải xuống, ngược lại inline để xem trước"),
     db: AsyncSession = Depends(get_db),
-    _user: Optional[User] = Depends(get_current_user_optional),
+    _user: User = Depends(get_authenticated_user_or_internal),
 ):
     """
     Xem trước hoặc tải về tệp tin PDF của CV đã được biên dịch hoàn chỉnh.
-    Cho phép truy cập trực tiếp qua UUID v4 ngẫu nhiên (Capability URL) cho iframe và link tải.
+    Yêu cầu xác thực và quyền sở hữu (Bearer token hoặc Query param token cho iframe/embed).
     """
+    cand = await get_candidate_for_current_user(db, _user)
     resume = await resume_service.get_tailored_resume_by_id(db, id)
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Tailored resume with ID {id} not found",
         )
+    verify_resume_ownership(resume, cand, _user)
 
     # Tự động phục hồi (JIT Recompile): Nếu tệp PDF chưa tồn tại trên đĩa container (do Render restart/ephemeral disk)
     if not resume.pdf_path or not os.path.exists(resume.pdf_path):

@@ -162,8 +162,6 @@ for origin in default_allowed:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    # Cho phép tất cả subdomain an toàn thuộc về vercel.app (production & preview deployments)
-    allow_origin_regex=r"^https://[a-zA-Z0-9_-]+\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["Content-Type", "Authorization", "X-Internal-Secret", "Accept", "Origin", "X-Requested-With"],

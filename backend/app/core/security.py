@@ -296,19 +296,14 @@ async def get_current_user_optional(
 
     # 2. Thử fallback nếu có X-Internal-Secret hợp lệ
     if is_valid_internal_secret(x_internal_secret):
-        stmt = select(User).order_by(User.created_at.asc()).limit(1)
-        result = await db.execute(stmt)
-        default_user = result.scalar_one_or_none()
-        if not default_user:
-            default_user = User(
-                id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                email="system@jobhunter.internal",
-                hashed_password="internal_system_service",
-                full_name="Internal System Service",
-                is_active=True,
-                is_superuser=True,
-            )
-        return default_user
+        return User(
+            id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            email="system@jobhunter.internal",
+            hashed_password="internal_system_service",
+            full_name="Internal System Service",
+            is_active=True,
+            is_superuser=True,
+        )
 
     return None
 

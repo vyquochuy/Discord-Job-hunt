@@ -168,6 +168,32 @@
 
 ---
 
+## Security Remediation & Hardening Plan (Phases 1, 2, 3 Completed, Phase 4 In Progress)
+
+### Phase 1 — Authorization & Tenant Isolation (Completed)
+- [x] Fix BOLA/IDOR in `/resumes/{id}/pdf` (`SEC-01`): Require `get_authenticated_user_or_internal` and `verify_resume_ownership`. Add `?token=` parameter support for native browser embeds.
+- [x] Fix Candidate Profile Hijacking (`SEC-02`): Remove automatic stealing of unassigned candidates in `register_user` and `CandidateRepository.get_or_create_for_user`.
+- [x] Fix Registration Race Conditions (`SEC-02`): Handle database `IntegrityError` on concurrent registrations and return clean HTTP 400.
+- [x] Add regression test suite `backend/tests/test_phase1_authorization_regression.py` (3/3 PASS).
+
+### Phase 2 — Authentication Hardening & Identity Boundaries (Completed)
+- [x] Eliminate Implicit Service-to-User Masquerading (`SEC-03`): Replace `User 1` database fallback in `get_current_user_optional` with an explicit in-memory Service Principal (`system@jobhunter.internal`).
+- [x] Verify JWT Expiration, Signature Validation, and Service-to-User isolation boundaries.
+- [x] Add regression test suite `backend/tests/test_phase2_auth_hardening.py` (3/3 PASS).
+
+### Phase 3 — Frontend Security, CORS Hardening & XSS Mitigation (Completed)
+- [x] Restrict CORS origins (`SEC-04`): Remove permissive wildcard `allow_origin_regex` pattern for Vercel subdomains in `main.py`, enforce strict domain whitelist (`cors_origins`).
+- [x] DOM-based XSS Hardening: Escape dynamic user/job inputs with `escapeHtml()` across frontend page template strings (`dashboard.page.js`, `recommendations.page.js`, `job-detail-modal.js`).
+- [x] Document Token Storage Migration Plan (`SEC-06`): Create comprehensive architecture doc `MIGRATION_PLAN.md` for migrating from `localStorage` to HttpOnly SameSite cookies.
+- [x] Add regression test suite `backend/tests/test_phase3_cors_xss.py` (2/2 PASS).
+
+### Phase 4 — Network Hygiene & Advanced Security Hardening (Planned / In Progress)
+- [ ] Implement custom transport IP pinning in `url_fetcher.py` to prevent DNS Rebinding TOCTOU SSRF (`SEC-05`).
+- [ ] Mock external LLM network calls in pytest suite (`test_architectural_anti_hallucination.py`, `test_jd_agnostic_tailoring.py`) to prevent 429 delays and credential leakage (`SEC-07`).
+- [ ] Implement HttpOnly Cookie token storage migration as designed in `MIGRATION_PLAN.md` (`SEC-06`).
+
+---
+
 ## Phase 8 — Zero-Cost Public Production Deployment (Cloudflare Pages, Cloud PaaS, Supabase & Free LLM) (In Progress)
 - [x] **8.1 Frontend Cloud-Ready & Cloudflare Pages Deployment (0đ)**:
   - [x] Dynamic `API_BASE` endpoint in `frontend/js/api.js` (support `window.ENV?.API_URL`, local fallback, and production cloud domain)

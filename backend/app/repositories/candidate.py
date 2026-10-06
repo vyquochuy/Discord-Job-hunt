@@ -64,24 +64,11 @@ class CandidateRepository:
         cls, session: AsyncSession, user_id: uuid.UUID, full_name: Optional[str] = None, email: Optional[str] = None
     ) -> Candidate:
         """
-        Lấy hồ sơ Candidate của user, hoặc liên kết với Candidate unassigned nếu có, hoặc tạo mới nếu chưa tồn tại.
+        Lấy hồ sơ Candidate của user, hoặc tạo mới riêng biệt nếu chưa tồn tại.
+        Không tự ý gán hay chiếm dụng hồ sơ unassigned của user khác.
         """
         candidate = await cls.get_profile_by_user(session, user_id)
         if not candidate:
-            # Kiểm tra nếu có candidate chưa gán user_id (unassigned candidate từ context sync / legacy)
-            unassigned_stmt = (
-                select(Candidate)
-                .where(Candidate.user_id.is_(None))
-                .order_by(Candidate.created_at.asc())
-                .limit(1)
-            )
-            unassigned_res = await session.execute(unassigned_stmt)
-            candidate = unassigned_res.scalar_one_or_none()
-            if candidate:
-                candidate.user_id = user_id
-                await session.commit()
-                return await cls.get_by_id(session, candidate.id)  # type: ignore
-
             candidate = Candidate(
                 id=uuid.uuid4(),
                 user_id=user_id,

@@ -4,7 +4,7 @@
 
 import { state } from '../../core/store.js';
 import { api } from '../../api/index.js';
-import { refreshIcons } from '../../utils/dom.js';
+import { refreshIcons, escapeHtml } from '../../utils/dom.js';
 import { getCompanyMonogram, formatSourceBadge } from '../../utils/formatters.js';
 import { showToast } from '../../components/common/toast.js';
 
@@ -104,21 +104,21 @@ export async function loadDashboard() {
           const sourceBadge = formatSourceBadge(rec.source, rec.source_url);
 
           return `
-            <div class="card card-hover" style="margin-bottom: 0.75rem; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;" onclick="openJobDetailModal('${rec.job_id}')">
+            <div class="card card-hover" style="margin-bottom: 0.75rem; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;" onclick="openJobDetailModal('${escapeHtml(rec.job_id)}')">
               <div style="display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0;">
                 <div class="company-avatar">${monogram}</div>
                 <div style="flex: 1; min-width: 0;">
                   <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                    <h4 style="font-size: 0.96rem; font-weight: 600; margin: 0;">${jobTitle}</h4>
-                    <span class="badge ${rec.eligibility === 'ELIGIBLE' ? 'badge-green' : 'badge-amber'}">${rec.eligibility}</span>
+                    <h4 style="font-size: 0.96rem; font-weight: 600; margin: 0;">${escapeHtml(jobTitle)}</h4>
+                    <span class="badge ${escapeHtml(rec.eligibility) === 'ELIGIBLE' ? 'badge-green' : 'badge-amber'}">${escapeHtml(rec.eligibility)}</span>
                     ${sourceBadge}
                   </div>
                   <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    <strong>${companyName}</strong> • ${rec.location || 'Vietnam'} • ${rec.work_mode || 'Flexible'}
+                    <strong>${escapeHtml(companyName)}</strong> • ${escapeHtml(rec.location || 'Vietnam')} • ${escapeHtml(rec.work_mode || 'Flexible')}
                   </div>
                   <div style="font-size: 0.78rem; color: var(--primary-700); margin-top: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
                     <i data-lucide="target" class="icon-sm"></i>
-                    <span>${rec.recommendation || 'Đề xuất ứng tuyển'}</span>
+                    <span>${escapeHtml(rec.recommendation || 'Đề xuất ứng tuyển')}</span>
                   </div>
                 </div>
               </div>

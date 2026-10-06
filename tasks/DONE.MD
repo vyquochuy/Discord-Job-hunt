@@ -385,5 +385,50 @@
 - [x] **Chống Ghi Đè Mật Khẩu Admin Khi Khởi Động Container**:
   - Điều chỉnh `ensure_admin_superuser()` trong `backend/app/main.py` để không bao giờ ghi đè lại mật khẩu đã đổi của Admin khi restart container.
 
+---
 
+## Phase 8.3 — Application Security Hardening & Vulnerability Remediation (Phases 1, 2, 3 Completed)
 
+> 🛡️ **Kiểm thử Bảo mật Toàn diện & Khắc phục Lỗ hổng Trọng yếu (SEC-01 đến SEC-06)**
+> Tài liệu chi tiết: [security/REVIEW_BASELINE.md](file:///c:/Game/Job-Hunt/security/REVIEW_BASELINE.md), [security/FINDINGS.md](file:///c:/Game/Job-Hunt/security/FINDINGS.md), [MIGRATION_PLAN.md](file:///C:/Users/vyquochuy/.gemini/antigravity-ide/brain/5a61ee62-8874-4ee5-8f1d-4d522d72d616/MIGRATION_PLAN.md).
+
+### 1. Phase 1 — Phân quyền & Cô lập Đa người dùng (Tenant Isolation & Authorization)
+- [x] **Khắc phục triệt để BOLA / IDOR tại endpoint tải PDF (`SEC-01`)**:
+  - **File:** `backend/app/api/v1/endpoints/resumes.py` (`download_resume_pdf`).
+  - **Nguyên nhân gốc rễ:** Trước đây dựa trên giả định UUID v4 là unguessable "Capability URL" mở public cho `<iframe>`/`<embed>`, dẫn đến rò rỉ thông tin cá nhân PII (Họ tên, SĐT, Email, Địa chỉ, GPA, Lịch sử việc làm) giữa các ứng viên khác nhau.
+  - **Giải pháp:**
+    - Chuyển sang dependency `get_authenticated_user_or_internal`.
+    - Thực thi kiểm tra quyền sở hữu bắt buộc: `verify_resume_ownership(resume, cand, _user)`.
+    - Hỗ trợ cả 2 phương thức xác thực: Header `Authorization: Bearer <token>` và Query parameter `?token=<token>` an toàn cho các thẻ HTML nhúng (`<embed src=".../pdf?token=...">` hoặc `<iframe>`).
+  - **Regression Test:** `backend/tests/test_phase1_authorization_regression.py::test_resume_pdf_download_bola_and_query_token_auth` (Pass 100%).
+- [x] **Khắc phục Chiếm đoạt Hồ sơ Ứng viên (Profile Hijacking) & Tranh chấp Đăng ký (`SEC-02`)**:
+  - **Files:** `backend/app/api/v1/endpoints/auth.py` (`register_user`), `backend/app/repositories/candidate.py` (`get_or_create_for_user`).
+  - **Nguyên nhân gốc rễ:** Khi đăng ký mới, hệ thống tự động tìm và gán các bản ghi `Candidate` có `user_id = None` (hồ sơ nạp sẵn / seed context) cho tài khoản vừa tạo, gây lộ lọt thông tin cá nhân và xung đột race condition gây lỗi 500 `UniqueViolation`.
+  - **Giải pháp:**
+    - Loại bỏ hoàn toàn cơ chế tự động chiếm dụng hồ sơ unassigned. Mỗi tài khoản người dùng đăng ký mới luôn được tạo một `Candidate` độc lập, sạch sẽ.
+    - Bọc transaction đăng ký bằng `try/except IntegrityError`, rollback an toàn và trả về HTTP 400 Bad Request rõ ràng ("Email đã được đăng ký trong hệ thống").
+  - **Regression Test:** `backend/tests/test_phase1_authorization_regression.py::test_candidate_profile_unassigned_stealing_regression` & `test_concurrent_registration_email_collision_handling` (Pass 100%).
+
+### 2. Phase 2 — Thắt chặt Xác thực JWT & Tách biệt Định danh Dịch vụ (Authentication & Identity Boundaries)
+- [x] **Xóa bỏ Implicit Default-User Masquerading của Dịch vụ Nội bộ (`SEC-03`)**:
+  - **File:** `backend/app/core/security.py` (`get_current_user_optional`).
+  - **Nguyên nhân gốc rễ:** Khi request mang `X-Internal-Secret` gửi tới endpoint người dùng, hệ thống truy vấn database lấy User đầu tiên (thường là User 1 / Admin) và giả lập danh tính đó, gây đột biến dữ liệu ngoài ý muốn trên tài khoản admin.
+  - **Giải pháp:**
+    - Loại bỏ truy vấn `User 1` trong database.
+    - Cấp phát định danh Service Principal ảo trong bộ nhớ (`id: 00000000-0000-0000-0000-000000000001`, `email: system@jobhunter.internal`), ngăn chặn triệt để việc nhầm lẫn quyền giữa Service nội bộ và Tenant người dùng.
+  - **Regression Test:** `backend/tests/test_phase2_auth_hardening.py::test_internal_service_masquerade` (Pass 100%).
+- [x] **Kiểm chứng Toàn diện Vòng đời JWT & Thu hồi Phiên**:
+  - **File:** `backend/tests/test_phase2_auth_hardening.py`.
+  - Xác thực nghiêm ngặt mã lỗi HTTP 401 khi token hết hạn (`test_expired_jwt_token`), token sai chữ ký / thuật toán (`test_invalid_jwt_token`), và token giả mạo danh tính.
+
+### 3. Phase 3 — Bảo mật Frontend, Chuẩn hóa CORS & Phòng thủ XSS (Frontend Hardening & CORS)
+- [x] **Khử bỏ Wildcard Regex CORS trên Vercel Subdomain (`SEC-04`)**:
+  - **File:** `backend/app/main.py` (`CORSMiddleware`).
+  - **Nguyên nhân gốc rễ:** Cấu hình `allow_origin_regex=r"^https://[a-zA-Z0-9_-]+\.vercel\.app$"` cho phép bất kỳ trang web nào được deploy miễn phí trên Vercel thực hiện cross-origin request có credentials (`allow_credentials=True`).
+  - **Giải pháp:** Xóa bỏ hoàn toàn regex wildcard; danh sách whitelist CORS chỉ chấp nhận các domain cụ thể, đáng tin cậy đã được cấu hình tường minh (`cors_origins`).
+  - **Regression Test:** `backend/tests/test_phase3_cors_xss.py::test_cors_rejects_untrusted_origins` (Pass 100%).
+- [x] **Phòng chống DOM-based XSS trong Template Strings**:
+  - **Files:** `frontend/legacy/js/components/jobs/job-detail-modal.js`, `frontend/legacy/js/pages/dashboard/dashboard.page.js`, `frontend/legacy/js/pages/recommendations/recommendations.page.js`.
+  - Áp dụng `escapeHtml()` cho toàn bộ các trường dữ liệu do người dùng / nhà tuyển dụng cung cấp (`job_id`, `jobTitle`, `companyName`, `location`, `work_mode`, `recommendation`, `eligibility`) trước khi nội suy vào DOM innerHTML.
+- [x] **Xây dựng Lộ trình Di chuyển Token Storage (`SEC-06` Migration Plan)**:
+  - **Tài liệu:** `MIGRATION_PLAN.md` (Lộ trình chuyển đổi từ `localStorage` sang `HttpOnly`, `SameSite=Strict` Cookie nhằm miễn nhiễm hoàn toàn với nguy cơ rò rỉ token qua XSS).
