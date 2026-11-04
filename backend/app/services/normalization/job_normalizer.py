@@ -186,6 +186,25 @@ class JobNormalizer:
         if not apply_url:
             apply_url = source_url
 
+        # 4. Tự động chuẩn hóa nếu apply_url là dạng link giả lập / chết từ Upwork hoặc GrowUpWork
+        if apply_url and isinstance(apply_url, str):
+            if "upwork.com/freelance-jobs/apply/" in apply_url:
+                import urllib.parse
+                slug = apply_url.split("/apply/")[-1].split("?")[0]
+                kw_tokens = [w for w in slug.split("-") if not w.isdigit()]
+                kw = " ".join(kw_tokens) if kw_tokens else "software"
+                apply_url = f"https://www.upwork.com/nx/search/jobs/?q={urllib.parse.quote_plus(kw)}&sort=recency"
+            elif "growupwork.com/tim-viec/" in apply_url and re.search(r"-\d+$", apply_url):
+                # Chuyển đổi link giả lập GrowUpWork cũ sang danh mục chính
+                if "brse" in apply_url or "comtor" in apply_url:
+                    apply_url = "https://growupwork.com/tim-viec/comtor-brse"
+                elif "fullstack" in apply_url or "web" in apply_url:
+                    apply_url = "https://growupwork.com/tim-viec/lap-trinh-web"
+                elif "cloud" in apply_url or "devops" in apply_url:
+                    apply_url = "https://growupwork.com/tim-viec/viec-lam-tai-japan"
+                else:
+                    apply_url = "https://growupwork.com/tim-viec/ky-su-it"
+
         return email, apply_url
 
     @classmethod

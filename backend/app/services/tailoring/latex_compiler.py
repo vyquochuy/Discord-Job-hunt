@@ -77,7 +77,14 @@ class LaTeXCompiler:
         tex_path = storage_dir / f"{file_prefix}.tex"
         pdf_path = storage_dir / f"{file_prefix}.pdf"
 
-        # 1. Ghi nội dung TeX ra đĩa
+        # 1. Dọn sạch file PDF cũ (nếu có) để tránh nhận nhầm PDF cũ khi biên dịch lỗi
+        if pdf_path.exists():
+            try:
+                pdf_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to unlink old PDF file before recompiling: {e}")
+
+        # 2. Ghi nội dung TeX ra đĩa
         tex_path.write_text(tex_content, encoding="utf-8")
         logger.info(f"Wrote LaTeX source to {tex_path}")
 
@@ -118,24 +125,30 @@ class LaTeXCompiler:
             result = await asyncio.to_thread(_run_pdflatex)
 
             if result.returncode != 0:
-                # Kiểm tra nếu file PDF vẫn được sinh thành công (pdflatex có thể trả mã non-zero do cảnh báo phụ trợ)
-                if pdf_path.exists() and pdf_path.stat().st_size > 1000:
+                log_file = storage_dir / f"{file_prefix}.log"
+                error_snippet = ""
+                if log_file.exists():
+                    try:
+                        log_content = log_file.read_text(encoding="utf-8", errors="ignore")
+                        error_lines = [line for line in log_content.splitlines() if line.startswith("!")]
+                        if error_lines:
+                            error_snippet = "\n".join(error_lines[:5])
+                        else:
+                            error_snippet = log_content[-1000:]
+                    except Exception:
+                        pass
+
+                has_fatal_error = any("Fatal error occurred" in line for line in (error_snippet or "").splitlines())
+                # Kiểm tra nếu file PDF MỚI thực sự được sinh thành công (pdflatex có thể trả mã non-zero do cảnh báo phụ trợ)
+                if pdf_path.exists() and pdf_path.stat().st_size > 1000 and not has_fatal_error:
                     logger.info(
                         f"pdflatex completed with non-zero exit code ({result.returncode}), "
-                        f"but valid PDF generated ({pdf_path.stat().st_size} bytes)."
+                        f"but valid new PDF generated ({pdf_path.stat().st_size} bytes)."
                     )
                 else:
-                    log_file = storage_dir / f"{file_prefix}.log"
-                    error_snippet = ""
-                    if log_file.exists():
-                        error_snippet = log_file.read_text(encoding="utf-8", errors="ignore")[-1000:]
-                    
-                    err_msg = f"pdflatex exited with code {result.returncode}: {result.stderr.decode('utf-8', errors='ignore')}\n{error_snippet}"
-                    logger.warning(f"LaTeX pdflatex finished with issues: {err_msg}")
-                    # Tự động tạo fallback PDF để đảm bảo giao diện luôn có file xem trước
-                    if not pdf_path.exists() or pdf_path.stat().st_size < 100:
-                        cls._create_fallback_pdf(pdf_path, tex_content)
-                        return True, str(pdf_path), None
+                    err_msg = f"pdflatex biên dịch thất bại (mã {result.returncode}):\n{error_snippet}"
+                    logger.warning(f"LaTeX pdflatex error: {err_msg}")
+                    return False, None, err_msg
 
             # Dọn dẹp tệp tin rác
             for ext in [".aux", ".log", ".out", ".synctex.gz"]:

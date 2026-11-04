@@ -42,5 +42,7 @@ export function getResumePdfUrl(resumeId, download = false) {
   if (client.token) {
     url += `&token=${encodeURIComponent(client.token)}`;
   }
+  // Thêm query param timestamp để ép trình duyệt/iframe luôn tải file PDF mới nhất
+  url += `&_t=${Date.now()}`;
   return url;
 }

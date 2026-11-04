@@ -137,6 +137,23 @@ export async function openJobDetailModal(jobId) {
       </span>
     `).join('');
 
+    let cleanSourceUrl = job.source_url || '';
+    if (cleanSourceUrl && cleanSourceUrl.includes('upwork.com/freelance-jobs/apply/')) {
+      const slug = cleanSourceUrl.split('/apply/')[1]?.split('?')[0] || '';
+      const kw = slug.split('-').filter(w => !/^\d+$/.test(w)).join(' ');
+      cleanSourceUrl = `https://www.upwork.com/nx/search/jobs/?q=${encodeURIComponent(kw || 'software')}&sort=recency`;
+    } else if (cleanSourceUrl && cleanSourceUrl.includes('growupwork.com/tim-viec/') && /-\d+$/.test(cleanSourceUrl)) {
+      if (cleanSourceUrl.includes('brse') || cleanSourceUrl.includes('comtor')) {
+        cleanSourceUrl = 'https://growupwork.com/tim-viec/comtor-brse';
+      } else if (cleanSourceUrl.includes('fullstack') || cleanSourceUrl.includes('web')) {
+        cleanSourceUrl = 'https://growupwork.com/tim-viec/lap-trinh-web';
+      } else if (cleanSourceUrl.includes('cloud') || cleanSourceUrl.includes('devops')) {
+        cleanSourceUrl = 'https://growupwork.com/tim-viec/viec-lam-tai-japan';
+      } else {
+        cleanSourceUrl = 'https://growupwork.com/tim-viec/ky-su-it';
+      }
+    }
+
     if (bodyEl) {
       bodyEl.innerHTML = `
         ${matchSectionHtml}
@@ -166,8 +183,8 @@ export async function openJobDetailModal(jobId) {
                 <span>${escapeHtml(job.contact_email)}</span>
               </span>
             ` : ''}
-            ${job.source_url ? `
-              <a href="${escapeHtml(job.source_url)}" target="_blank" rel="noopener noreferrer" class="badge badge-outline" style="text-decoration: none;" title="Mở link bài đăng gốc">
+            ${cleanSourceUrl ? `
+              <a href="${escapeHtml(cleanSourceUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-outline" style="text-decoration: none;" title="Mở link bài đăng gốc">
                 <i data-lucide="external-link" class="icon-sm"></i>
                 <span>Xem bài đăng gốc</span>
               </a>

@@ -9,11 +9,11 @@ jobs:
     steps:
       - name: Trigger Batch Ingestion
         env:
-          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL || vars.BACKEND_API_URL || 'https://job-hunt-backend-0hrl.onrender.com' }}
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL || vars.BACKEND_API_URL || 'http://localhost:8000' }}
           INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET || vars.INTERNAL_API_SECRET }}
         run: |
           if [ -z "$INTERNAL_API_SECRET" ]; then
-            echo "❌ INTERNAL_API_SECRET is not configured (set secret or variable)." >&2
+            echo "INTERNAL_API_SECRET is not configured (set secret or variable)." >&2
             exit 1
           fi
 

@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.security import get_authenticated_user_or_internal, get_current_user_optional
 from app.models.candidate import Candidate
-from app.models.resume import TailoredResume
+from app.models.resume import TailoredResume, ResumeStatusEnum
 from app.models.user import User
 from app.repositories.candidate import CandidateRepository
 from app.schemas.resume import (
@@ -266,6 +266,12 @@ async def update_resume_latex_source(
             new_latex_source=payload.latex_source,
             candidate_id=cand.id,
         )
+        if updated_resume and updated_resume.status == ResumeStatusEnum.FAILED:
+            error_msg = updated_resume.compilation_error or "Biên dịch LaTeX thất bại. Vui lòng kiểm tra cú pháp mã nguồn TeX."
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg,
+            )
         return updated_resume
     except HTTPException:
         raise

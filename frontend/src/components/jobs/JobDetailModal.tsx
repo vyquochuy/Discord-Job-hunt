@@ -329,17 +329,35 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     {job.contact_email}
                   </Badge>
                 )}
-                {job.source_url && (
-                  <a
-                    href={job.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline ml-auto font-medium"
-                  >
-                    <span>Bài đăng gốc</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+                {job.source_url && (() => {
+                  let url = job.source_url;
+                  if (url.includes('upwork.com/freelance-jobs/apply/')) {
+                    const slug = url.split('/apply/')[1]?.split('?')[0] || '';
+                    const kw = slug.split('-').filter(w => !/^\d+$/.test(w)).join(' ');
+                    url = `https://www.upwork.com/nx/search/jobs/?q=${encodeURIComponent(kw || 'software')}&sort=recency`;
+                  } else if (url.includes('growupwork.com/tim-viec/') && /-\d+$/.test(url)) {
+                    if (url.includes('brse') || url.includes('comtor')) {
+                      url = 'https://growupwork.com/tim-viec/comtor-brse';
+                    } else if (url.includes('fullstack') || url.includes('web')) {
+                      url = 'https://growupwork.com/tim-viec/lap-trinh-web';
+                    } else if (url.includes('cloud') || url.includes('devops')) {
+                      url = 'https://growupwork.com/tim-viec/viec-lam-tai-japan';
+                    } else {
+                      url = 'https://growupwork.com/tim-viec/ky-su-it';
+                    }
+                  }
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline ml-auto font-medium"
+                    >
+                      <span>Bài đăng gốc</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  );
+                })()}
               </div>
 
               {/* Extracted Canonical Skills */}

@@ -132,9 +132,7 @@ export function switchResumePreviewTab(tab) {
       const iframe = viewPdf.querySelector('iframe');
       if (iframe && state.selectedResume) {
         const freshUrl = api.getResumePdfUrl(state.selectedResume.id, false);
-        if (iframe.src !== freshUrl) {
-          iframe.src = freshUrl;
-        }
+        iframe.src = freshUrl;
       }
     }
   }

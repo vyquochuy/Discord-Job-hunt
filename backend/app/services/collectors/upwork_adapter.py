@@ -75,7 +75,18 @@ class UpworkJobCollector(BaseJobCollector):
                         raw_desc = desc_elem.get_text(strip=True) if desc_elem else ""
                         pub_date_str = pubdate_elem.get_text(strip=True) if pubdate_elem else ""
 
-                        if not title or not url or url in seen_urls:
+                        if not title:
+                            continue
+
+                        # Chuẩn hóa URL Upwork: tránh link ảo hoặc link tương đối
+                        if not url or "/freelance-jobs/apply/" in url:
+                            import urllib.parse
+                            query = urllib.parse.quote_plus(title)
+                            url = f"https://www.upwork.com/nx/search/jobs/?q={query}&sort=recency"
+                        elif not url.startswith("http"):
+                            url = f"{self.BASE_URL}{url}" if url.startswith("/") else f"{self.BASE_URL}/{url}"
+
+                        if url in seen_urls:
                             continue
                         seen_urls.add(url)
 
@@ -150,7 +161,7 @@ class UpworkJobCollector(BaseJobCollector):
                 "title": "Fullstack Python & FastAPI Developer (Next.js / AI Integrations)",
                 "company": "Upwork Global Client (United States)",
                 "location": "Worldwide / Remote",
-                "url": "https://www.upwork.com/freelance-jobs/apply/fullstack-python-fastapi-ai-101",
+                "url": "https://www.upwork.com/nx/search/jobs/?q=Fullstack+Python+FastAPI&sort=recency",
                 "salary_text": "Hourly: $45.00 - $80.00",
                 "skills": ["Python", "FastAPI", "React", "Next.js", "Docker", "PostgreSQL"],
                 "description": "Looking for an experienced Senior Fullstack Engineer to build scalable RESTful microservices with FastAPI and integrate OpenAI/Gemini streaming endpoints with Next.js.",
@@ -159,7 +170,7 @@ class UpworkJobCollector(BaseJobCollector):
                 "title": "Senior DevOps / SRE Consultant (AWS / Terraform / Kubernetes)",
                 "company": "Upwork Global Client (Germany)",
                 "location": "Worldwide / Remote",
-                "url": "https://www.upwork.com/freelance-jobs/apply/devops-sre-aws-k8s-102",
+                "url": "https://www.upwork.com/nx/search/jobs/?q=Senior+DevOps+SRE+Kubernetes+AWS&sort=recency",
                 "salary_text": "Hourly: $55.00 - $95.00",
                 "skills": ["AWS", "Terraform", "Kubernetes", "CI/CD", "Helm", "Prometheus"],
                 "description": "Architecting secure multi-tenant infrastructure on AWS EKS using Terraform and GitOps with ArgoCD. Long-term contract for skilled Cloud Engineer.",
@@ -168,7 +179,7 @@ class UpworkJobCollector(BaseJobCollector):
                 "title": "Mobile App Developer (Flutter / iOS & Android)",
                 "company": "Upwork Global Client (Singapore)",
                 "location": "Worldwide / Remote",
-                "url": "https://www.upwork.com/freelance-jobs/apply/flutter-mobile-app-103",
+                "url": "https://www.upwork.com/nx/search/jobs/?q=Mobile+App+Developer+Flutter&sort=recency",
                 "salary_text": "Budget: $4,500 Fixed",
                 "skills": ["Flutter", "Dart", "Firebase", "REST API", "State Management"],
                 "description": "Need a talented Flutter developer to finish a cross-platform fintech consumer app with biometric auth, push notifications, and real-time websockets.",
@@ -177,7 +188,7 @@ class UpworkJobCollector(BaseJobCollector):
                 "title": "Backend Go / Golang Engineer (High-throughput Microservices)",
                 "company": "Upwork Global Client (United Kingdom)",
                 "location": "Worldwide / Remote",
-                "url": "https://www.upwork.com/freelance-jobs/apply/golang-backend-engineer-104",
+                "url": "https://www.upwork.com/nx/search/jobs/?q=Backend+Go+Golang+Microservices&sort=recency",
                 "salary_text": "Hourly: $50.00 - $90.00",
                 "skills": ["Go", "Golang", "gRPC", "Kafka", "Redis", "Microservices"],
                 "description": "Building low-latency payment processing pipelines and event-driven architectures with Go, Kafka message streaming, and distributed Redis caches.",
@@ -186,20 +197,22 @@ class UpworkJobCollector(BaseJobCollector):
                 "title": "Frontend React / TypeScript Engineer (Design System & Dashboard)",
                 "company": "Upwork Global Client (Australia)",
                 "location": "Worldwide / Remote",
-                "url": "https://www.upwork.com/freelance-jobs/apply/frontend-react-typescript-105",
+                "url": "https://www.upwork.com/nx/search/jobs/?q=Frontend+React+TypeScript&sort=recency",
                 "salary_text": "Budget: $3,200 Fixed",
                 "skills": ["React", "TypeScript", "Tailwind CSS", "Redux Toolkit", "Chart.js"],
                 "description": "Deliver a pixel-perfect SaaS analytics dashboard in React + TypeScript with dark mode, interactive charts, and accessible UI components.",
             },
         ]
         results = []
-        for item in curated[:limit]:
+        for idx, item in enumerate(curated[:limit], 1):
             content_hash = self.compute_content_hash(f"{item['title']}|{item['company']}|{item['location']}|{item['url']}")
+            slug_id = re.sub(r"[^a-zA-Z0-9]+", "-", item["title"].lower()).strip("-")
+            source_job_id = f"upwork-curated-{slug_id[:40]}-{idx}"
             results.append(
                 RawJobData(
                     source=self.source_name,
                     source_url=item["url"],
-                    source_job_id=item["url"].split("-")[-1],
+                    source_job_id=source_job_id,
                     raw_payload=item,
                     raw_html=f"<div><h1>{item['title']}</h1><p>{item['description']}</p></div>",
                     content_hash=content_hash,
@@ -234,6 +247,7 @@ class UpworkJobCollector(BaseJobCollector):
             location=payload.get("location", "Worldwide (Remote)"),
             work_mode=WorkModeEnum.REMOTE,
             level=JobLevelEnum.UNKNOWN,
+            apply_url=payload.get("url") or raw.source_url,
             description=clean_desc if clean_desc else payload.get("title", ""),
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],

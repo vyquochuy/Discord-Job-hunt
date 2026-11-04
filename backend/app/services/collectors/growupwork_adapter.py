@@ -145,7 +145,7 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                 "title": "Kỹ Sư Cầu Nối (Bridge Software Engineer - BrSE) N2/N1",
                 "company": "FPT Software Japan / Tokyo Office",
                 "location": "Tokyo, Japan / Hybrid Hà Nội",
-                "url": "https://growupwork.com/tim-viec/brse-japan-tokyo-101",
+                "url": "https://growupwork.com/tim-viec/comtor-brse",
                 "salary_text": "350,000 - 550,000 JPY/tháng",
                 "skills": ["Java", "Spring Boot", "AWS", "Japanese N2", "BrSE"],
                 "description": "Làm việc trực tiếp với khách hàng Nhật Bản, phân tích yêu cầu SRS, điều phối tiến độ offshore team Việt Nam và review code hệ thống Cloud Enterprise.",
@@ -154,7 +154,7 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                 "title": "Senior Fullstack Developer (NodeJS / ReactJS) - Tiếng Nhật N3",
                 "company": "Rikkei Japan Technology",
                 "location": "Hà Nội / Onsite Tokyo",
-                "url": "https://growupwork.com/tim-viec/senior-fullstack-dev-japan-102",
+                "url": "https://growupwork.com/tim-viec/lap-trinh-web",
                 "salary_text": "1,800 - 3,000 USD/tháng",
                 "skills": ["Node.js", "ReactJS", "TypeScript", "PostgreSQL", "Japanese N3"],
                 "description": "Tham gia phát triển hệ thống e-Commerce và FinTech quy mô lớn phục vụ thị trường Nhật Bản. Làm việc cùng các kỹ sư cao cấp Nhật Bản.",
@@ -163,7 +163,7 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                 "title": "IT Communicator / Comtor (Tiếng Nhật N1/N2)",
                 "company": "VTI Japan Group",
                 "location": "Đà Nẵng / Hồ Chí Minh",
-                "url": "https://growupwork.com/tim-viec/it-communicator-n2-danang-103",
+                "url": "https://growupwork.com/tim-viec/comtor-bse",
                 "salary_text": "1,200 - 2,200 USD/tháng",
                 "skills": ["Japanese N1", "Japanese N2", "IT Comtor", "Translation", "Scrum"],
                 "description": "Biên dịch tài liệu kỹ thuật dự án phần mềm, thông dịch các cuộc họp kỹ thuật Sprint planning giữa Khách hàng Nhật và Development team.",
@@ -172,7 +172,7 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                 "title": "DevOps / Cloud Engineer (AWS / Terraform) - Dự án Nhật Bản",
                 "company": "CMC Global Japan Division",
                 "location": "Hồ Chí Minh / Remote",
-                "url": "https://growupwork.com/tim-viec/devops-cloud-engineer-japan-104",
+                "url": "https://growupwork.com/tim-viec/viec-lam-tai-japan",
                 "salary_text": "2,000 - 3,500 USD/tháng",
                 "skills": ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD"],
                 "description": "Thiết kế hạ tầng Multi-region AWS Cloud, tối ưu hóa chi phí và bảo mật hệ thống cho các đối tác ngân hàng và tài chính Nhật Bản.",
@@ -181,20 +181,22 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                 "title": "Embedded Software Engineer (C/C++ / Automotive)",
                 "company": "Sun* Inc Vietnam (Sun Asterisk)",
                 "location": "Hà Nội",
-                "url": "https://growupwork.com/tim-viec/embedded-c-automotive-japan-105",
+                "url": "https://growupwork.com/tim-viec/ky-su-it",
                 "salary_text": "1,500 - 2,800 USD/tháng",
                 "skills": ["C", "C++", "Embedded Linux", "RTOS", "Automotive"],
                 "description": "Phát triển phần mềm nhúng ECU cho các hãng xe hàng đầu Nhật Bản, tuân thủ tiêu chuẩn an toàn AUTOSAR và ISO 26262.",
             },
         ]
         results = []
-        for item in curated[:limit]:
+        for idx, item in enumerate(curated[:limit], 1):
             content_hash = self.compute_content_hash(f"{item['title']}|{item['company']}|{item['location']}|{item['url']}")
+            slug_id = re.sub(r"[^a-zA-Z0-9]+", "-", item["title"].lower()).strip("-")
+            source_job_id = f"growupwork-curated-{slug_id[:40]}-{idx}"
             results.append(
                 RawJobData(
                     source=self.source_name,
                     source_url=item["url"],
-                    source_job_id=item["url"].split("-")[-1],
+                    source_job_id=source_job_id,
                     raw_payload=item,
                     raw_html=f"<div><h1>{item['title']}</h1><p>{item['description']}</p></div>",
                     content_hash=content_hash,
@@ -225,6 +227,7 @@ class GrowUpWorkJobCollector(BaseJobCollector):
             location=payload.get("location", "Vietnam / Japan"),
             work_mode=work_mode,
             level=JobLevelEnum.UNKNOWN,
+            apply_url=payload.get("url") or raw.source_url,
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],

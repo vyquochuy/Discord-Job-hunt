@@ -77,9 +77,26 @@ export function formatSourceBadge(source, sourceUrl) {
     label = src ? src.toUpperCase() : 'Khác';
   }
 
-  if (sourceUrl && sourceUrl.startsWith('http')) {
+  let finalUrl = sourceUrl;
+  if (finalUrl && finalUrl.startsWith('http')) {
+    if (finalUrl.includes('upwork.com/freelance-jobs/apply/')) {
+      const slug = finalUrl.split('/apply/')[1]?.split('?')[0] || '';
+      const kw = slug.split('-').filter(w => !/^\d+$/.test(w)).join(' ');
+      finalUrl = `https://www.upwork.com/nx/search/jobs/?q=${encodeURIComponent(kw || 'software')}&sort=recency`;
+    } else if (finalUrl.includes('growupwork.com/tim-viec/') && /-\d+$/.test(finalUrl)) {
+      if (finalUrl.includes('brse') || finalUrl.includes('comtor')) {
+        finalUrl = 'https://growupwork.com/tim-viec/comtor-brse';
+      } else if (finalUrl.includes('fullstack') || finalUrl.includes('web')) {
+        finalUrl = 'https://growupwork.com/tim-viec/lap-trinh-web';
+      } else if (finalUrl.includes('cloud') || finalUrl.includes('devops')) {
+        finalUrl = 'https://growupwork.com/tim-viec/viec-lam-tai-japan';
+      } else {
+        finalUrl = 'https://growupwork.com/tim-viec/ky-su-it';
+      }
+    }
+
     return `
-      <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-outline" onclick="event.stopPropagation();" title="Mở bài đăng tuyển dụng gốc">
+      <a href="${escapeHtml(finalUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-outline" onclick="event.stopPropagation();" title="Mở bài đăng tuyển dụng gốc">
         <i data-lucide="${iconName}" class="icon-sm"></i>
         <span>${escapeHtml(label)}</span>
         <i data-lucide="external-link" class="icon-sm" style="width: 12px; height: 12px;"></i>
