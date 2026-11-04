@@ -35,4 +35,6 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 3. **Triển khai di chuyển Token sang HttpOnly Cookie** theo lộ trình đã lập tại `MIGRATION_PLAN.md`.
 4. Tiếp tục hoàn thiện Phase 8.2 / 8.4 trên môi trường Cloud Production.
 5. **Phase 2.7 (HOÀN THÀNH — 2026-11-04)**: Detail Page Enrichment cho Ingestion Pipeline (JSON-LD + DOM + richer-record merge, 27 tests pass) — chi tiết tại `docs/INGESTION_HARDENING.md`.
-6. Phase 2.8 candidate: Taxonomy 4 chiều (title/seniority/location/work-model) cho UI filter & scoring.
+6. **Phase 2.8 (HOÀN THÀNH — 2026-11-04)**: Full Unexpired Scanning & Expiry Detection cho 5 nền tảng VN (ITViec, TopCV, TopDev, VietnamWorks, CareerLink) — `full_scan`, smart stop, `EXPIRED` status, `expire_outdated_jobs`, 18 tests pass.
+7. **Phase 2.9 candidate — Expiry UX**: Ẩn job `EXPIRED` khỏi danh sách mặc định (toggle "Hiện tin đã hết hạn"), widget "tin sắp hết hạn trong 3 ngày" trên Dashboard.
+8. Phase 2.9 candidate: Taxonomy 4 chiều (title/seniority/location/work-model) cho UI filter & scoring.

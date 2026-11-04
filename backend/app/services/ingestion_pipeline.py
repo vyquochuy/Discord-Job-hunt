@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -43,6 +43,8 @@ class IngestionStats(BaseModel):
     details_enriched: int = 0
     details_failed: int = 0
     details_skipped: int = 0
+    # Phase 2.8: Expiry & Full Unexpired Scanning metrics
+    expired_marked: int = 0
 
 
 class JobIngestionPipeline:
@@ -59,20 +61,27 @@ class JobIngestionPipeline:
         limit: int = 20,
         use_llm: bool = False,
         fetch_details: Optional[bool] = None,
+        full_scan: bool = False,
     ) -> IngestionStats:
         stats = IngestionStats(source=collector.source_name)
+        # Phase 2.8: full_scan = quét toàn bộ job còn hiệu lực mà nguồn có.
+        # limit <= 0 được collector hiểu là "không giới hạn".
+        if full_scan:
+            limit = 0
         # Phase 2.7: Detail Enrichment mặc định bật từ settings.
         if fetch_details is None:
             fetch_details = bool(settings.DETAIL_FETCH_ENABLED)
         detail_budget = max(0, int(settings.DETAIL_FETCH_MAX_PER_RUN))
         detail_supported = collector.source_name in SUPPORTED_SOURCES
-        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit}, use_llm={use_llm}, fetch_details={fetch_details and detail_supported})...")
+        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit or 'ALL'}, full_scan={full_scan}, use_llm={use_llm}, fetch_details={fetch_details and detail_supported})...")
 
         # 1. Thu thập dữ liệu thô từ Collector
         raw_items: List[RawJobData] = await collector.fetch_jobs(limit=limit)
         stats.total_fetched = len(raw_items)
         consecutive_unchanged = 0
-        MAX_CONSECUTIVE_UNCHANGED = 30  # Chặn lãng phí tài nguyên khi cào từ mới nhất
+        # Full scan cần đi hết danh sách để phát hiện tin hết hạn; incremental
+        # giữ ngưỡng 30 tin cũ liên tiếp để tiết kiệm tài nguyên.
+        MAX_CONSECUTIVE_UNCHANGED = 0 if full_scan else 30
 
         # 2. Xử lý từng Raw Item
         for raw_data in raw_items:
@@ -91,7 +100,7 @@ class JobIngestionPipeline:
                     logger.debug(f"[Ingestion] Job unchanged (hash match): {raw_data.source_url}")
 
                     # Nếu duyệt từ mới nhất và gặp 30 tin cũ liên tiếp, toàn bộ tin mới hơn đã được thu nạp
-                    if consecutive_unchanged >= MAX_CONSECUTIVE_UNCHANGED:
+                    if MAX_CONSECUTIVE_UNCHANGED and consecutive_unchanged >= MAX_CONSECUTIVE_UNCHANGED:
                         logger.info(
                             f"[Ingestion] Gặp {consecutive_unchanged} tin cũ liên tiếp từ nguồn '{collector.source_name}'. "
                             f"Toàn bộ tin mới nhất đã được đồng bộ. Kết thúc sớm chu kỳ cào."
@@ -224,6 +233,16 @@ class JobIngestionPipeline:
                 embedding_vec = await embedding_service.generate_embedding(emb_text)
 
                 # BƯỚC 8: Lưu Standardized Job
+                # Xác định trạng thái hết hạn (Expiry) từ nhiều nguồn tín hiệu:
+                # 1) Ngày hết hạn đã qua (expires_at < now)
+                # 2) Collector đánh dấu tin đã đóng/hết hạn (payload["is_expired"])
+                now_utc = datetime.now(timezone.utc)
+                payload_is_expired = bool((raw_data.raw_payload or {}).get("is_expired"))
+                expires_at = extracted.expires_at
+                date_is_expired = bool(expires_at and expires_at < now_utc)
+                is_job_expired = payload_is_expired or date_is_expired
+                job_status = JobStatusEnum.EXPIRED if is_job_expired else JobStatusEnum.ACTIVE
+
                 stmt_job = select(Job).where(Job.raw_job_id == raw_job.id)
                 res_job = await db.execute(stmt_job)
                 job = res_job.scalars().first()
@@ -250,11 +269,15 @@ class JobIngestionPipeline:
                         benefits_summary=extracted.benefits_summary,
                         dedup_signature=dedup_sig,
                         embedding=embedding_vec,
-                        status=JobStatusEnum.ACTIVE,
-                        posted_at=extracted.posted_at or datetime.now(timezone.utc),
+                        status=job_status,
+                        posted_at=extracted.posted_at or now_utc,
+                        expires_at=expires_at,
                     )
                     db.add(job)
                     await db.flush()
+                    if is_job_expired:
+                        stats.expired_marked += 1
+                        logger.info(f"[Ingestion] Stored already-expired job (kept for history): {extracted.title}")
                 else:
                     # Update fields
                     job.title = extracted.title
@@ -276,6 +299,15 @@ class JobIngestionPipeline:
                     job.benefits_summary = extracted.benefits_summary
                     job.dedup_signature = dedup_sig
                     job.embedding = embedding_vec
+                    # Chỉ nâng cấp trạng thái sang EXPIRED, không hồi sinh tin đã hết hạn
+                    if is_job_expired:
+                        if job.status != JobStatusEnum.EXPIRED:
+                            stats.expired_marked += 1
+                        job.status = JobStatusEnum.EXPIRED
+                    elif job.status == JobStatusEnum.EXPIRED and not date_is_expired:
+                        job.status = JobStatusEnum.ACTIVE
+                    if expires_at:
+                        job.expires_at = expires_at
                     await db.flush()
 
                 # BƯỚC 9: Chuẩn hóa Skill & Lưu JobSkill (Declarative Reconciliation - O(1) Queries)
@@ -303,9 +335,41 @@ class JobIngestionPipeline:
         logger.info(
             f"Ingestion finished for {collector.source_name}: "
             f"Total={stats.total_fetched}, Created={stats.created}, "
-            f"Unchanged={stats.unchanged}, Duplicates={stats.duplicates_detected}, Errors={stats.errors}"
+            f"Unchanged={stats.unchanged}, Duplicates={stats.duplicates_detected}, "
+            f"Expired={stats.expired_marked}, Errors={stats.errors}"
         )
         return stats
+
+    async def expire_outdated_jobs(self, db: AsyncSession) -> int:
+        """
+        Quét toàn bộ Job đang ACTIVE nhưng đã quá hạn (expires_at < now)
+        và chuyển sang EXPIRED. Đây là bước bảo trì chạy mỗi chu kỳ cào
+        để đảm bảo danh sách job luôn phản ánh tin còn hiệu lực.
+
+        Không xóa dữ liệu: chỉ đổi trạng thái để giữ lịch sử và tránh
+        quét lại vô ích ở các chu kỳ sau.
+
+        Trả về số bản ghi đã chuyển trạng thái.
+        """
+        now_utc = datetime.now(timezone.utc)
+        stmt = (
+            update(Job)
+            .where(Job.status == JobStatusEnum.ACTIVE)
+            .where(Job.expires_at.is_not(None))
+            .where(Job.expires_at < now_utc)
+            .values(status=JobStatusEnum.EXPIRED)
+        )
+        try:
+            result = await db.execute(stmt)
+            await db.commit()
+            expired_count = result.rowcount or 0
+            if expired_count:
+                logger.info(f"[Retention] Marked {expired_count} outdated jobs as EXPIRED.")
+            return expired_count
+        except Exception as e:
+            await db.rollback()
+            logger.warning(f"[Retention] Failed to mark outdated jobs as EXPIRED: {e}")
+            return 0
 
 
 # Singleton Instance

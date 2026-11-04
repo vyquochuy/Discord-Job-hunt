@@ -19,7 +19,7 @@ AI Job Hunter Platform — personal job hunting intelligence platform with **Web
 
 ## 2. Current State
 
-**Phases 0 through 6, Phase 8.1, and Phase 8.2 are fully COMPLETED and production-verified (135/135 backend tests passing).**
+**Phases 0 through 6, Phase 8.1, and Phase 8.2 are fully COMPLETED and production-verified. Backend suite: 216 passed, 4 pre-existing unrelated failures.**
 
 - **Phase 2.7 (Ingestion Hardening — Detail Page Enrichment)**:
   - `detail_fetcher.py`: Làm giàu tin listing bằng JD đầy đủ từ trang chi tiết qua 4 tầng trích xuất (JSON-LD `JobPosting` schema.org → site DOM selectors → largest-block → page_text) cho ITViec/TopCV/TopDev/VietnamWorks/CareerLink.
@@ -34,6 +34,13 @@ AI Job Hunter Platform — personal job hunting intelligence platform with **Web
   - Source Adapters (10 adapters): `ITViecJobCollector`, `RemotiveJobCollector`, `CareerLinkJobCollector`, `TopCVJobCollector`, `TopDevJobCollector`, `VietnamWorksJobCollector`, `UpworkJobCollector`, `ITNaviJobCollector`, `GrowUpWorkJobCollector`, `MockJobCollector`.
   - Ingestion Pipeline: Content Hash SHA-256 caching (0 LLM cost hit), Deterministic parsing, 3-Tier Deduplication (Exact -> RapidFuzz -> pgvector).
   - Ad-hoc ingestion: `POST /api/v1/jobs/ingest-manual` for direct URLs or raw pasted text.
+- **Phase 2.7 (Detail Page Enrichment)**: `detail_fetcher.py` enriches listing cards with full JD via JSON-LD `JobPosting` → site DOM selectors → largest-block heuristic; WAF/login detection marks BLOCKED without bypass; richer-record merge into `raw_payload`.
+- **Phase 2.8 (Full Unexpired Scanning & Expiry Detection — 5 nền tảng VN)**:
+  - `ingestion_pipeline.run(..., full_scan=True)` sets `limit=0` (unlimited) and disables the `MAX_CONSECUTIVE_UNCHANGED` early stop.
+  - ITViec / TopCV / TopDev / VietnamWorks / CareerLink adapters: `unlimited = limit <= 0`, `max_pages = 80`, smart stop after `MAX_CONSECUTIVE_EXPIRED` (15; 20 for VietnamWorks) consecutive expired listings.
+  - Expiry signals: JSON-LD `validThrough`, DOM "Hạn nộp hồ sơ: dd/mm/yyyy", expired text markers, and VietnamWorks `expiredDate` epoch-ms.
+  - Expired jobs are **kept** with `JobStatusEnum.EXPIRED` (history preserved, no re-crawl churn); `expire_outdated_jobs(db)` performs periodic `ACTIVE → EXPIRED` maintenance.
+  - `POST /api/v1/jobs/collect?full_scan=true`; `daily_runner.FULL_SCAN_SOURCES` covers only the 5 VN platforms (remote/foreign sources stay incremental).
 - **Phase 3 (Job Intelligence)**:
   - Tri-state Hard Filters (`ELIGIBLE` / `BLOCKED` / `UNCERTAIN`), 7-signal deterministic scoring engine (weight sum $= 1.0$), explainable match generation with evidence trails.
 - **Phase 4 & 4.5 (Evidence-Grounded Resume Tailoring Engine - Refactored)**:

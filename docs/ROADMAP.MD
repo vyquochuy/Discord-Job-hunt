@@ -89,6 +89,28 @@
 
 ---
 
+## Phase 2.8 — Full Unexpired Scanning & Expiry Detection (5 nền tảng Việt Nam)
+
+**Status:** COMPLETED
+
+**Goal:** Quét **toàn bộ** tin còn hiệu lực mà từng nền tảng Việt Nam có (không bị trần `limit`/`max_pages`), đồng thời phát hiện và đánh dấu tin đã hết hạn thay vì để chúng hiện như đang tuyển.
+
+**Phạm vi:** ITViec, TopCV, TopDev, VietnamWorks, CareerLink. Nguồn remote nước ngoài (Remotive, Upwork, ITNavi, GrowUpWork) giữ nguyên incremental.
+
+- [x] `ingestion_pipeline.run(..., full_scan: bool = False)`: `full_scan=True` → `limit=0` (collector hiểu "không giới hạn") và tắt ngưỡng dừng sớm `MAX_CONSECUTIVE_UNCHANGED`.
+- [x] 5 adapter VN: `unlimited = limit <= 0`, `max_pages = 80` khi unlimited (bỏ trần cứng `min(25, ...)`), trần an toàn chống vòng lặp phân trang.
+- [x] Smart stop condition: dừng pagination khi gặp liên tiếp `MAX_CONSECUTIVE_EXPIRED` (15, VietnamWorks 20) tin hết hạn — vì nguồn sắp xếp tin mới nhất trước.
+- [x] `detail_fetcher.py`: `JobDetailResult.expires_at/is_expired`, trích `validThrough` từ JSON-LD, `extract_deadline_from_dom()` ("Hạn nộp hồ sơ: dd/mm/yyyy"), `check_is_job_expired()` với marker VN/EN; merge ghi `raw_payload["expires_iso"]` + `is_expired`.
+- [x] `vietnamworks_adapter.py`: `expiredDate`/`approvedOn` epoch-ms → `expires_iso`/`posted_iso`/`is_expired`; `hitsPerPage=50`.
+- [x] Pipeline: job quá hạn lưu với `status=EXPIRED` (giữ lịch sử, không xóa), tin còn hạn `ACTIVE`; `IngestionStats.expired_marked`.
+- [x] Bảo trì định kỳ `expire_outdated_jobs(db)`: `UPDATE jobs SET status='EXPIRED' WHERE status='ACTIVE' AND expires_at < now()`.
+- [x] API `POST /api/v1/jobs/collect?full_scan=true` + report mở rộng (`expired_marked`, `expired_total`, `details_*`).
+- [x] `daily_runner`: `FULL_SCAN_SOURCES` (5 nguồn VN) + BƯỚC 3.5 expiry maintenance.
+- [x] 18/18 test riêng (`test_expiry_and_full_scan.py`) + 66/66 test liên quan pass; không migration DB (`jobs.expires_at` & `JobStatusEnum.EXPIRED` đã có).
+- [x] Báo cáo chi tiết: [docs/INGESTION_HARDENING.md](docs/INGESTION_HARDENING.md) — mục Phase 2.8.
+
+---
+
 ## Phase 3 — Job Intelligence
 
 **Status:** COMPLETED

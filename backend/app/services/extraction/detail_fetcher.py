@@ -112,6 +112,22 @@ PLATFORM_BOILERPLATE_MARKERS = (
     "Other jobs at this company",
 )
 
+EXPIRED_TEXT_MARKERS = (
+    "tin tuyển dụng đã hết hạn",
+    "tin tuyển dụng này đã hết hạn",
+    "tin đã hết hạn",
+    "hết hạn nộp",
+    "vị trí này đã đóng",
+    "đã dừng nhận hồ sơ",
+    "ngừng nhận hồ sơ",
+    "job is expired",
+    "job expired",
+    "this job is no longer available",
+    "this position has been closed",
+    "posting has closed",
+    "no longer accepting applications",
+)
+
 
 # ==============================================================================
 # Result Dataclass
@@ -127,6 +143,8 @@ class JobDetailResult:
     status: str
     description: str = ""
     posted_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    is_expired: bool = False
     employment_type: Optional[str] = None
     experience_months: Optional[int] = None
     skills: List[str] = field(default_factory=list)
@@ -173,6 +191,65 @@ def is_login_gate(soup: BeautifulSoup) -> Optional[str]:
     return None
 
 
+def check_is_job_expired(soup: BeautifulSoup) -> bool:
+    """
+    Phát hiện xem trang chi tiết có hiển thị thông báo tin đã hết hạn/ngừng tuyển không.
+    """
+    # 1. Kiểm tra các thẻ thông báo nổi bật (banner, badge, alert)
+    alert_elems = soup.select(
+        ".job-expired, .job-closed, .alert-warning, .badge-expired, "
+        "[class*='expired'], [class*='closed'], .status-expired"
+    )
+    for el in alert_elems:
+        txt = el.get_text(" ", strip=True).lower()
+        if any(m in txt for m in EXPIRED_TEXT_MARKERS):
+            return True
+
+    # 2. Quét 1000 ký tự đầu và các đoạn tiêu đề
+    text_snippet = soup.get_text(" ", strip=True)[:1500].lower()
+    return any(m in text_snippet for m in EXPIRED_TEXT_MARKERS)
+
+
+def extract_deadline_from_dom(soup: BeautifulSoup) -> Optional[datetime]:
+    """
+    Bóc tách hạn nộp hồ sơ từ các thẻ hiển thị deadline thông dụng của sàn VN:
+    - TopCV: .job-detail__info--deadline, "Hạn nộp hồ sơ: 30/11/2026"
+    - ITViec: "Hạn nộp:", "Deadline:"
+    - Generic regex tìm "Hạn nộp (hồ sơ)?: dd/mm/yyyy"
+    """
+    # 1. Thẻ chuyên dụng
+    deadline_selectors = [
+        ".job-detail__info--deadline",
+        ".deadline",
+        ".job-deadline",
+        "[class*='deadline']",
+        "span.text-deadline",
+        "div.job-detail__info div:has(> i.fa-calendar)",
+    ]
+    for sel in deadline_selectors:
+        try:
+            elem = soup.select_one(sel)
+            if elem:
+                txt = elem.get_text(" ", strip=True)
+                dt = parse_posted_datetime(txt)
+                if dt:
+                    return dt
+        except Exception:
+            continue
+
+    # 2. Regex quét toàn bộ văn bản tìm mẫu "Hạn nộp (hồ sơ)?: dd/mm/yyyy"
+    full_text = soup.get_text(" ", strip=True)
+    m = re.search(
+        r"(?:hạn\s*nộp(?:\s*hồ\s*sơ)?|deadline|hết\s*hạn\s*vào)\s*[:：\-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})",
+        full_text,
+        re.IGNORECASE,
+    )
+    if m:
+        return parse_posted_datetime(m.group(1))
+
+    return None
+
+
 # ==============================================================================
 # Merge Helper (Richer-record merge)
 # ==============================================================================
@@ -198,6 +275,11 @@ def merge_detail_into_payload(
     if result.posted_at and not merged.get("posted_iso"):
         merged["posted_iso"] = result.posted_at.isoformat()
 
+    if result.expires_at:
+        merged["expires_iso"] = result.expires_at.isoformat()
+    if result.is_expired:
+        merged["is_expired"] = True
+
     listing_skills = [str(s) for s in (merged.get("skills") or [])]
     seen = {s.strip().lower() for s in listing_skills if s}
     for skill in result.skills:
@@ -215,6 +297,8 @@ def merge_detail_into_payload(
         "method": result.method,
         "description_length": len(detail_desc),
         "posted_at": result.posted_at.isoformat() if result.posted_at else None,
+        "expires_at": result.expires_at.isoformat() if result.expires_at else None,
+        "is_expired": result.is_expired,
         "employment_type": result.employment_type,
         "experience_months": result.experience_months,
         "attempts": result.attempts,
@@ -468,6 +552,11 @@ def _extract_jsonld_meta(json_ld: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if posted_dt:
         meta["posted_at"] = posted_dt
 
+    # Schema.org JobPosting: validThrough quy định thời hạn hết hạn của tin tuyển dụng
+    expires_dt = parse_posted_datetime(json_ld.get("validThrough") or json_ld.get("expires"))
+    if expires_dt:
+        meta["expires_at"] = expires_dt
+
     employment = json_ld.get("employmentType")
     if isinstance(employment, str) and employment.strip():
         meta["employment_type"] = employment.strip()
@@ -570,11 +659,20 @@ class JobDetailFetcher:
                 continue
 
             meta = _extract_jsonld_meta(doc.json_ld)
+            expires_at = meta.get("expires_at") or extract_deadline_from_dom(soup)
+            is_expired = check_is_job_expired(soup)
+            if not is_expired and expires_at:
+                now_utc = datetime.now(timezone.utc)
+                if expires_at < now_utc:
+                    is_expired = True
+
             result.status = "OK"
             result.description = normalize_description(description)
             result.method = method
             result.json_ld = doc.json_ld if isinstance(doc.json_ld, dict) else None
             result.posted_at = meta.get("posted_at")
+            result.expires_at = expires_at
+            result.is_expired = is_expired
             result.employment_type = meta.get("employment_type")
             result.experience_months = meta.get("experience_months")
             result.skills = meta.get("skills", [])

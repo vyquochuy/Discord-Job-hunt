@@ -9,6 +9,10 @@ from bs4 import BeautifulSoup
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.schemas.job import JobExtractedData
 from app.services.collectors.base import BaseJobCollector, RawJobData
+from app.services.extraction.detail_fetcher import (
+    clean_html_to_text,
+    parse_posted_datetime,
+)
 
 logger = logging.getLogger("careerlink_adapter")
 
@@ -36,11 +40,14 @@ class CareerLinkJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        unlimited = limit <= 0
+        max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
+        consecutive_expired = 0
+        MAX_CONSECUTIVE_EXPIRED = 15
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?sort=date&page={page}" if page > 1 else f"{self.SEARCH_URL}?sort=date"
                     logger.info(f"CareerLink: Fetching page {page}/{max_pages} from {target_url}...")
 
@@ -67,7 +74,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                                 if isinstance(main_ent, dict) and main_ent.get("@type") == "ItemList":
                                     items = main_ent.get("itemListElement", [])
                             for entry in items:
-                                if len(results) >= limit:
+                                if not unlimited and len(results) >= limit:
                                     break
                                 item_obj = entry.get("item", {}) if isinstance(entry, dict) else {}
                                 title = item_obj.get("name")
@@ -102,7 +109,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                     # 2. Nếu đã bóc tách được từ JSON-LD, sang trang kế tiếp
                     if page_jobs_count > 0:
                         page += 1
-                        if page <= max_pages and len(results) < limit:
+                        if page <= max_pages and (unlimited or len(results) < limit):
                             await asyncio.sleep(0.35)
                         continue
 
@@ -116,7 +123,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                         break
 
                     for card in job_cards:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         # Title & URL
@@ -156,6 +163,17 @@ class CareerLinkJobCollector(BaseJobCollector):
                         position_tag = position_elem.get_text(strip=True) if position_elem else ""
                         skills = [position_tag] if position_tag else []
 
+                        card_text_lower = card.get_text(" ", strip=True).lower()
+                        is_card_expired = any(m in card_text_lower for m in ("hết hạn", "closed", "expired", "đã đóng"))
+                        if is_card_expired:
+                            consecutive_expired += 1
+                        else:
+                            consecutive_expired = 0
+
+                        if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                            logger.info(f"CareerLink: Encountered {consecutive_expired} consecutive expired jobs. Stopping at page {page}.")
+                            break
+
                         card_payload = {
                             "title": title,
                             "company": company,
@@ -163,6 +181,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                             "url": url,
                             "salary_text": salary_text,
                             "skills": skills,
+                            "is_expired": is_card_expired,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
@@ -180,8 +199,11 @@ class CareerLinkJobCollector(BaseJobCollector):
                             )
                         )
 
+                    if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                        break
+
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from CareerLink.vn")
@@ -193,13 +215,21 @@ class CareerLinkJobCollector(BaseJobCollector):
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
         
-        # Bóc tách text description từ HTML card nếu có
-        desc = ""
-        if raw.raw_html:
+        # Bóc tách text description: ưu tiên payload từ detail enrichment
+        desc = clean_html_to_text(str(payload.get("description") or ""))
+        if not desc and raw.raw_html:
             desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
             desc = " ".join(desc.split())
-        else:
+        if not desc:
             desc = f"{payload.get('title', '')} tại {payload.get('company', '')}"
+
+        posted_at = (
+            parse_posted_datetime(payload.get("posted_iso"))
+            or parse_posted_datetime(payload.get("posted_at_text"))
+            or datetime.now(timezone.utc)
+        )
+
+        expires_at = parse_posted_datetime(payload.get("expires_iso"))
 
         return JobExtractedData(
             title=payload.get("title", "").strip(),
@@ -210,5 +240,6 @@ class CareerLinkJobCollector(BaseJobCollector):
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
-            posted_at=datetime.now(timezone.utc),
+            posted_at=posted_at,
+            expires_at=expires_at,
         )

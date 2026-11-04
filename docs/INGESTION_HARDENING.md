@@ -1,6 +1,6 @@
-# Ingestion Hardening Report — Detail Page Enrichment (Phase 2.7)
+# Ingestion Hardening Report — Detail Enrichment & Full Unexpired Scanning (Phase 2.7 & 2.8)
 
-> **Ngày hoàn thành:** 2026-11-04
+> **Ngày hoàn thành:** 2026-11-04 (Phase 2.7) · 2026-11-04 (Phase 2.8)
 > **Phạm vi:** Backend job ingestion pipeline — nâng cấp chất lượng JD thu thập từ các nguồn tuyển dụng Việt Nam.
 > **Nguồn tham khảo kỹ thuật:** `SonPhatTranDeveloper/vietnam-it-job-trends` (pipeline nghiên cứu 7-step crawl → dedupe → fetch-details → filter → consolidate → LLM-extract → classify).
 
@@ -155,3 +155,152 @@ Không có migration DB nào cần thiết (chỉ mở rộng `raw_jobs.raw_payl
 - [ ] Viết lại detail fetch bằng batch concurrent (asyncio.gather, max 5 concurrency) để rút ngắn daily batch.
 - [ ] TAXONOMY 4 chiều (title/seniority/location/work_model category) từ repo tham khảo cho UI filter — Phase 2.8 candidate.
 - [ ] Browser-render fallback (Playwright) chỉ cho JS-only SPA hợp lệ — giữ nguyên Invariant 19.
+
+---
+
+# Phase 2.8 — Full Unexpired Scanning & Expiry Detection
+
+> **Ngày hoàn thành:** 2026-11-04
+> **Phạm vi:** 5 nền tảng Việt Nam (ITViec, TopCV, TopDev, VietnamWorks, CareerLink). Các nguồn remote nước ngoài (Remotive, Upwork, ITNavi, GrowUpWork) **chưa** nâng cấp — vẫn chạy incremental như cũ.
+
+## 6. Vấn đề tồn tại trước đây
+
+| Triệu chứng | Nguyên nhân gốc |
+| --- | --- |
+| Chỉ quét được ~2 trang/nguồn dù gọi `limit=50` | `max_pages = min(25, max(1, (limit + 19) // 20))` |
+| Dù có tăng `limit` vẫn không quét quá 500 tin | Trần cứng `min(25, ...)` bất kể tham số |
+| Tin đã hết hạn vẫn hiện như đang tuyển | Không lưu `expires_at`, không có trạng thái EXPIRED |
+| Job hết hạn bị cào lại mỗi chu kỳ | Không có cờ đánh dấu, không có bước bảo trì |
+| Không có tín hiệu hạn nộp từ JSON-LD | `_extract_jsonld_meta()` bỏ qua `validThrough` |
+
+## 7. Giải pháp triển khai
+
+### 7.1 Quét toàn bộ (`full_scan`)
+
+`ingestion_pipeline.run(..., full_scan: bool = False)`:
+
+```text
+full_scan=True → limit = 0            (collector hiểu 0 = KHÔNG GIỚI HẠN)
+                → MAX_CONSECUTIVE_UNCHANGED = 0  (tắt dừng sớm theo unchanged streak)
+full_scan=False → giữ nguyên hành vi incremental (limit thật, streak = 30)
+```
+
+Mỗi adapter VN:
+
+```python
+unlimited = limit <= 0
+max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
+```
+
+- Bỏ hoàn toàn trần cứng `min(25, ...)`.
+- Trần an toàn `80` trang chỉ để chống vòng lặp vô hạn khi site phân trang tuần hoàn.
+
+### 7.2 Smart Stop Condition (dừng khi gặp chuỗi tin hết hạn)
+
+Vì các nguồn sắp xếp tin mới nhất trước (`sort=new`, `sort=date`, `ordering=latest_jobs`), khi gặp liên tiếp nhiều tin hết hạn thì các trang sau chắc chắn cũ hơn:
+
+```text
+MAX_CONSECUTIVE_EXPIRED = 15 (20 với VietnamWorks)
+consecutive_expired >= ngưỡng → break toàn bộ pagination
+```
+
+### 7.3 Phát hiện hết hạn — 3 nguồn tín hiệu độc lập
+
+| Tín hiệu | Nguồn | Xử lý |
+| --- | --- | --- |
+| `validThrough` / `expires` | JSON-LD `JobPosting` | `parse_posted_datetime()` → `expires_at` |
+| `Hạn nộp hồ sơ: dd/mm/yyyy` | DOM (`.job-detail__info--deadline`, `[class*='deadline']`, regex toàn văn) | `extract_deadline_from_dom()` |
+| Marker text | `"tin tuyển dụng đã hết hạn"`, `"no longer available"`, `"this position has been closed"`, … | `check_is_job_expired()` |
+| `expiredDate` (epoch-ms) | VietnamWorks Search API | `datetime.fromtimestamp(ms/1000, tz=utc)` |
+
+`JobDetailResult` bổ sung `expires_at: Optional[datetime]` và `is_expired: bool`. `merge_detail_into_payload()` ghi `raw_payload["expires_iso"]` + `raw_payload["is_expired"]`.
+
+### 7.4 Trạng thái Job: EXPIRED (không xóa dữ liệu)
+
+Trong `ingestion_pipeline.run()` BƯỚC 8:
+
+```python
+is_job_expired = payload["is_expired"] or (expires_at and expires_at < now_utc)
+job_status = EXPIRED if is_job_expired else ACTIVE
+```
+
+- **Insert mới**: lưu với `status=EXPIRED`, `expires_at` set, tăng `stats.expired_marked`.
+- **Update**: chỉ nâng cấp ACTIVE → EXPIRED; không hồi sinh tin đã hết hạn trừ khi nguồn trả về hạn mới còn hiệu lực.
+- **Không xóa**: giữ lịch sử + tránh cào lại vô ích ở chu kỳ sau.
+
+### 7.5 Bảo trì định kỳ `expire_outdated_jobs(db)`
+
+```sql
+UPDATE jobs SET status = 'EXPIRED'
+WHERE status = 'ACTIVE' AND expires_at IS NOT NULL AND expires_at < now()
+```
+
+Gọi ở 2 nơi:
+- `POST /api/v1/jobs/collect` (sau khi ingest) → trả `report.expired_total`.
+- `daily_runner` BƯỚC 3.5 → chạy mỗi chu kỳ batch.
+
+## 8. API & Runner
+
+```text
+POST /api/v1/jobs/collect?source=itviec&full_scan=true
+  → report: { total_fetched, created, unchanged, duplicates_detected, errors,
+              details_enriched, details_failed, details_skipped,
+              expired_marked, expired_total, full_scan }
+```
+
+`daily_runner`:
+
+```python
+FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
+full_scan = col.source_name in FULL_SCAN_SOURCES
+```
+
+Chỉ 5 nguồn VN được quét toàn bộ; nguồn nước ngoài giữ incremental.
+
+## 9. Files thay đổi
+
+```text
+backend/app/services/extraction/detail_fetcher.py         [MODIFIED] expires_at/is_expired, validThrough,
+                                                                     extract_deadline_from_dom, check_is_job_expired
+backend/app/services/collectors/itviec_adapter.py          [MODIFIED] unlimited + smart stop + expires_at
+backend/app/services/collectors/topcv_adapter.py           [MODIFIED] unlimited + deadline_text + expires_at
+backend/app/services/collectors/topdev_adapter.py          [MODIFIED] unlimited + smart stop (card + fallback link)
+backend/app/services/collectors/vietnamworks_adapter.py    [MODIFIED] expiredDate/approvedOn epoch-ms, hits_per_page=50
+backend/app/services/collectors/careerlink_adapter.py      [MODIFIED] unlimited + smart stop + parse_raw detail-first
+backend/app/services/ingestion_pipeline.py                 [MODIFIED] full_scan, job_status EXPIRED/ACTIVE,
+                                                                     IngestionStats.expired_marked, expire_outdated_jobs
+backend/app/api/v1/endpoints/jobs.py                       [MODIFIED] query param full_scan + report mở rộng
+backend/app/services/daily_runner.py                       [MODIFIED] FULL_SCAN_SOURCES + BƯỚC 3.5 expiry maintenance
+backend/tests/test_expiry_and_full_scan.py                 [MỚI]      18 test cases
+```
+
+Không có migration DB: `jobs.expires_at` và `JobStatusEnum.EXPIRED` đã tồn tại từ trước.
+
+## 10. Kiểm chứng
+
+```text
+pytest tests/test_expiry_and_full_scan.py          → 18 passed
+pytest tests/test_detail_enrichment.py
+       tests/test_ingestion_pipeline.py
+       tests/test_adapters.py
+       tests/test_manual_ingestion.py
+       tests/test_expiry_and_full_scan.py          → 66 passed
+pytest (toàn bộ backend)                           → 216 passed, 4 failed (4 failure tiền tồn tại,
+                                                      không liên quan Phase 2.8)
+```
+
+Nhóm test bao phủ:
+
+1. **Deadline/expiry detection** (6): regex tiếng Việt, class TopCV, không deadline, marker VN/EN, tin còn hạn không bị flag.
+2. **JSON-LD `validThrough`** (2): tương lai → `expires_at` + `is_expired=False`; quá khứ → `is_expired=True`.
+3. **Merge helper** (2): ghi `expires_iso`/`detail_meta`; gắn cờ `is_expired` vào payload.
+4. **VietnamWorks API** (1): `expiredDate` epoch-ms → `expires_iso`, `approvedOn` → `posted_iso`, tin quá hạn bị flag, `parse_raw` map `expires_at`.
+5. **Pipeline** (4): quá hạn → EXPIRED; còn hạn → ACTIVE; cờ payload override; `expire_outdated_jobs` chỉ đổi đúng bản ghi.
+6. **Full scan** (3): `full_scan=True` truyền `limit=0`; incremental giữ `limit`; full scan không dừng ở unchanged streak 30.
+
+## 11. Backlog Phase 2.8+
+
+- [ ] UI filter loại bỏ job `EXPIRED` khỏi danh sách mặc định (thêm toggle "Hiện tin đã hết hạn").
+- [ ] Dashboard widget "tin sắp hết hạn trong 3 ngày" để ưu tiên ứng tuyển.
+- [ ] Áp dụng `full_scan` cho Remotive/Upwork khi có nhu cầu (hiện chưa cần).
+- [ ] Metric Prometheus `jobs_expired_total{source}` để theo dõi tỷ lệ tin hết hạn theo nguồn.

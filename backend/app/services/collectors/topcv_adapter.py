@@ -47,11 +47,14 @@ class TopCVJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        unlimited = limit <= 0
+        max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
+        consecutive_expired = 0
+        MAX_CONSECUTIVE_EXPIRED = 15
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?sort=new&page={page}" if page > 1 else f"{self.SEARCH_URL}?sort=new"
                     logger.info(f"TopCV: Fetching page {page}/{max_pages} from {target_url}...")
                     
@@ -80,7 +83,7 @@ class TopCVJobCollector(BaseJobCollector):
 
                     page_jobs_count = 0
                     for card in job_cards:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         # 1. Tiêu đề và link
@@ -120,6 +123,22 @@ class TopCVJobCollector(BaseJobCollector):
                         skill_badges = card.select(".tag, .badge, .job-tag")
                         skills = [s.get_text(strip=True) for s in skill_badges if s.get_text(strip=True)]
 
+                        # 6. Hạn nộp / trạng thái hết hạn từ card
+                        deadline_elem = card.select_one(".time, .deadline, .job-deadline, span.time")
+                        deadline_text = deadline_elem.get_text(strip=True) if deadline_elem else ""
+                        card_text_lower = card.get_text(" ", strip=True).lower()
+                        is_card_expired = any(
+                            m in card_text_lower for m in ("hết hạn", "đã đóng", "closed", "expired")
+                        )
+                        if is_card_expired:
+                            consecutive_expired += 1
+                        else:
+                            consecutive_expired = 0
+
+                        if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                            logger.info(f"TopCV: Encountered {consecutive_expired} consecutive expired jobs. Stopping early at page {page}.")
+                            break
+
                         card_payload = {
                             "title": title,
                             "company": company,
@@ -127,6 +146,8 @@ class TopCVJobCollector(BaseJobCollector):
                             "url": url,
                             "salary_text": salary_text,
                             "skills": skills,
+                            "deadline_text": deadline_text,
+                            "is_expired": is_card_expired,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
@@ -145,8 +166,11 @@ class TopCVJobCollector(BaseJobCollector):
                         )
                         page_jobs_count += 1
 
+                    if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                        break
+
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from TopCV.vn")
@@ -174,6 +198,11 @@ class TopCVJobCollector(BaseJobCollector):
             or datetime.now(timezone.utc)
         )
 
+        expires_at = (
+            parse_posted_datetime(payload.get("expires_iso"))
+            or parse_posted_datetime(payload.get("deadline_text"))
+        )
+
         return JobExtractedData(
             title=payload.get("title", "").strip(),
             company_name=payload.get("company", "").strip(),
@@ -184,4 +213,5 @@ class TopCVJobCollector(BaseJobCollector):
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
             posted_at=posted_at,
+            expires_at=expires_at,
         )

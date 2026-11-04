@@ -196,6 +196,9 @@ class DailyBatchRunnerService:
             TopDevJobCollector(),
         ]
 
+        # Phase 2.8: Các nền tảng Việt Nam được quét TOÀN BỘ job còn hiệu lực
+        # (không giới hạn limit) vì đây là nguồn chính cho thị trường mục tiêu.
+        FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
 
         for col in collectors:
             sources_scanned.append(col.source_name)
@@ -205,6 +208,7 @@ class DailyBatchRunnerService:
                     db=session,
                     limit=limit_per_source,
                     use_llm=False,  # BẢO ĐẢM CHI PHÍ 0Đ
+                    full_scan=col.source_name in FULL_SCAN_SOURCES,
                 )
                 total_fetched += stats.total_fetched
                 new_jobs_created += stats.created
@@ -214,6 +218,14 @@ class DailyBatchRunnerService:
             except Exception as e:
                 logger.error(f"❌ Error during collection for source {col.source_name}: {e}", exc_info=True)
                 ingestion_errors += 1
+
+        # 3.5. Bảo trì hạn nộp: chuyển job ACTIVE đã quá hạn sang EXPIRED
+        try:
+            expired_total = await ingestion_pipeline.expire_outdated_jobs(session)
+            if expired_total:
+                logger.info(f"⌛ Retention: marked {expired_total} outdated jobs as EXPIRED.")
+        except Exception as e:
+            logger.warning(f"⚠️ Non-blocking warning during expiry maintenance: {e}")
 
         # 4. Phân tích & Chấm điểm phù hợp hàng loạt (Phase 3 Match Engine)
         logger.info("Step 4/5: Running Job Intelligence & Deterministic Scoring on all active jobs...")

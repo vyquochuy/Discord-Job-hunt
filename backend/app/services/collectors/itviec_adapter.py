@@ -36,11 +36,15 @@ class ITViecJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        # limit <= 0 có nghĩa là quét toàn bộ job chưa hết hạn
+        unlimited = limit <= 0
+        max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
+        consecutive_expired = 0
+        MAX_CONSECUTIVE_EXPIRED = 15
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"ITViec: Fetching page {page}/{max_pages} from {target_url}...")
 
@@ -62,8 +66,9 @@ class ITViecJobCollector(BaseJobCollector):
                         logger.info(f"ITViec: No more job cards found on page {page}.")
                         break
 
+                    page_jobs_count = 0
                     for card in job_cards:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         title_elem = card.select_one("h3 a, .job-card__title a, a[href*='/it-jobs/']")
@@ -73,6 +78,21 @@ class ITViecJobCollector(BaseJobCollector):
                         title = title_elem.get_text(strip=True)
                         rel_url = title_elem.get("href", "")
                         url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
+
+                        # Kiểm tra cờ hết hạn hiển thị trên card (nếu có)
+                        card_text_lower = card.get_text(" ", strip=True).lower()
+                        is_card_expired = any(
+                            m in card_text_lower for m in ("hết hạn", "đã đóng", "closed", "expired")
+                        )
+                        if is_card_expired:
+                            consecutive_expired += 1
+                        else:
+                            consecutive_expired = 0
+
+                        # Dừng sớm nếu gặp liên tiếp nhiều job hết hạn theo thứ tự thời gian
+                        if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                            logger.info(f"ITViec: Encountered {consecutive_expired} consecutive expired jobs. Stopping early at page {page}.")
+                            break
 
                         company_elem = card.select_one(
                             "div.imy-3, a[href*='/companies/'], span.text-hover-underline, .job-card__company-name, .employer-name"
@@ -110,6 +130,7 @@ class ITViecJobCollector(BaseJobCollector):
                             "skills": skills,
                             "salary_text": salary_text,
                             "posted_at_text": posted_text,
+                            "is_expired": is_card_expired,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}" + (f"|{posted_text}" if posted_text else ""))
@@ -124,9 +145,13 @@ class ITViecJobCollector(BaseJobCollector):
                                 content_hash=content_hash,
                             )
                         )
+                        page_jobs_count += 1
+
+                    if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                        break
 
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from ITViec")
@@ -153,6 +178,9 @@ class ITViecJobCollector(BaseJobCollector):
             or datetime.now(timezone.utc)
         )
 
+        # Expiry date từ detail enrichment hoặc card
+        expires_at = parse_posted_datetime(payload.get("expires_iso"))
+
         return JobExtractedData(
             title=payload.get("title", "").strip(),
             company_name=payload.get("company", "").strip(),
@@ -163,4 +191,5 @@ class ITViecJobCollector(BaseJobCollector):
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
             posted_at=posted_at,
+            expires_at=expires_at,
         )

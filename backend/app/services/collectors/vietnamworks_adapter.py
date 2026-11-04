@@ -45,8 +45,14 @@ class VietnamWorksJobCollector(BaseJobCollector):
             timeout_cfg = httpx.Timeout(10.0, connect=5.0)
             async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
                 page = 0
-                hits_per_page = min(limit, 25)
-                while len(results) < limit:
+                hits_per_page = 50
+                unlimited = limit <= 0
+                max_pages = 80 if unlimited else max(1, (limit + hits_per_page - 1) // hits_per_page)
+                consecutive_expired = 0
+                MAX_CONSECUTIVE_EXPIRED = 20
+                now_utc = datetime.now(timezone.utc)
+
+                while page < max_pages and (unlimited or len(results) < limit):
                     payload = {
                         "userId": 0,
                         "query": "IT Software",
@@ -67,7 +73,7 @@ class VietnamWorksJobCollector(BaseJobCollector):
                         break
 
                     for item in job_items:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         title = item.get("jobTitle") or ""
@@ -97,6 +103,36 @@ class VietnamWorksJobCollector(BaseJobCollector):
                         raw_skills = item.get("skills") or []
                         skills = [s.get("skillName") for s in raw_skills if isinstance(s, dict) and s.get("skillName")]
 
+                        # Trích xuất thời hạn expiredDate từ VietnamWorks API (epoch ms)
+                        expired_ms = item.get("expiredDate")
+                        expires_dt = None
+                        is_expired = False
+                        if expired_ms:
+                            try:
+                                expires_dt = datetime.fromtimestamp(float(expired_ms) / 1000.0, tz=timezone.utc)
+                                if expires_dt < now_utc:
+                                    is_expired = True
+                            except (ValueError, OverflowError, OSError):
+                                pass
+
+                        if is_expired:
+                            consecutive_expired += 1
+                        else:
+                            consecutive_expired = 0
+
+                        if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                            logger.info(f"VietnamWorks: Encountered {consecutive_expired} consecutive expired jobs. Stopping at page {page}.")
+                            break
+
+                        # Trích xuất approvedOn / createdOn
+                        posted_ms = item.get("approvedOn") or item.get("createdOn")
+                        posted_dt = None
+                        if posted_ms:
+                            try:
+                                posted_dt = datetime.fromtimestamp(float(posted_ms) / 1000.0, tz=timezone.utc)
+                            except (ValueError, OverflowError, OSError):
+                                pass
+
                         source_job_id = str(item.get("jobId") or "")
                         card_payload = {
                             "title": title,
@@ -106,6 +142,9 @@ class VietnamWorksJobCollector(BaseJobCollector):
                             "salary_text": salary_text,
                             "skills": skills,
                             "description": item.get("jobDescription") or "",
+                            "posted_iso": posted_dt.isoformat() if posted_dt else None,
+                            "expires_iso": expires_dt.isoformat() if expires_dt else None,
+                            "is_expired": is_expired,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
@@ -120,8 +159,11 @@ class VietnamWorksJobCollector(BaseJobCollector):
                             )
                         )
 
+                    if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                        break
+
                     page += 1
-                    if len(results) >= limit or len(job_items) < hits_per_page:
+                    if (not unlimited and len(results) >= limit) or len(job_items) < hits_per_page:
                         break
                     await asyncio.sleep(0.3)
 
@@ -154,6 +196,8 @@ class VietnamWorksJobCollector(BaseJobCollector):
             or datetime.now(timezone.utc)
         )
 
+        expires_at = parse_posted_datetime(payload.get("expires_iso"))
+
         title_lower = (payload.get("title") or "").lower()
         work_mode = WorkModeEnum.ONSITE
         if "remote" in title_lower:
@@ -171,4 +215,5 @@ class VietnamWorksJobCollector(BaseJobCollector):
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
             posted_at=posted_at,
+            expires_at=expires_at,
         )

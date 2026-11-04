@@ -205,7 +205,11 @@ async def get_job_detail(
 @router.post("/collect")
 async def trigger_collection(
     source: str = Query("mock", description="Nguồn thu thập: 'mock', 'remotive', 'itviec', 'careerlink', 'topcv'"),
-    limit: int = Query(5, ge=1, le=50, description="Số lượng tin tối đa thu thập"),
+    limit: int = Query(5, ge=1, le=50, description="Số lượng tin tối đa thu thập (bỏ qua khi full_scan=true)"),
+    full_scan: bool = Query(
+        False,
+        description="Quét toàn bộ job còn hiệu lực mà nguồn có (không giới hạn limit)",
+    ),
     db: AsyncSession = Depends(get_db),
     _auth: bool = Depends(verify_admin_access),
 ):
@@ -232,7 +236,9 @@ async def trigger_collection(
         )
 
     collector = collectors_map[source]
-    stats = await ingestion_pipeline.run(collector, db, limit=limit)
+    stats = await ingestion_pipeline.run(collector, db, limit=limit, full_scan=full_scan)
+    # Bảo trì: chuyển các job đã quá hạn trong DB sang EXPIRED
+    expired_total = await ingestion_pipeline.expire_outdated_jobs(db)
 
     return {
         "status": "success",
@@ -243,6 +249,12 @@ async def trigger_collection(
             "unchanged": stats.unchanged,
             "duplicates_detected": stats.duplicates_detected,
             "errors": stats.errors,
+            "details_enriched": stats.details_enriched,
+            "details_failed": stats.details_failed,
+            "details_skipped": stats.details_skipped,
+            "expired_marked": stats.expired_marked,
+            "expired_total": expired_total,
+            "full_scan": full_scan,
         },
     }
 

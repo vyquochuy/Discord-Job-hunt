@@ -40,12 +40,15 @@ class TopDevJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        unlimited = limit <= 0
+        max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
+        consecutive_expired = 0
+        MAX_CONSECUTIVE_EXPIRED = 15
 
         try:
             timeout_cfg = httpx.Timeout(10.0, connect=5.0)
             async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?ordering=latest_jobs&page={page}" if page > 1 else f"{self.SEARCH_URL}?ordering=latest_jobs"
                     logger.info(f"TopDev: Fetching page {page}/{max_pages} from {target_url}...")
 
@@ -136,7 +139,7 @@ class TopDevJobCollector(BaseJobCollector):
 
                     # 2. Bóc tách khi có job_cards thông thường
                     for card in job_cards:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         title_elem = card.select_one(
@@ -168,6 +171,17 @@ class TopDevJobCollector(BaseJobCollector):
                         skill_elems = card.select(".tag, .skill-tag, .tag-item, a.tag, span.skill, .badge")
                         skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
 
+                        card_text_lower = card.get_text(" ", strip=True).lower()
+                        is_card_expired = any(m in card_text_lower for m in ("hết hạn", "closed", "expired", "đã đóng"))
+                        if is_card_expired:
+                            consecutive_expired += 1
+                        else:
+                            consecutive_expired = 0
+
+                        if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                            logger.info(f"TopDev: Encountered {consecutive_expired} consecutive expired jobs. Stopping at page {page}.")
+                            break
+
                         card_payload = {
                             "title": title,
                             "company": company,
@@ -175,6 +189,7 @@ class TopDevJobCollector(BaseJobCollector):
                             "url": url,
                             "salary_text": salary_text,
                             "skills": skills,
+                            "is_expired": is_card_expired,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
@@ -192,8 +207,11 @@ class TopDevJobCollector(BaseJobCollector):
                             )
                         )
 
+                    if consecutive_expired >= MAX_CONSECUTIVE_EXPIRED:
+                        break
+
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from TopDev.vn")
@@ -221,6 +239,8 @@ class TopDevJobCollector(BaseJobCollector):
             or datetime.now(timezone.utc)
         )
 
+        expires_at = parse_posted_datetime(payload.get("expires_iso"))
+
         # Xác định work mode cơ bản
         title_lower = (payload.get("title") or "").lower()
         work_mode = WorkModeEnum.ONSITE
@@ -239,4 +259,5 @@ class TopDevJobCollector(BaseJobCollector):
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
             posted_at=posted_at,
+            expires_at=expires_at,
         )

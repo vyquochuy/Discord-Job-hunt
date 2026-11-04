@@ -1,5 +1,24 @@
 # Completed Work
 
+## Phase 2.8 — Full Unexpired Scanning & Expiry Detection (Completed — 2026-11-04)
+
+**Phạm vi:** 5 nền tảng Việt Nam — ITViec, TopCV, TopDev, VietnamWorks, CareerLink. Nguồn remote nước ngoài giữ incremental.
+
+- [x] `ingestion_pipeline.run(..., full_scan=False)`: `full_scan=True` → `limit=0` + tắt `MAX_CONSECUTIVE_UNCHANGED`; thêm `IngestionStats.expired_marked`.
+- [x] 5 adapter VN: `unlimited = limit <= 0`, `max_pages = 80` (bỏ trần cứng `min(25, ...)`), smart stop `MAX_CONSECUTIVE_EXPIRED` (15; VietnamWorks 20).
+- [x] `detail_fetcher.py`: `JobDetailResult.expires_at/is_expired`, `validThrough` JSON-LD, `extract_deadline_from_dom()`, `check_is_job_expired()` (marker VN/EN), merge `expires_iso`/`is_expired`.
+- [x] `vietnamworks_adapter.py`: `expiredDate`/`approvedOn` epoch-ms → `expires_iso`/`posted_iso`/`is_expired`; `hitsPerPage=50`.
+- [x] `careerlink_adapter.py`: import `clean_html_to_text`/`parse_posted_datetime`, ưu tiên `payload["description"]`, thêm `expires_at`.
+- [x] Pipeline BƯỚC 8: job quá hạn lưu `status=EXPIRED` (giữ lịch sử), còn hạn `ACTIVE`; update không hồi sinh tin đã hết hạn.
+- [x] `expire_outdated_jobs(db)`: `UPDATE jobs SET status='EXPIRED' WHERE status='ACTIVE' AND expires_at < now()`; gọi trong API collect + daily runner BƯỚC 3.5.
+- [x] `POST /api/v1/jobs/collect?full_scan=true` + report mở rộng (`expired_marked`, `expired_total`, `details_*`, `full_scan`).
+- [x] `daily_runner.FULL_SCAN_SOURCES` = {itviec, topcv, topdev, vietnamworks, careerlink}.
+- [x] `backend/tests/test_expiry_and_full_scan.py` (MỚI): 18 test pass; 66/66 test liên quan pass; 216 passed toàn suite (4 failure tiền tồn tại).
+- [x] Không cần migration DB (`jobs.expires_at`, `JobStatusEnum.EXPIRED` đã tồn tại).
+- [x] Báo cáo: `docs/INGESTION_HARDENING.md` mục Phase 2.8; roadmap cập nhật `docs/ROADMAP.md`.
+
+---
+
 ## Phase 2.7 — Ingestion Hardening: Detail Page Enrichment (Completed — 2026-11-04)
 
 - [x] `backend/app/services/extraction/detail_fetcher.py` (MỚI): Detail Page Enrichment — JSON-LD JobPosting → site DOM → largest-block → page_text; challenge/login detection (không bypass); retry 2 lần backoff; merge richer-record.
