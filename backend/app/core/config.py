@@ -112,6 +112,12 @@ class Settings(BaseSettings):
     GEMINI_API_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
     GROQ_API_KEY: Optional[str] = None
 
+    # Detail Page Enrichment (Phase 2.7): làm giàu JD listing từ trang chi tiết
+    DETAIL_FETCH_ENABLED: bool = True        # Tự tắt nếu muốn ingest thuần listing
+    DETAIL_FETCH_TIMEOUT: float = 10.0       # Timeout cho từng lần fetch detail (giây)
+    DETAIL_FETCH_MAX_ATTEMPTS: int = 2       # Số lần retry (backoff 1.5s/3s)
+    DETAIL_FETCH_MAX_PER_RUN: int = 20       # Trần số detail fetch cho 1 lần chạy nguồn
+
 
 
     model_config = SettingsConfigDict(

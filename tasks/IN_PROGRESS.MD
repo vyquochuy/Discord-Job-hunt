@@ -34,3 +34,5 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 2. **SEC-07 Test Suite Hygiene**: Mock hoàn toàn các network call tới Gemini API trong test suite để tránh timeout 429 và leak credential.
 3. **Triển khai di chuyển Token sang HttpOnly Cookie** theo lộ trình đã lập tại `MIGRATION_PLAN.md`.
 4. Tiếp tục hoàn thiện Phase 8.2 / 8.4 trên môi trường Cloud Production.
+5. **Phase 2.7 (HOÀN THÀNH — 2026-11-04)**: Detail Page Enrichment cho Ingestion Pipeline (JSON-LD + DOM + richer-record merge, 27 tests pass) — chi tiết tại `docs/INGESTION_HARDENING.md`.
+6. Phase 2.8 candidate: Taxonomy 4 chiều (title/seniority/location/work-model) cho UI filter & scoring.

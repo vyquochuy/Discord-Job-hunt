@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.schemas.job import JobExtractedData
 from app.services.collectors.base import BaseJobCollector, RawJobData
+from app.services.extraction.detail_fetcher import parse_posted_datetime
 
 logger = logging.getLogger("itviec_adapter")
 
@@ -91,6 +92,16 @@ class ITViecJobCollector(BaseJobCollector):
                         salary_elem = card.select_one(".job-card__salary, .salary")
                         salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
 
+                        # Best-effort: ngày đăng tương đối trên card ("3 days ago" / "5 ngày trước")
+                        posted_elem = card.select_one("time, .footer time, span.small-text, .posted-date")
+                        posted_text = None
+                        if posted_elem:
+                            posted_text = (
+                                posted_elem.get("datetime")
+                                or posted_elem.get("title")
+                                or " ".join(posted_elem.get_text(" ", strip=True).split())
+                            )
+
                         card_payload = {
                             "title": title,
                             "company": company,
@@ -98,9 +109,10 @@ class ITViecJobCollector(BaseJobCollector):
                             "url": url,
                             "skills": skills,
                             "salary_text": salary_text,
+                            "posted_at_text": posted_text,
                         }
 
-                        content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
+                        content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}" + (f"|{posted_text}" if posted_text else ""))
 
                         results.append(
                             RawJobData(
@@ -125,13 +137,21 @@ class ITViecJobCollector(BaseJobCollector):
 
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
-        
-        # Nếu có HTML chi tiết, trích xuất text
-        desc = ""
-        if raw.raw_html:
-            desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
-        else:
+
+        # Bóc tách description: ưu tiên JD đầy đủ từ Detail Enrichment
+        # (payload["description"]), fallback về HTML card listing nếu chưa có.
+        desc = str(payload.get("description") or "").strip()
+        if not desc and raw.raw_html:
+            desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator="\n", strip=True)
+        if not desc:
             desc = f"{payload.get('title', '')} at {payload.get('company', '')}"
+
+        # Posted date: ưu tiên JSON-LD/Detail ISO, fallback relative text của card
+        posted_at = (
+            parse_posted_datetime(payload.get("posted_iso"))
+            or parse_posted_datetime(payload.get("posted_at_text"))
+            or datetime.now(timezone.utc)
+        )
 
         return JobExtractedData(
             title=payload.get("title", "").strip(),
@@ -142,5 +162,5 @@ class ITViecJobCollector(BaseJobCollector):
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
-            posted_at=datetime.now(timezone.utc),
+            posted_at=posted_at,
         )

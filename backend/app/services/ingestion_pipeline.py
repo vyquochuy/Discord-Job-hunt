@@ -1,10 +1,11 @@
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.job import (
     Job,
     JobSkill,
@@ -17,6 +18,13 @@ from app.services.ai.embedding_service import embedding_service
 from app.services.ai.llm_extractor import llm_extractor
 from app.services.collectors.base import BaseJobCollector, RawJobData
 from app.services.deduplication.dedup_service import dedup_service
+from app.services.extraction.detail_fetcher import (
+    SKIP_IF_DESC_AT_LEAST,
+    SUPPORTED_SOURCES,
+    detail_fetcher,
+    merge_detail_into_payload,
+    note_detail_failure,
+)
 from app.services.normalization.job_normalizer import job_normalizer
 from app.services.normalization.skill_normalizer import skill_normalizer
 from app.services.skill_service import skill_service
@@ -31,6 +39,10 @@ class IngestionStats(BaseModel):
     duplicates_detected: int = 0
     created: int = 0
     errors: int = 0
+    # Phase 2.7: Detail Page Enrichment metrics
+    details_enriched: int = 0
+    details_failed: int = 0
+    details_skipped: int = 0
 
 
 class JobIngestionPipeline:
@@ -46,9 +58,15 @@ class JobIngestionPipeline:
         db: AsyncSession,
         limit: int = 20,
         use_llm: bool = False,
+        fetch_details: Optional[bool] = None,
     ) -> IngestionStats:
         stats = IngestionStats(source=collector.source_name)
-        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit}, use_llm={use_llm})...")
+        # Phase 2.7: Detail Enrichment mặc định bật từ settings.
+        if fetch_details is None:
+            fetch_details = bool(settings.DETAIL_FETCH_ENABLED)
+        detail_budget = max(0, int(settings.DETAIL_FETCH_MAX_PER_RUN))
+        detail_supported = collector.source_name in SUPPORTED_SOURCES
+        logger.info(f"Starting job ingestion from source '{collector.source_name}' (limit={limit}, use_llm={use_llm}, fetch_details={fetch_details and detail_supported})...")
 
         # 1. Thu thập dữ liệu thô từ Collector
         raw_items: List[RawJobData] = await collector.fetch_jobs(limit=limit)
@@ -110,6 +128,44 @@ class JobIngestionPipeline:
                     db.add(raw_job)
 
                 await db.flush()
+
+                # BƯỚC 2.5: Detail Page Enrichment (Phase 2.7)
+                # Làm giàu payload listing bằng JD đầy đủ từ trang chi tiết:
+                # JSON-LD JobPosting -> site DOM -> generic. Thất bại THÌ VẪN
+                # TIẾP TỤC với dữ liệu listing (graceful degradation).
+                if fetch_details and detail_supported:
+                    payload_before = raw_data.raw_payload
+                    if detail_budget <= 0:
+                        stats.details_skipped += 1
+                    else:
+                        listing_desc = str((raw_data.raw_payload or {}).get("description") or "").strip()
+                        if len(listing_desc) >= SKIP_IF_DESC_AT_LEAST:                            # Listing đã đủ JD đầy đủ (VD: VietnamWorks API), bỏ qua tiết kiệm chi phí
+                            stats.details_skipped += 1
+                        else:
+                            detail = await detail_fetcher.fetch_detail(
+                                collector.source_name,
+                                raw_data.source_url,
+                                max_attempts=settings.DETAIL_FETCH_MAX_ATTEMPTS,
+                                timeout=settings.DETAIL_FETCH_TIMEOUT,
+                            )
+                            detail_budget -= 1
+                            if detail.status == "OK":
+                                raw_data.raw_payload = merge_detail_into_payload(raw_data.raw_payload, detail)
+                                stats.details_enriched += 1
+                                logger.info(
+                                    f"[Ingestion] Detail enriched ({detail.method}): {raw_data.source_url} "
+                                    f"({len(detail.description)} chars, posted_at={detail.posted_at})"
+                                )
+                            else:
+                                raw_data.raw_payload = note_detail_failure(raw_data.raw_payload, detail)
+                                stats.details_failed += 1
+                                logger.warning(
+                                    f"[Ingestion] Detail fetch {detail.status} ({detail.error}) "
+                                    f"for {raw_data.source_url}. Keeping listing data."
+                                )
+                            # Đồng bộ payload đã enrich vào ORM record trước khi parse/commit
+                            if raw_data.raw_payload is not payload_before:
+                                raw_job.raw_payload = raw_data.raw_payload
 
                 # BƯỚC 3: Deterministic Parsing từ Collector Adapter
                 extracted = await collector.parse_raw(raw_data)

@@ -1,5 +1,16 @@
 # Completed Work
 
+## Phase 2.7 — Ingestion Hardening: Detail Page Enrichment (Completed — 2026-11-04)
+
+- [x] `backend/app/services/extraction/detail_fetcher.py` (MỚI): Detail Page Enrichment — JSON-LD JobPosting → site DOM → largest-block → page_text; challenge/login detection (không bypass); retry 2 lần backoff; merge richer-record.
+- [x] `backend/app/services/ingestion_pipeline.py`: BƯỚC 2.5 enrichment với budget + graceful degradation; `IngestionStats` thêm `details_enriched/failed/skipped`.
+- [x] `backend/app/core/config.py`: 4 settings `DETAIL_FETCH_*` (enabled/timeout/attempts/max_per_run).
+- [x] 4 adapters (`itviec`, `topcv`, `topdev`, `vietnamworks`) `parse_raw()` ưu tiên full JD từ detail enrichment + `parse_posted_datetime`.
+- [x] `backend/tests/test_detail_enrichment.py` (MỚI): 27 test pass (parser date, security detection, merge, fetcher, adapter, pipeline integration).
+- [x] Báo cáo đầy đủ tại `docs/INGESTION_HARDENING.md`; roadmap cập nhật `docs/ROADMAP.md`.
+
+---
+
 ## Phase 0 — Foundation (Completed)
 
 - [x] Initialize repository structure (`discord-bot/`, `backend/`, `workers/`, `database/`, `context/`, `docs/`, `tasks/`)

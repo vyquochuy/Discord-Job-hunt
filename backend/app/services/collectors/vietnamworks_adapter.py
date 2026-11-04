@@ -9,6 +9,10 @@ from bs4 import BeautifulSoup
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.schemas.job import JobExtractedData
 from app.services.collectors.base import BaseJobCollector, RawJobData
+from app.services.extraction.detail_fetcher import (
+    clean_html_to_text,
+    parse_posted_datetime,
+)
 
 logger = logging.getLogger("vietnamworks_adapter")
 
@@ -133,12 +137,22 @@ class VietnamWorksJobCollector(BaseJobCollector):
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
 
-        desc = ""
+        # Richer-record merge: chọn description đầy đủ nhất giữa payload
+        # (API HTML) và detail enrichment (payload["description"]) và raw_html.
+        candidates: List[str] = []
+        if payload.get("description"):
+            candidates.append(clean_html_to_text(str(payload["description"])))
         if raw.raw_html:
-            desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
-            desc = " ".join(desc.split())
-        else:
+            candidates.append(clean_html_to_text(str(raw.raw_html)))
+        desc = max(candidates, key=len) if candidates else ""
+        if not desc:
             desc = f"{payload.get('title', '')} tại {payload.get('company', '')}"
+
+        posted_at = (
+            parse_posted_datetime(payload.get("posted_iso"))
+            or parse_posted_datetime(payload.get("posted_at_text"))
+            or datetime.now(timezone.utc)
+        )
 
         title_lower = (payload.get("title") or "").lower()
         work_mode = WorkModeEnum.ONSITE
@@ -156,5 +170,5 @@ class VietnamWorksJobCollector(BaseJobCollector):
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
-            posted_at=datetime.now(timezone.utc),
+            posted_at=posted_at,
         )

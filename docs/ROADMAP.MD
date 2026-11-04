@@ -71,6 +71,24 @@
 
 ---
 
+## Phase 2.7 — Ingestion Hardening: Detail Page Enrichment
+
+**Status:** COMPLETED
+
+**Goal:** Làm giàu (enrich) tin tuyển dụng mức listing bằng JD đầy đủ từ trang chi tiết, tăng chất lượng evidence cho 7-signal matching và chống lưu nội dung trang lỗi/bị chặn làm JD.
+
+- [x] Service `detail_fetcher.py`: fetch trang chi tiết qua `URLFetcher` (SSRF-safe), 4 tầng trích xuất: JSON-LD `JobPosting` (schema.org) → site DOM selectors (ITViec/TopCV/TopDev/VietnamWorks) → largest-block heuristic → page_text.
+- [x] Quality Validation: phát hiện challenge-trang WAF (`is_challenge_page`) và login gate (`is_login_gate`) → đánh dấu BLOCKED, **KHÔNG bypass** (Invariants 12/19); content quá ngắn → INCOMPLETE.
+- [x] Retry giới hạn (2 lần, backoff 1.5s/3s); HTTP 401/403/407/429 là terminal — không retry.
+- [x] Richer-record merge: description dài hơn thắng, skills union lossless, `datePosted` JSON-LD thắng relative text; failure bookkeeping vào `payload["detail_meta"]`.
+- [x] `parse_posted_datetime()` đa định dạng: ISO 8601 / epoch / relative VN-EN ("3 days ago", "5 ngày trước", "hôm qua").
+- [x] Pipeline: BƯỚC 2.5 enrichment với budget `DETAIL_FETCH_MAX_PER_RUN=20`, skip khi listing desc ≥ 800 ký tự, metrics mới `details_enriched/failed/skipped` trong report.
+- [x] Adapters (ITViec, TopCV, TopDev, VietnamWorks) ưu tiên `payload["description"]` đã enrich, nguyên tắc richer-record.
+- [x] 27/27 test riêng + 39/39 test liên quan pass; 4 failure suite là **tiền tồn tại** (xác nhận bằng git stash isolation).
+- [x] Báo cáo chi tiết: [docs/INGESTION_HARDENING.md](docs/INGESTION_HARDENING.md)
+
+---
+
 ## Phase 3 — Job Intelligence
 
 **Status:** COMPLETED

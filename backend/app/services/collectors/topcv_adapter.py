@@ -9,6 +9,10 @@ from bs4 import BeautifulSoup
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.schemas.job import JobExtractedData
 from app.services.collectors.base import BaseJobCollector, RawJobData
+from app.services.extraction.detail_fetcher import (
+    clean_html_to_text,
+    parse_posted_datetime,
+)
 
 logger = logging.getLogger("topcv_adapter")
 
@@ -153,13 +157,22 @@ class TopCVJobCollector(BaseJobCollector):
 
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
-        
-        desc = ""
-        if raw.raw_html:
-            desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
-            desc = " ".join(desc.split())
-        else:
+
+        # Ưu tiên JD đầy đủ từ Detail Enrichment (payload["description"]),
+        # fallback về HTML card listing nếu chưa có.
+        desc = clean_html_to_text(str(payload.get("description") or ""))
+        if len(desc) < 80 and raw.raw_html:
+            desc = " ".join(
+                BeautifulSoup(raw.raw_html, "html.parser").get_text(separator="\n", strip=True).split()
+            )
+        if not desc:
             desc = f"{payload.get('title', '')} tại {payload.get('company', '')}"
+
+        posted_at = (
+            parse_posted_datetime(payload.get("posted_iso"))
+            or parse_posted_datetime(payload.get("posted_at_text"))
+            or datetime.now(timezone.utc)
+        )
 
         return JobExtractedData(
             title=payload.get("title", "").strip(),
@@ -170,5 +183,5 @@ class TopCVJobCollector(BaseJobCollector):
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
-            posted_at=datetime.now(timezone.utc),
+            posted_at=posted_at,
         )

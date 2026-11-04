@@ -21,6 +21,12 @@ AI Job Hunter Platform — personal job hunting intelligence platform with **Web
 
 **Phases 0 through 6, Phase 8.1, and Phase 8.2 are fully COMPLETED and production-verified (135/135 backend tests passing).**
 
+- **Phase 2.7 (Ingestion Hardening — Detail Page Enrichment)**:
+  - `detail_fetcher.py`: Làm giàu tin listing bằng JD đầy đủ từ trang chi tiết qua 4 tầng trích xuất (JSON-LD `JobPosting` schema.org → site DOM selectors → largest-block → page_text) cho ITViec/TopCV/TopDev/VietnamWorks/CareerLink.
+  - Quality Validation: phát hiện challenge-WAF/login gate → BLOCKED (không bypass, Invariant 19), content mỏng → INCOMPLETE; retry giới hạn 2 lần, HTTP 401/403/407/429 terminal không retry.
+  - Richer-record merge: description dài hơn thắng, skills union lossless, `datePosted` JSON-LD ưu tiên; `parse_posted_datetime()` đa định dạng (ISO/epoch/relative VN-EN).
+  - Pipeline BƯỚC 2.5 với budget `DETAIL_FETCH_MAX_PER_RUN`, graceful degradation về listing data, metrics `details_enriched/failed/skipped` trong collect report. Chi tiết: `docs/INGESTION_HARDENING.md`.
+
 - **Phase 0 (Foundation)**: Docker Compose (PostgreSQL with pgvector, Redis, Backend, Workers, Discord Bot), FastAPI skeleton, Alembic migrations.
 - **Phase 1 (Candidate Profile)**: SQLAlchemy models, Candidate Profile Ingestion (`candidate-profile.yaml`, `master-resume.tex`), CRUD/Sync REST APIs (`/api/v1/profile`).
 - **Phase 2 & 2.5 (Job Collection & Ad-hoc Ingestion)**:
@@ -141,6 +147,7 @@ backend/                 → FastAPI API + business logic + AI (Python 3.11)
         latex_compiler.py       → PDF compilation via pdflatex
         cover_letter_generator.py → Cover letter composer
       ingestion_pipeline.py     → Scraper dispatch & deduplication
+      extraction/               → URL fetcher, detail enrichment (Phase 2.7), heuristic/LLM extraction pipeline
       notifications/            → Pluggable notification service
   tests/                 → Automated pytest test suite
 
