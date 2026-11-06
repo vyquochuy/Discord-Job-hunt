@@ -1,0 +1,10 @@
+{
+  "description": "AI-powered job intelligence platform that helps candidates discover opportunities, match with suitable roles, and track applications while providing market analytics on Vietnam's IT job landscape.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -32,6 +32,44 @@ from app.services.normalization.skill_normalizer import skill_normalizer
 logger = logging.getLogger("daily_runner")
 
 
+# Phase 2.8: Các nền tảng Việt Nam được quét TOÀN BỘ job còn hiệu lực
+# (không giới hạn limit) vì đây là nguồn chính cho thị trường mục tiêu.
+FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
+
+# Nguồn nước ngoài (remote quốc tế) chưa hỗ trợ quét toàn bộ -> giới hạn an toàn
+FOREIGN_SOURCE_FULL_SCAN_CAP = 50
+
+
+# Cấu hình các chế độ quét (Scan Modes) dùng chung cho API + Frontend.
+# limit == 0 nghĩa là quét toàn bộ job còn hiệu lực mà nguồn có.
+SCAN_MODE_CONFIG: dict = {
+    "quick": {
+        "label": "Quick Scan",
+        "description": "Quét nhanh tin mới trong 24-48h qua (20 tin/nguồn, incremental).",
+        "limit": 20,
+        "full_scan": False,
+    },
+    "standard": {
+        "label": "Standard Scan",
+        "description": "Quét mở rộng 1-2 tuần qua (80 tin/nguồn, incremental).",
+        "limit": 80,
+        "full_scan": False,
+    },
+    "full": {
+        "label": "Full Market Scan",
+        "description": "Quét TOÀN BỘ tin còn hạn trên 5 nền tảng Việt Nam (không giới hạn).",
+        "limit": 0,
+        "full_scan": True,
+    },
+    "custom": {
+        "label": "Custom Scan",
+        "description": "Tự chọn số tin tối đa mỗi nguồn (1-500).",
+        "limit": None,
+        "full_scan": False,
+    },
+}
+
+
 class TopRecommendedJobSummary(BaseModel):
     job_id: str
     title: str
@@ -53,6 +91,10 @@ class DailyBatchSummary(BaseModel):
     candidate_name: str
     candidate_id: str
 
+    # Scan configuration
+    scan_mode: str = "standard"
+    full_scan_sources: List[str] = []
+
     # Ingestion Stats
     sources_scanned: List[str] = []
     total_fetched: int = 0
@@ -60,6 +102,8 @@ class DailyBatchSummary(BaseModel):
     unchanged_jobs: int = 0
     duplicates_detected: int = 0
     ingestion_errors: int = 0
+    expired_marked: int = 0
+    expired_total: int = 0
 
     # Matching Stats
     total_active_jobs: int = 0
@@ -93,12 +137,53 @@ class DailyBatchRunnerService:
         limit_per_source: int = 50,
         context_dir: Optional[str] = None,
         candidate_id: Optional[uuid.UUID] = None,
+        scan_mode: Optional[str] = None,
     ) -> DailyBatchSummary:
         if session is not None:
-            return await cls._execute_batch(session, limit_per_source, context_dir, candidate_id=candidate_id)
+            return await cls._execute_batch(
+                session, limit_per_source, context_dir, candidate_id=candidate_id, scan_mode=scan_mode
+            )
         else:
             async with AsyncSessionLocal() as sess:
-                return await cls._execute_batch(sess, limit_per_source, context_dir, candidate_id=candidate_id)
+                return await cls._execute_batch(
+                    sess, limit_per_source, context_dir, candidate_id=candidate_id, scan_mode=scan_mode
+                )
+
+    @staticmethod
+    def resolve_scan_plan(
+        scan_mode: Optional[str],
+        limit_per_source: int = 50,
+    ) -> dict:
+        """
+        Quy đổi `scan_mode` thành kế hoạch quét cụ thể.
+
+        Trả về: {"mode": str, "full_scan": bool, "per_source": {source: (limit, full_scan)}}
+        - limit == 0 nghĩa là quét toàn bộ job còn hiệu lực.
+        - Chế độ `full`: 5 nền tảng Việt Nam quét toàn bộ, nguồn ngoại giới hạn an toàn.
+        - Không truyền `scan_mode` (legacy): giữ nguyên hành vi cũ (VN full scan, ngoại incremental).
+        """
+        normalized = (scan_mode or "").strip().lower()
+        per_source: dict = {}
+
+        if not normalized or normalized not in SCAN_MODE_CONFIG:
+            # Legacy behavior: VN sources full scan + foreign incremental
+            for src in FULL_SCAN_SOURCES:
+                per_source[src] = (0, True)
+            return {"mode": "legacy", "full_scan": True, "per_source": per_source}
+
+        cfg = SCAN_MODE_CONFIG[normalized]
+
+        if normalized == "full":
+            for src in FULL_SCAN_SOURCES:
+                per_source[src] = (0, True)
+            return {"mode": "full", "full_scan": True, "per_source": per_source}
+
+        if normalized == "custom":
+            effective = max(1, min(500, int(limit_per_source or 1)))
+        else:
+            effective = int(cfg["limit"])
+
+        return {"mode": normalized, "full_scan": False, "per_source": per_source, "limit": effective}
 
     @classmethod
     async def _execute_batch(
@@ -107,6 +192,7 @@ class DailyBatchRunnerService:
         limit_per_source: int = 50,
         context_dir: Optional[str] = None,
         candidate_id: Optional[uuid.UUID] = None,
+        scan_mode: Optional[str] = None,
     ) -> DailyBatchSummary:
         start_time = datetime.now(timezone.utc)
         t0 = time.time()
@@ -120,6 +206,20 @@ class DailyBatchRunnerService:
         unchanged_jobs = 0
         duplicates_detected = 0
         ingestion_errors = 0
+        expired_marked = 0
+        expired_total = 0
+
+        # Phase 2.8: Quy đổi scan_mode -> kế hoạch quét theo từng nguồn
+        scan_plan = cls.resolve_scan_plan(scan_mode, limit_per_source)
+        effective_scan_mode = scan_plan["mode"]
+        effective_limit = scan_plan.get("limit", limit_per_source)
+        full_scan_sources = sorted(
+            src for src, (lim, is_full) in scan_plan["per_source"].items() if is_full
+        )
+        logger.info(
+            f"🔍 Scan plan resolved: mode={effective_scan_mode} "
+            f"(limit={effective_limit}, full_scan_sources={full_scan_sources})"
+        )
 
         # 1. Xác định hoặc đồng bộ Candidate Profile
         logger.info("Step 1/5: Resolving Candidate Profile & Master Resume context...")
@@ -196,25 +296,37 @@ class DailyBatchRunnerService:
             TopDevJobCollector(),
         ]
 
-        # Phase 2.8: Các nền tảng Việt Nam được quét TOÀN BỘ job còn hiệu lực
-        # (không giới hạn limit) vì đây là nguồn chính cho thị trường mục tiêu.
-        FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
-
         for col in collectors:
             sources_scanned.append(col.source_name)
+
+            if effective_scan_mode in ("full", "legacy"):
+                if col.source_name in scan_plan["per_source"]:
+                    col_limit, col_full_scan = scan_plan["per_source"][col.source_name]
+                else:
+                    # Nguồn ngoài (remote quốc tế): chưa hỗ trợ quét toàn bộ
+                    col_limit = (
+                        FOREIGN_SOURCE_FULL_SCAN_CAP
+                        if effective_scan_mode == "full"
+                        else limit_per_source
+                    )
+                    col_full_scan = False
+            else:
+                col_limit, col_full_scan = effective_limit, False
+
             try:
                 stats: IngestionStats = await ingestion_pipeline.run(
                     collector=col,
                     db=session,
-                    limit=limit_per_source,
+                    limit=col_limit,
                     use_llm=False,  # BẢO ĐẢM CHI PHÍ 0Đ
-                    full_scan=col.source_name in FULL_SCAN_SOURCES,
+                    full_scan=col_full_scan,
                 )
                 total_fetched += stats.total_fetched
                 new_jobs_created += stats.created
                 unchanged_jobs += stats.unchanged
                 duplicates_detected += stats.duplicates_detected
                 ingestion_errors += stats.errors
+                expired_marked += stats.expired_marked
             except Exception as e:
                 logger.error(f"❌ Error during collection for source {col.source_name}: {e}", exc_info=True)
                 ingestion_errors += 1
@@ -282,12 +394,16 @@ class DailyBatchRunnerService:
             duration_seconds=duration,
             candidate_name=candidate.full_name,
             candidate_id=str(candidate.id),
+            scan_mode=effective_scan_mode,
+            full_scan_sources=full_scan_sources,
             sources_scanned=sources_scanned,
             total_fetched=total_fetched,
             new_jobs_created=new_jobs_created,
             unchanged_jobs=unchanged_jobs,
             duplicates_detected=duplicates_detected,
             ingestion_errors=ingestion_errors,
+            expired_marked=expired_marked,
+            expired_total=expired_total,
             total_active_jobs=total_active,
             total_matches_evaluated=matches_evaluated,
             strong_matches_count=strong_count,

@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     auth,
     jobs,
     matches,
+    market,
     profile,
     resumes,
     system,
@@ -22,6 +23,7 @@ api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 
 # Phase 3: Job Intelligence & Matching Router
 api_router.include_router(matches.router, prefix="/matches", tags=["matches"])
+api_router.include_router(market.router, prefix="/market", tags=["market"])
 
 # Phase 4: Resume Tailoring & Application Automation Router
 api_router.include_router(resumes.router, prefix="/resumes", tags=["resumes"])

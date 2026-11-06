@@ -261,7 +261,8 @@ async def trigger_collection(
 
 @router.post("/daily-batch")
 async def trigger_daily_batch(
-    limit_per_source: int = Query(50, ge=1, le=500, description="Số lượng tin tối đa mỗi nguồn (hỗ trợ quét sâu 1 tháng lên đến 500 tin/nguồn)"),
+    limit_per_source: int = Query(50, ge=1, le=500, description="Số lượng tin tối đa mỗi nguồn cho custom/legacy scan"),
+    scan_mode: Optional[str] = Query(None, description="quick | standard | full | custom"),
     db: AsyncSession = Depends(get_db),
     _auth: bool = Depends(verify_admin_access),
 ):
@@ -271,7 +272,14 @@ async def trigger_daily_batch(
     """
     from app.services.daily_runner import daily_batch_runner
 
-    summary = await daily_batch_runner.run_daily_batch(session=db, limit_per_source=limit_per_source)
+    if scan_mode and scan_mode.lower() not in {"quick", "standard", "full", "custom"}:
+        raise HTTPException(status_code=422, detail="scan_mode must be quick, standard, full, or custom")
+
+    summary = await daily_batch_runner.run_daily_batch(
+        session=db,
+        limit_per_source=limit_per_source,
+        scan_mode=scan_mode,
+    )
     return summary
 
 
