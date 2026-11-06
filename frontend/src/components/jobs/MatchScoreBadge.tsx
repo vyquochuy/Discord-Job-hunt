@@ -23,25 +23,25 @@ export const MatchScoreBadge: React.FC<MatchScoreBadgeProps> = ({
   const getScoreColors = (s: number) => {
     if (s >= 80) {
       return {
-        bg: 'bg-emerald-50',
-        text: 'text-emerald-700',
-        border: 'border-emerald-200',
-        bar: 'bg-emerald-600',
+        bg: 'bg-success-50',
+        text: 'text-success-700',
+        border: 'border-success-200',
+        bar: 'bg-success-600',
       };
     }
     if (s >= 60) {
       return {
-        bg: 'bg-amber-50',
-        text: 'text-amber-700',
-        border: 'border-amber-200',
-        bar: 'bg-amber-600',
+        bg: 'bg-warning-50',
+        text: 'text-warning-700',
+        border: 'border-warning-200',
+        bar: 'bg-warning-600',
       };
     }
     return {
-      bg: 'bg-slate-50',
-      text: 'text-slate-700',
-      border: 'border-slate-200',
-      bar: 'bg-slate-500',
+      bg: 'bg-surface-2',
+      text: 'text-text-secondary',
+      border: 'border-border',
+      bar: 'bg-text-muted',
     };
   };
 
@@ -57,19 +57,19 @@ export const MatchScoreBadge: React.FC<MatchScoreBadgeProps> = ({
     switch (elig) {
       case 'ELIGIBLE':
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-success-700 bg-success-50 border border-success-200 px-2 py-0.5 rounded">
             <Check className="w-3 h-3" /> Đạt điều kiện
           </span>
         );
       case 'BORDERLINE':
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-warning-700 bg-warning-50 border border-warning-200 px-2 py-0.5 rounded">
             <HelpCircle className="w-3 h-3" /> Cần đối soát
           </span>
         );
       case 'INELIGIBLE':
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-danger-700 bg-danger-50 border border-danger-200 px-2 py-0.5 rounded">
             <AlertCircle className="w-3 h-3" /> Không đủ ĐK
           </span>
         );

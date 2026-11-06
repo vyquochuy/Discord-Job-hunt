@@ -160,60 +160,60 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ) : (
           <>
             {/* Metric 1: Total Jobs */}
-            <Card className="p-4 sm:p-5 flex items-center gap-4 hover:border-slate-300 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 border border-blue-100">
+            <Card className="app-stat-card p-4 sm:p-5 flex items-center gap-4 hover:border-border-strong transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center flex-shrink-0 border border-primary-100">
                 <Briefcase className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <div className="text-2xl font-bold text-text-primary tracking-tight leading-none">
                   {totalJobs.toLocaleString('vi-VN')}
                 </div>
-                <div className="text-xs text-text-secondary mt-1 font-medium truncate">
+                <div className="text-xs text-text-secondary mt-1 font-medium leading-snug line-clamp-2">
                   Tin tuyển dụng đang theo dõi
                 </div>
               </div>
             </Card>
 
             {/* Metric 2: Recommendations */}
-            <Card className="p-4 sm:p-5 flex items-center gap-4 hover:border-slate-300 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 border border-emerald-100">
+            <Card className="app-stat-card p-4 sm:p-5 flex items-center gap-4 hover:border-border-strong transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-success-50 text-success-600 flex items-center justify-center flex-shrink-0 border border-success-100">
                 <Award className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <div className="text-2xl font-bold text-text-primary tracking-tight leading-none">
                   {isAuthenticated ? topRecs.length : '—'}
                 </div>
-                <div className="text-xs text-text-secondary mt-1 font-medium truncate">
+                <div className="text-xs text-text-secondary mt-1 font-medium leading-snug line-clamp-2">
                   {isAuthenticated ? 'Vị trí đề xuất hàng đầu' : 'Đăng nhập để xem đề xuất'}
                 </div>
               </div>
             </Card>
 
             {/* Metric 3: Saved Jobs */}
-            <Card className="p-4 sm:p-5 flex items-center gap-4 hover:border-slate-300 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 border border-amber-100">
+            <Card className="app-stat-card p-4 sm:p-5 flex items-center gap-4 hover:border-border-strong transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-warning-50 text-warning-600 flex items-center justify-center flex-shrink-0 border border-warning-100">
                 <Bookmark className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <div className="text-2xl font-bold text-text-primary tracking-tight leading-none">
                   {isAuthenticated && savedCount !== null ? savedCount : '—'}
                 </div>
-                <div className="text-xs text-text-secondary mt-1 font-medium truncate">
+                <div className="text-xs text-text-secondary mt-1 font-medium leading-snug line-clamp-2">
                   {isAuthenticated ? 'Tin việc làm đã lưu' : 'Đăng nhập để xem'}
                 </div>
               </div>
             </Card>
 
             {/* Metric 4: Applications Count */}
-            <Card className="p-4 sm:p-5 flex items-center gap-4 hover:border-slate-300 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 border border-purple-100">
+            <Card className="app-stat-card p-4 sm:p-5 flex items-center gap-4 hover:border-border-strong transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0 border border-violet-100">
                 <Send className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <div className="text-2xl font-bold text-text-primary tracking-tight leading-none">
                   {isAuthenticated && appsCount !== null ? appsCount : '—'}
                 </div>
-                <div className="text-xs text-text-secondary mt-1 font-medium truncate">
+                <div className="text-xs text-text-secondary mt-1 font-medium leading-snug line-clamp-2">
                   {isAuthenticated ? 'Hồ sơ đã nộp' : 'Đăng nhập để xem'}
                 </div>
               </div>
@@ -273,7 +273,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           />
         ) : topRecs.length === 0 ? (
           <EmptyState
-            icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+            icon={<Briefcase className="w-6 h-6 text-text-muted" />}
             title="Chưa có dữ liệu đề xuất việc làm"
             description="Nhấn nút 'Quét tin tuyển dụng' để tự động thu thập và đối soát điểm tương thích cho hồ sơ của bạn."
             action={
@@ -301,7 +301,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   className="p-4 sm:p-4.5 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 transition-all"
                 >
                   <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center flex-shrink-0 border border-slate-200 mt-0.5">
+                    <div className="app-company-logo w-10 h-10 rounded-lg bg-surface-muted text-text-secondary font-bold text-xs flex items-center justify-center flex-shrink-0 border border-border mt-0.5">
                       {monogram}
                     </div>
 
@@ -318,7 +318,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </div>
 
                       <div className="text-xs text-text-secondary mt-1 flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-700">{rec.company_name}</span>
+                        <span className="font-semibold text-text-secondary">{rec.company_name}</span>
                         <span>•</span>
                         <span>{rec.location || 'Việt Nam'}</span>
                         <span>•</span>

@@ -161,7 +161,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({
               placeholder="Tìm theo chức danh, công ty hoặc kỹ năng (Golang, Python, React, AWS)..."
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              icon={<Search className="w-4 h-4 text-slate-400" />}
+              icon={<Search className="w-4 h-4 text-text-muted" />}
             />
           </div>
 
@@ -205,7 +205,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({
             placeholder="Địa điểm (HCM, HN, ĐN...)"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            icon={<MapPin className="w-3.5 h-3.5 text-slate-400" />}
+            icon={<MapPin className="w-3.5 h-3.5 text-text-muted" />}
           />
 
           <div className="flex items-center gap-2">
@@ -293,7 +293,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({
         </div>
       ) : jobs.length === 0 ? (
         <EmptyState
-          icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+          icon={<Briefcase className="w-6 h-6 text-text-muted" />}
           title="Không tìm thấy tin tuyển dụng phù hợp"
           description="Hãy thử thay đổi từ khóa, xóa bớt điều kiện lọc hoặc quét thêm tin mới từ các sàn đối tác."
           action={

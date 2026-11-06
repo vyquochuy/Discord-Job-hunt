@@ -237,7 +237,7 @@ export const ProfilePage: React.FC = () => {
                 className={`p-6 sm:p-8 rounded-lg border-2 border-dashed text-center cursor-pointer transition-all ${
                   dragOver
                     ? 'border-primary bg-primary-50/50'
-                    : 'border-border hover:border-primary/60 hover:bg-slate-50/50'
+                    : 'border-border hover:border-primary/60 hover:bg-surface-2'
                 }`}
               >
                 {uploading ? (
@@ -247,14 +247,14 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mb-1">
+                    <div className="w-12 h-12 rounded-xl bg-surface-muted text-text-muted flex items-center justify-center mb-1">
                       <UploadCloud className="w-6 h-6" />
                     </div>
                     <p className="text-sm font-semibold text-text-primary">
                       Kéo thả tệp tin hồ sơ hoặc nhấn vào đây để tải lên
                     </p>
                     <p className="text-xs text-text-muted">
-                      Định dạng hỗ trợ: <strong className="text-slate-700">.PDF, .TeX, .YAML, .MD, .TXT</strong> (Tối đa 15MB)
+                      Định dạng hỗ trợ: <strong className="text-text-secondary">.PDF, .TeX, .YAML, .MD, .TXT</strong> (Tối đa 15MB)
                     </p>
                   </div>
                 )}
@@ -338,7 +338,7 @@ export const ProfilePage: React.FC = () => {
                     value={summary}
                     onChange={(e) => setSummary(e.target.value)}
                     placeholder="Tóm tắt ngắn gọn năng lực cốt lõi, kinh nghiệm nổi bật và định hướng công việc..."
-                    className="w-full p-3 bg-white border border-border rounded-md text-xs sm:text-sm font-sans leading-relaxed placeholder:text-text-muted/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full p-3 bg-surface border border-border rounded-md text-xs sm:text-sm font-sans leading-relaxed placeholder:text-text-muted/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </CardContent>

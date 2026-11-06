@@ -106,7 +106,7 @@ export const AuthModal: React.FC = () => {
             </TabsList>
 
             {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-xs text-danger font-medium mt-3">
+              <div className="p-3 bg-danger-50 border border-danger-200 rounded-md text-xs text-danger font-medium mt-3">
                 {errorMessage}
               </div>
             )}
@@ -191,7 +191,7 @@ export const AuthModal: React.FC = () => {
 
         <DialogFooter className="justify-between text-xs text-text-muted">
           <span className="flex items-center gap-1.5 text-xs text-text-muted">
-            <Lock className="w-3 h-3 text-slate-400" />
+            <Lock className="w-3 h-3 text-text-muted" />
             <span>Dual-Token JWT & Argon2id OWASP</span>
           </span>
           <Button variant="ghost" size="xs" onClick={closeAuthModal}>

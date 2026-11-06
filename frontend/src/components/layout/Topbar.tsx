@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import { ViewType } from './Sidebar';
 import { getCompanyMonogram } from '../../utils/formatters';
+import { ThemeSwitcher } from '../../theme/ThemeSwitcher';
 
 export const VIEW_TITLES: Record<ViewType, { title: string; subtitle: string }> = {
   dashboard: {
@@ -34,6 +35,10 @@ export const VIEW_TITLES: Record<ViewType, { title: string; subtitle: string }> 
     title: 'Hệ thống & Dữ liệu',
     subtitle: 'Cấu hình API Endpoint máy chủ, dọn dẹp cache và bảo trì cơ sở dữ liệu.',
   },
+  market: {
+    title: 'Phân tích thị trường',
+    subtitle: 'Xu hướng tổng hợp từ dữ liệu ingestion, không ảnh hưởng hồ sơ cá nhân.',
+  },
 };
 
 export interface TopbarProps {
@@ -50,12 +55,12 @@ export const Topbar: React.FC<TopbarProps> = ({ activeView, onOpenMobileDrawer }
   const monogram = getCompanyMonogram(displayName);
 
   return (
-    <header className="h-16 px-4 sm:px-6 bg-surface border-b border-border flex items-center justify-between gap-4 sticky top-0 z-30">
+    <header className="app-topbar reference-topbar h-16 px-4 sm:px-6 bg-surface border-b border-border flex items-center justify-between gap-4 sticky top-0 z-30">
       {/* Left: Mobile Toggle & Page Title */}
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onOpenMobileDrawer}
-          className="lg:hidden p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="lg:hidden p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
           aria-label="Mở menu điều hướng"
         >
           <Menu className="w-5 h-5" />
@@ -68,14 +73,16 @@ export const Topbar: React.FC<TopbarProps> = ({ activeView, onOpenMobileDrawer }
         </div>
       </div>
 
-      {/* Right: Status indicator & User control */}
+      {/* Right: Theme switcher, status indicator & User control */}
       <div className="flex items-center gap-3 flex-shrink-0">
+        <ThemeSwitcher className="hidden sm:inline-flex" />
+
         {/* Backend live indicator */}
         <div
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium"
+          className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success-50 border border-success-200 text-success-700 text-xs font-medium"
           title="Kết nối Backend hoạt động bình thường"
         >
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <CheckCircle2 className="w-3.5 h-3.5 text-success-600" />
           <span>Hệ thống sẵn sàng</span>
         </div>
 

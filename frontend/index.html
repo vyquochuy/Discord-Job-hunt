@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="enterprise">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,9 +8,22 @@
       name="description"
       content="Nền tảng tìm kiếm việc làm IT, phân tích mức độ phù hợp bằng thuật toán tất định 7 chỉ số và tạo thiết kế hồ sơ ứng tuyển theo chuẩn ATS."
     />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563EB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233668f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>" />
     <!-- Runtime Environment Injection (Optional) -->
     <script src="/env.js" onerror="/* env.js is optional in local/Vite development */"></script>
+    <!-- Apply the persisted theme before first paint to avoid a flash of the wrong theme. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('jh_theme');
+          var theme = stored === 'glass' || stored === 'ai' || stored === 'enterprise' ? stored : 'enterprise';
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.style.colorScheme = theme === 'ai' ? 'dark' : 'light';
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'enterprise');
+        }
+      })();
+    </script>
   </head>
   <body class="bg-background text-text-primary antialiased font-sans">
     <div id="root"></div>

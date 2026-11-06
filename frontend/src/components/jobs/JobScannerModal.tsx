@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import * as jobsApi from '../../api/jobs.api';
+import type { ScanMode, DailyBatchSummary } from '../../api/jobs.api';
 import {
   Dialog,
   DialogContent,
@@ -29,16 +30,10 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
   const { currentUser, isSuperuser, openAuthModal } = useAuth();
   const { showToast } = useToast();
 
-  const [mode, setMode] = useState<string>('20');
+  const [mode, setMode] = useState<ScanMode>('quick');
   const [customLimit, setCustomLimit] = useState(150);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<{
-    total_sources: number;
-    total_collected: number;
-    total_standardized: number;
-    total_matches_created: number;
-    elapsedSeconds: number;
-  } | null>(null);
+  const [result, setResult] = useState<(DailyBatchSummary & { elapsedSeconds: number }) | null>(null);
 
   const handleStartScan = async () => {
     if (!currentUser) {
@@ -51,30 +46,19 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
       return;
     }
 
-    let limit = 20;
-    if (mode === 'custom') {
-      limit = Math.max(1, Math.min(500, customLimit));
-    } else {
-      limit = parseInt(mode, 10) || 20;
-    }
+    const limit = mode === 'custom' ? Math.max(1, Math.min(500, customLimit)) : 50;
 
     setScanning(true);
     setResult(null);
     const startTime = Date.now();
-    showToast(`Bắt đầu quét dữ liệu đa nguồn (${limit} tin/nguồn)...`, 'info');
+    showToast(`Bắt đầu ${mode === 'full' ? 'quét toàn bộ thị trường Việt Nam' : `quét ${mode} đa nguồn`}...`, 'info');
 
     try {
-      const summary = await jobsApi.triggerDailyBatch(limit);
+      const summary = await jobsApi.triggerDailyBatch(limit, mode);
       const elapsed = (Date.now() - startTime) / 1000;
-      setResult({
-        total_sources: summary.total_sources,
-        total_collected: summary.total_collected,
-        total_standardized: summary.total_standardized,
-        total_matches_created: summary.total_matches_created,
-        elapsedSeconds: Math.round(elapsed * 10) / 10,
-      });
+      setResult({ ...summary, elapsedSeconds: Math.round(elapsed * 10) / 10 });
       showToast(
-        `Quét hoàn tất: +${summary.total_collected} tin mới, chuẩn hóa ${summary.total_standardized} tin!`,
+        `Quét hoàn tất: +${summary.new_jobs_created} tin mới, ${summary.total_fetched} tin đã thu thập!`,
         'success'
       );
       if (onScanCompleted) {
@@ -110,22 +94,22 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
             {/* Mode 1 */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-colors ${
-                mode === '20' ? 'bg-primary-50/50 border-primary-300' : 'bg-white border-border hover:bg-slate-50'
+                mode === 'quick' ? 'bg-primary-50/50 border-primary-300' : 'bg-surface border-border hover:bg-surface-2'
               }`}
             >
               <input
                 type="radio"
                 name="scan-mode"
-                value="20"
-                checked={mode === '20'}
-                onChange={() => setMode('20')}
+                value="quick"
+                checked={mode === 'quick'}
+                onChange={() => setMode('quick')}
                 className="mt-1"
                 disabled={scanning}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-text-primary">
-                    Quét nhanh hàng ngày (Daily Fast Scan)
+                    Quét nhanh (Quick Scan)
                   </span>
                   <Badge variant="primary">~5 - 10s</Badge>
                 </div>
@@ -138,15 +122,15 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
             {/* Mode 2 */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-colors ${
-                mode === '80' ? 'bg-primary-50/50 border-primary-300' : 'bg-white border-border hover:bg-slate-50'
+                mode === 'standard' ? 'bg-primary-50/50 border-primary-300' : 'bg-surface border-border hover:bg-surface-2'
               }`}
             >
               <input
                 type="radio"
                 name="scan-mode"
-                value="80"
-                checked={mode === '80'}
-                onChange={() => setMode('80')}
+                value="standard"
+                checked={mode === 'standard'}
+                onChange={() => setMode('standard')}
                 className="mt-1"
                 disabled={scanning}
               />
@@ -166,27 +150,27 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
             {/* Mode 3 */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-colors ${
-                mode === '200' ? 'bg-primary-50/50 border-primary-300' : 'bg-white border-border hover:bg-slate-50'
+                mode === 'full' ? 'bg-primary-50/50 border-primary-300' : 'bg-surface border-border hover:bg-surface-2'
               }`}
             >
               <input
                 type="radio"
                 name="scan-mode"
-                value="200"
-                checked={mode === '200'}
-                onChange={() => setMode('200')}
+                value="full"
+                checked={mode === 'full'}
+                onChange={() => setMode('full')}
                 className="mt-1"
                 disabled={scanning}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-text-primary">
-                    Quét toàn diện 30 ngày (Deep Scan)
+                    Quét toàn bộ thị trường Việt Nam (Full Market Scan)
                   </span>
                   <Badge variant="purple">~40 - 60s</Badge>
                 </div>
                 <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                  Thu thập lên tới <strong>200 tin/nguồn</strong> (10–15 trang) vét tối đa toàn bộ tin IT đang mở.
+                  5 nền tảng Việt Nam (ITViec, TopCV, TopDev, VietnamWorks, CareerLink) quét toàn bộ tin còn hạn; nguồn quốc tế giữ incremental tối đa 50 tin.
                 </p>
               </div>
             </label>
@@ -194,7 +178,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
             {/* Mode 4: Custom */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-colors ${
-                mode === 'custom' ? 'bg-primary-50/50 border-primary-300' : 'bg-white border-border hover:bg-slate-50'
+                mode === 'custom' ? 'bg-primary-50/50 border-primary-300' : 'bg-surface border-border hover:bg-surface-2'
               }`}
             >
               <input
@@ -219,7 +203,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
                       value={customLimit}
                       onChange={(e) => setCustomLimit(parseInt(e.target.value, 10) || 50)}
                       disabled={scanning}
-                      className="w-24 h-8 px-2.5 bg-white border border-border rounded text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-24 h-8 px-2.5 bg-surface border border-border rounded text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     <span className="text-xs text-text-secondary">tin cho mỗi nguồn (1 - 500)</span>
                   </div>
@@ -230,7 +214,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
 
           {/* Scanning Progress indicator */}
           {scanning && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+            <div className="p-4 bg-primary-50 border border-primary-200 rounded-lg flex items-center gap-3">
               <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs sm:text-sm font-semibold text-primary">
@@ -245,27 +229,27 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
 
           {/* Result Summary */}
           {result && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
-              <div className="flex items-center gap-2 text-emerald-800 font-semibold text-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <div className="p-4 bg-success-50 border border-success-200 rounded-lg space-y-2">
+              <div className="flex items-center gap-2 text-success-700 font-semibold text-sm">
+                <CheckCircle2 className="w-4 h-4 text-success-600" />
                 <span>Hoàn tất chu kỳ quét trong {result.elapsedSeconds}s</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-emerald-900 pt-1">
-                <div className="bg-white/70 p-2 rounded border border-emerald-200">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-success-700 pt-1">
+                <div className="bg-surface-2 p-2 rounded border border-success-200">
                   <div className="text-text-muted text-[10px]">Cổng dữ liệu</div>
-                  <div className="font-bold text-sm">{result.total_sources} nguồn</div>
+                  <div className="font-bold text-sm">{result.sources_scanned.length} nguồn</div>
                 </div>
-                <div className="bg-white/70 p-2 rounded border border-emerald-200">
+                <div className="bg-surface-2 p-2 rounded border border-success-200">
                   <div className="text-text-muted text-[10px]">Thu thập gốc</div>
-                  <div className="font-bold text-sm">+{result.total_collected}</div>
+                  <div className="font-bold text-sm">+{result.total_fetched}</div>
                 </div>
-                <div className="bg-white/70 p-2 rounded border border-emerald-200">
+                <div className="bg-surface-2 p-2 rounded border border-success-200">
                   <div className="text-text-muted text-[10px]">Chuẩn hóa</div>
-                  <div className="font-bold text-sm">+{result.total_standardized}</div>
+                  <div className="font-bold text-sm">+{result.new_jobs_created}</div>
                 </div>
-                <div className="bg-white/70 p-2 rounded border border-emerald-200">
+                <div className="bg-surface-2 p-2 rounded border border-success-200">
                   <div className="text-text-muted text-[10px]">Tính điểm Match</div>
-                  <div className="font-bold text-sm">+{result.total_matches_created}</div>
+                  <div className="font-bold text-sm">+{result.total_matches_evaluated}</div>
                 </div>
               </div>
             </div>

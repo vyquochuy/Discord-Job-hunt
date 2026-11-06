@@ -15,12 +15,12 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', loading = false, disabled, icon, children, ...props }, ref) => {
     const variantStyles: Record<ButtonVariant, string> = {
-      primary: 'bg-primary text-white hover:bg-primary-hover shadow-subtle focus-visible:ring-primary/40',
-      secondary: 'bg-slate-100 text-slate-800 hover:bg-slate-200/80 focus-visible:ring-slate-300',
-      outline: 'bg-white border border-border hover:bg-slate-50 text-slate-700 shadow-subtle focus-visible:ring-primary/30',
-      ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-300',
+      primary: 'app-btn-primary focus-visible:ring-primary/40',
+      secondary: 'bg-surface-muted text-text-primary hover:bg-surface-2 border border-border focus-visible:ring-primary/30',
+      outline: 'bg-surface border border-border hover:bg-surface-2 text-text-secondary shadow-subtle focus-visible:ring-primary/30',
+      ghost: 'bg-transparent text-text-secondary hover:bg-surface-muted hover:text-text-primary focus-visible:ring-primary/30',
       danger: 'bg-danger text-white hover:bg-danger-700 shadow-subtle focus-visible:ring-danger/40',
-      critical: 'bg-critical text-white hover:bg-red-900 shadow-subtle focus-visible:ring-critical/40',
+      critical: 'bg-critical text-white hover:bg-critical-800 shadow-subtle focus-visible:ring-critical/40',
     };
 
     const sizeStyles: Record<ButtonSize, string> = {
@@ -35,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          'inline-flex items-center justify-center font-medium transition-colors select-none',
+          'inline-flex items-center justify-center font-medium transition-colors select-none whitespace-nowrap',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
           'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]',
           variantStyles[variant],

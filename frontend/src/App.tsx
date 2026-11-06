@@ -12,6 +12,7 @@ import { ResumePage } from './pages/ResumePage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SystemPage } from './pages/SystemPage';
+import { MarketPage } from './pages/MarketPage';
 
 // Modals
 import { JobDetailModal } from './components/jobs/JobDetailModal';
@@ -37,6 +38,7 @@ const parseInitialRoute = (): { view: ViewType; resumeId: string | null; jobId: 
   if (path.startsWith('/applications')) return { view: 'applications', resumeId: null, jobId };
   if (path.startsWith('/profile')) return { view: 'profile', resumeId: null, jobId };
   if (path.startsWith('/system')) return { view: 'system', resumeId: null, jobId };
+  if (path.startsWith('/market')) return { view: 'market', resumeId: null, jobId };
   return { view: 'dashboard', resumeId: null, jobId };
 };
 
@@ -186,6 +188,7 @@ const AppContent: React.FC = () => {
       {activeView === 'profile' && <ProfilePage />}
 
       {activeView === 'system' && <SystemPage />}
+      {activeView === 'market' && <MarketPage />}
 
       {/* Global Modals */}
       <JobDetailModal

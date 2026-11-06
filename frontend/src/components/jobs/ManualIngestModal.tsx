@@ -161,7 +161,7 @@ Yêu cầu:
 - 3+ năm kinh nghiệm Python (FastAPI/Django) hoặc Golang
 - Thành thạo PostgreSQL, Redis, Docker
 - Tiếng Anh giao tiếp tốt`}
-                  className="w-full p-3 bg-white border border-border rounded-md text-xs sm:text-sm font-mono leading-relaxed placeholder:text-text-muted/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  className="w-full p-3 bg-surface border border-border rounded-md text-xs sm:text-sm font-mono leading-relaxed placeholder:text-text-muted/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   required
                 />
               </TabsContent>
@@ -181,7 +181,7 @@ Yêu cầu:
             </Tabs>
 
             {/* Checkbox option */}
-            <div className="p-3 bg-slate-50 border border-border rounded-md">
+            <div className="p-3 bg-surface-2 border border-border rounded-md">
               <label className="flex items-center gap-2.5 text-xs sm:text-sm text-text-primary cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -197,13 +197,13 @@ Yêu cầu:
 
             {/* Success notification */}
             {result && (
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2.5 text-xs sm:text-sm text-emerald-900">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div className="p-3.5 bg-success-50 border border-success-200 rounded-lg flex items-start gap-2.5 text-xs sm:text-sm text-success-700">
+                <CheckCircle2 className="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold">
                     Đã nạp công việc: {result.title} — {result.company}
                   </div>
-                  <div className="text-xs text-emerald-700 mt-0.5">
+                  <div className="text-xs text-success-700 mt-0.5">
                     Hệ thống đã lưu vào cơ sở dữ liệu và sẵn sàng phân tích tương thích.
                   </div>
                 </div>

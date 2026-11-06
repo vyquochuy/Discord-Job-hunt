@@ -107,7 +107,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = ({
         </div>
       ) : recommendations.length === 0 ? (
         <EmptyState
-          icon={<Sparkles className="w-6 h-6 text-slate-400" />}
+          icon={<Sparkles className="w-6 h-6 text-text-muted" />}
           title="Chưa có dữ liệu bảng xếp hạng đề xuất"
           description="Hãy chạy tiến trình quét tin tuyển dụng để hệ thống đối soát dữ liệu hồ sơ và tạo danh sách tương thích cao nhất."
           action={
@@ -136,11 +136,11 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = ({
               >
                 <div className="flex items-start gap-3.5 min-w-0 flex-1">
                   {/* Rank badge */}
-                  <div className="w-8 text-center text-base sm:text-lg font-bold text-slate-400 flex-shrink-0 pt-0.5">
+                  <div className="w-8 text-center text-base sm:text-lg font-bold text-text-muted flex-shrink-0 pt-0.5">
                     #{idx + 1}
                   </div>
 
-                  <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center flex-shrink-0 border border-slate-200 mt-0.5">
+                  <div className="app-company-logo w-10 h-10 rounded-lg bg-surface-muted text-text-secondary font-bold text-xs flex items-center justify-center flex-shrink-0 border border-border mt-0.5">
                     {monogram}
                   </div>
 
@@ -157,7 +157,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = ({
                     </div>
 
                     <div className="text-xs text-text-secondary mt-1 flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-700">{rec.company_name}</span>
+                      <span className="font-semibold text-text-secondary">{rec.company_name}</span>
                       <span>•</span>
                       <span>{rec.location || 'Việt Nam'}</span>
                       <span>•</span>

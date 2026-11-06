@@ -83,6 +83,12 @@ export const ResumePage: React.FC<ResumePageProps> = ({
     setLoading(true);
     try {
       const res = await resumeApi.getTailoredResumeById(id);
+      // Guard against non-JSON responses (e.g. a misconfigured API base returning
+      // the SPA shell): without this the workspace would render an iframe with
+      // `undefined` in the PDF URL instead of surfacing a clear error.
+      if (!res || typeof res !== 'object' || !res.id) {
+        throw new Error('Phản hồi không hợp lệ từ máy chủ');
+      }
       setActiveResume(res);
       setLatexDraft(res.latex_source || '');
 
@@ -213,7 +219,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
     return (
       <div className="space-y-6">
         {/* Workspace Header Banner */}
-        <Card className="p-4 sm:p-5 border-l-4 border-l-primary bg-gradient-to-br from-white to-slate-50">
+        <Card className="app-hero-card p-4 sm:p-5 border-l-4 border-l-primary bg-gradient-to-br from-surface to-surface-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-12 h-12 rounded-lg bg-primary text-white text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-subtle">
@@ -261,7 +267,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                 href={pdfDownloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-primary text-white hover:bg-primary-hover shadow-subtle"
+                className="app-btn-primary inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Tải PDF CV</span>
@@ -294,8 +300,8 @@ export const ResumePage: React.FC<ResumePageProps> = ({
 
             {/* Tab 1: PDF Preview */}
             <TabsContent value="preview" className="mt-4">
-              <Card className="p-0 overflow-hidden bg-slate-100 flex flex-col items-center">
-                <div className="w-full h-11 px-4 bg-white border-b border-border flex items-center justify-between text-xs text-text-secondary">
+              <Card className="p-0 overflow-hidden bg-surface-muted flex flex-col items-center">
+                <div className="w-full h-11 px-4 bg-surface border-b border-border flex items-center justify-between text-xs text-text-secondary">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-text-primary">Bản in chuẩn ATS 1 Trang</span>
                     <span className="text-text-muted">• pdflatex Engine</span>
@@ -314,7 +320,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                   <iframe
                     src={pdfUrl}
                     title="Bản xem trước PDF CV"
-                    className="w-full h-full border-none"
+                    className="app-pdf-frame w-full h-full border-none"
                   />
                 </div>
               </Card>
@@ -347,22 +353,22 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                 rows={22}
                 value={latexDraft}
                 onChange={(e) => setLatexDraft(e.target.value)}
-                className="w-full p-4 font-mono text-xs sm:text-sm bg-slate-900 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed shadow-inner"
+                className="app-terminal w-full p-4 font-mono text-xs sm:text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed shadow-inner"
                 spellCheck={false}
               />
             </TabsContent>
 
             {/* Tab 3: Evidence Map */}
             <TabsContent value="evidence" className="mt-4 space-y-3">
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 leading-relaxed">
+              <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-xs text-primary-800 leading-relaxed">
                 <strong>Bảo chứng Fact-Checking:</strong> Mọi bullet point và claim trong CV đều được đối soát với
                 hồ sơ gốc của ứng viên để đảm bảo <strong>không có ảo giác (Zero Hallucination)</strong>.
               </div>
 
               {activeResume.evidence_items && activeResume.evidence_items.length > 0 ? (
-                <div className="border border-border rounded-lg overflow-x-auto bg-white shadow-card">
+                <div className="border border-border rounded-lg overflow-x-auto bg-surface shadow-card">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-border text-text-secondary uppercase font-semibold">
+                    <thead className="bg-surface-2 border-b border-border text-text-secondary uppercase font-semibold">
                       <tr>
                         <th className="p-3">Phần mục</th>
                         <th className="p-3">Nội dung Claim trong CV</th>
@@ -373,27 +379,27 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                     </thead>
                     <tbody className="divide-y divide-border">
                       {activeResume.evidence_items.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
+                        <tr key={idx} className="hover:bg-surface-2">
                           <td className="p-3 font-semibold text-text-primary whitespace-nowrap">
                             {item.section}
                           </td>
-                          <td className="p-3 max-w-xs text-slate-700 leading-relaxed font-sans">
+                          <td className="p-3 max-w-xs text-text-secondary leading-relaxed font-sans">
                             {item.claim_text}
                           </td>
                           <td className="p-3 max-w-xs text-text-muted leading-relaxed font-sans">
                             {item.original_fact}
                           </td>
-                          <td className="p-3 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                          <td className="p-3 text-right font-mono font-bold text-text-secondary whitespace-nowrap">
                             {Math.round((item.similarity_score || 1) * 100)}%
                           </td>
                           <td className="p-3 text-center whitespace-nowrap">
                             {item.is_verified ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-success-700 bg-success-50 px-2 py-0.5 rounded border border-success-200">
+                                <CheckCircle2 className="w-3 h-3 text-success-600" />
                                 Xác thực
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-warning-700 bg-warning-50 px-2 py-0.5 rounded border border-warning-200">
                                 Cần lưu ý
                               </span>
                             )}
@@ -428,7 +434,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
               </div>
 
               {activeResume.cover_letter?.content_markdown ? (
-                <Card className="p-5 sm:p-6 bg-white font-sans text-xs sm:text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                <Card className="p-5 sm:p-6 bg-surface font-sans text-xs sm:text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
                   {activeResume.cover_letter.content_markdown}
                 </Card>
               ) : (
@@ -464,7 +470,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
         </div>
       ) : resumes.length === 0 ? (
         <EmptyState
-          icon={<FileText className="w-6 h-6 text-slate-400" />}
+          icon={<FileText className="w-6 h-6 text-text-muted" />}
           title="Bạn chưa có bản CV tạo thiết kế nào"
           description="Hãy chọn một công việc trong mục Khám phá việc làm và nhấn 'tạo thiết kế hồ sơ' để hệ thống tự động sinh bản CV LaTeX ATS tối ưu."
           action={
@@ -514,7 +520,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                       {item.matched_skills.slice(0, 4).map((s, idx) => (
                         <span
                           key={idx}
-                          className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium border border-slate-200"
+                          className="text-[10px] bg-surface-muted text-text-secondary px-2 py-0.5 rounded font-medium border border-border"
                         >
                           {s}
                         </span>
@@ -550,14 +556,14 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="p-1.5 rounded border border-border text-slate-500 hover:text-primary hover:bg-slate-50 transition-colors"
+                      className="p-1.5 rounded border border-border text-text-muted hover:text-primary hover:bg-surface-2 transition-colors"
                       title="Tải PDF"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </a>
                     <button
                       onClick={(e) => handleDeleteResume(item.id, e)}
-                      className="p-1.5 rounded border border-border text-slate-400 hover:text-danger hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded border border-border text-text-muted hover:text-danger hover:bg-danger-50 transition-colors"
                       title="Xóa CV"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

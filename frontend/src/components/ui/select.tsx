@@ -18,7 +18,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id || (label ? `select-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
 
     return (
-      <div className="w-full">
+      <div className="w-full min-w-0">
         {label && (
           <label htmlFor={selectId} className="block text-xs font-semibold text-text-primary mb-1.5">
             {label} {required && <span className="text-danger">*</span>}
@@ -29,10 +29,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           required={required}
           className={cn(
-            'w-full bg-white border border-border rounded-md text-sm text-text-primary',
+            'w-full bg-surface border border-border rounded-md text-sm text-text-primary',
             'h-9 px-3 transition-colors duration-150',
             'focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary',
-            'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed',
+            'disabled:bg-surface-2 disabled:text-text-muted disabled:cursor-not-allowed',
             error && 'border-danger focus:border-danger focus:ring-danger/20',
             className
           )}

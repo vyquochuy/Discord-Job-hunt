@@ -119,7 +119,7 @@ export const ApplicationsPage: React.FC = () => {
         </div>
       ) : applications.length === 0 ? (
         <EmptyState
-          icon={<Send className="w-6 h-6 text-slate-400" />}
+          icon={<Send className="w-6 h-6 text-text-muted" />}
           title="Chưa có đơn ứng tuyển nào được ghi nhận"
           description="Khi bạn nộp đơn hoặc chuẩn bị hồ sơ ứng tuyển từ các tin việc làm, lịch sử sẽ xuất hiện tại đây."
         />
@@ -128,7 +128,7 @@ export const ApplicationsPage: React.FC = () => {
           {/* Desktop Table View (>= 768px) */}
           <div className="hidden md:block bg-surface border border-border rounded-lg shadow-card overflow-hidden">
             <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-slate-50 border-b border-border text-text-secondary uppercase text-[11px] font-semibold">
+              <thead className="bg-surface-2 border-b border-border text-text-secondary uppercase text-[11px] font-semibold">
                 <tr>
                   <th className="p-4">Vị trí / Tiêu đề</th>
                   <th className="p-4">Kênh nộp</th>
@@ -140,7 +140,7 @@ export const ApplicationsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-border">
                 {applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={app.id} className="hover:bg-surface-2 transition-colors">
                     <td className="p-4 font-semibold text-text-primary">
                       {app.subject || 'Đơn ứng tuyển công việc'}
                     </td>
@@ -159,7 +159,7 @@ export const ApplicationsPage: React.FC = () => {
                         value={app.status}
                         disabled={updatingId === app.id}
                         onChange={(e) => handleStatusChange(app.id, e.target.value as ApplicationStatus)}
-                        className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:opacity-50"
+                        className="bg-surface border border-border rounded px-2.5 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:opacity-50"
                       >
                         {STATUS_OPTIONS.map((st) => (
                           <option key={st} value={st}>
@@ -188,12 +188,12 @@ export const ApplicationsPage: React.FC = () => {
                 <div className="space-y-1.5 text-xs text-text-secondary">
                   {app.recipient_email && (
                     <div className="flex items-center gap-1.5 text-text-muted">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <Mail className="w-3.5 h-3.5 text-text-muted" />
                       <span className="truncate">{app.recipient_email}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-1.5 text-text-muted">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <Clock className="w-3.5 h-3.5 text-text-muted" />
                     <span>Nộp lúc: {formatDate(app.sent_at || app.created_at)}</span>
                   </div>
                 </div>
@@ -204,7 +204,7 @@ export const ApplicationsPage: React.FC = () => {
                     value={app.status}
                     disabled={updatingId === app.id}
                     onChange={(e) => handleStatusChange(app.id, e.target.value as ApplicationStatus)}
-                    className="bg-white border border-border rounded px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:opacity-50 flex-1 max-w-[160px]"
+                    className="bg-surface border border-border rounded px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:opacity-50 flex-1 max-w-[160px]"
                   >
                     {STATUS_OPTIONS.map((st) => (
                       <option key={st} value={st}>

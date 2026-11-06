@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,53 +6,67 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    
-    color-scheme: light;
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Manrope', 'DM Sans', sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  * {
-    @apply border-border;
-    box-sizing: border-box;
-  }
-
-  html,
+  * { @apply border-border; box-sizing: border-box; }
+  html, body { @apply m-0 p-0; min-height: 100vh; font-family: var(--font-sans); }
   body {
-    @apply bg-background text-text-primary antialiased font-sans m-0 p-0;
-    min-height: 100vh;
+    background: var(--bg);
+    color: rgb(var(--text-rgb));
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.35s ease, color 0.35s ease;
   }
+  button, input, textarea, select { font: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: rgb(var(--primary-rgb) / 0.2); }
 
-  /* Custom Clean Scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
-    border-radius: 9999px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #94A3B8;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 }
 
 @layer utilities {
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Reference layout skin — structure only, all colours come from theme tokens
+   -------------------------------------------------------------------------- */
+.reference-shell { background: var(--bg); }
+
+.reference-sidebar { background: var(--sidebar-bg); border-color: var(--sidebar-border); }
+.reference-sidebar > div:first-child > div:first-child { height: 74px; padding-inline: 24px; border-color: var(--sidebar-border); }
+.reference-sidebar > div:first-child > div:first-child > div > div:first-child { width: 36px; height: 36px; }
+.reference-sidebar h1 { font-family: var(--font-display); letter-spacing: .05em; text-transform: uppercase; }
+.reference-sidebar nav { padding: 20px 16px; }
+.reference-sidebar nav > div { margin-bottom: 18px; }
+.reference-sidebar nav > div > div:first-child { padding-inline: 11px; font-size: 9px; letter-spacing: .1em; opacity: .65; }
+.reference-sidebar nav button { height: 42px; padding-inline: 11px; border-radius: var(--radius-control); font-size: 12.5px; gap: 11px; }
+.reference-sidebar > div:last-child { padding: 16px; background: var(--surface-2); border-color: var(--sidebar-border); }
+
+.reference-topbar { height: 68px; padding-inline: 30px; }
+.reference-topbar h2 { font-family: var(--font-display); font-size: 15px; }
+
+.reference-main { background: var(--bg); }
+.reference-main h1, .reference-main h2, .reference-main h3 { font-family: var(--font-display); }
+.reference-main > div > div:first-child h1 { font-size: 25px; letter-spacing: -.035em; }
+.reference-main > div > div:first-child p { font-size: 11px; color: rgb(var(--text-muted-rgb)); }
+
+@media (max-width: 1023px) {
+  .reference-topbar { padding-inline: 20px; }
+}
+@media (max-width: 639px) {
+  .reference-topbar { height: 62px; padding-inline: 14px; }
+  .reference-main { padding: 18px 14px; }
+  .reference-main > div > div:first-child h1 { font-size: 22px; }
 }

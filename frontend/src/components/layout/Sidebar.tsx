@@ -7,6 +7,7 @@ import {
   Send,
   User,
   Settings,
+  BarChart3,
   LogOut,
   LogIn,
   Layers,
@@ -25,7 +26,8 @@ export type ViewType =
   | 'resume'
   | 'applications'
   | 'profile'
-  | 'system';
+  | 'system'
+  | 'market';
 
 interface NavItem {
   id: ViewType;
@@ -45,6 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'jobs', label: 'Khám phá việc làm', icon: Briefcase },
+      { id: 'market', label: 'Phân tích thị trường', icon: BarChart3 },
       { id: 'recommendations', label: 'Đề xuất phù hợp', icon: Sparkles },
     ],
   },
@@ -95,8 +98,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        'h-full bg-surface border-r border-border flex flex-col justify-between select-none transition-all duration-200',
-        collapsed ? 'w-[68px]' : 'w-[240px]',
+        'app-sidebar reference-sidebar h-full bg-surface border-r border-border flex flex-col justify-between select-none transition-all duration-200',
+        collapsed ? 'w-[68px]' : 'w-[252px]',
         className
       )}
     >
@@ -104,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div>
         <div className="h-16 px-5 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0 shadow-subtle">
+            <div className="app-brand-mark w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0 shadow-subtle">
               <Layers className="w-4 h-4" />
             </div>
             {!collapsed && (
@@ -121,9 +124,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Sections */}
-        <nav className="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
+        <nav className="p-3 overflow-y-auto max-h-[calc(100vh-140px)]">
           {NAV_SECTIONS.map((section) => (
-            <div key={section.title} className="space-y-1">
+            <div key={section.title} className="space-y-1 mb-4 last:mb-0">
               {!collapsed && (
                 <div className="px-2.5 pb-1 text-[11px] font-semibold text-text-muted tracking-wider uppercase">
                   {section.title}
@@ -139,15 +142,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onClick={() => handleItemClick(item.id)}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors',
+                      'app-nav-item w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                       isActive
-                        ? 'bg-primary-50 text-primary-700 font-semibold'
-                        : 'text-text-secondary hover:bg-slate-100 hover:text-text-primary',
+                        ? 'app-nav-item--active bg-primary-50 text-primary-700 font-semibold'
+                        : 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
                       collapsed && 'justify-center px-0'
                     )}
                   >
-                    <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary' : 'text-slate-500')} />
+                    <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary' : 'text-text-muted')} />
                     {!collapsed && (
                       <>
                         <span className="truncate flex-1 text-left">{item.label}</span>
@@ -167,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom User Area */}
-      <div className="p-3 border-t border-border bg-slate-50/60">
+      <div className="p-3 border-t border-border bg-surface-2">
         {isAuthenticated ? (
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -196,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={logout}
                 title="Đăng xuất"
-                className="text-slate-400 hover:text-danger p-1 rounded-md hover:bg-red-50 transition-colors flex-shrink-0"
+                className="text-text-muted hover:text-danger p-1 rounded-md hover:bg-danger-50 transition-colors flex-shrink-0"
               >
                 <LogOut className="w-4 h-4" />
                 <span className="sr-only">Đăng xuất</span>
@@ -205,7 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : (
           !collapsed && (
-            <div className="p-2.5 rounded-lg border border-dashed border-border bg-white space-y-2">
+            <div className="p-2.5 rounded-lg border border-dashed border-border bg-surface space-y-2">
               <div className="flex items-center gap-2 text-xs text-text-secondary">
                 <Shield className="w-3.5 h-3.5 text-text-muted" />
                 <span>Khách vãng lai</span>

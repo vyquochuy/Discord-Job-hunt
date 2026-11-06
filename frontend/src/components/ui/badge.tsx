@@ -17,12 +17,12 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => {
   const variantStyles: Record<BadgeVariant, string> = {
     primary: 'bg-primary-50 text-primary-700 border-primary-200',
-    success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    warning: 'bg-amber-50 text-amber-700 border-amber-200',
-    danger: 'bg-red-50 text-red-700 border-red-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    slate: 'bg-slate-100 text-slate-700 border-slate-200',
-    outline: 'bg-white text-slate-600 border-slate-300',
+    success: 'bg-success-50 text-success-700 border-success-200',
+    warning: 'bg-warning-50 text-warning-700 border-warning-200',
+    danger: 'bg-danger-50 text-danger-700 border-danger-200',
+    purple: 'bg-violet-50 text-violet-700 border-violet-200',
+    slate: 'bg-surface-muted text-text-secondary border-border',
+    outline: 'bg-surface text-text-secondary border-border-strong',
   };
 
   return (

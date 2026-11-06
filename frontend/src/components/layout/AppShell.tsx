@@ -14,15 +14,15 @@ export const AppShell: React.FC<AppShellProps> = ({ activeView, onNavigate, chil
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-background text-text-primary overflow-hidden font-sans antialiased">
-      {/* Desktop Sidebar (hidden on < 1024px) */}
-      <div className="hidden lg:block h-full flex-shrink-0 z-20">
+    <div className="app-shell reference-shell flex h-screen overflow-hidden text-text-primary antialiased">
+      <div className="app-shell__overlay" aria-hidden="true" />
+      <div className="app-ambient app-ambient--one" aria-hidden="true" />
+      <div className="app-ambient app-ambient--two" aria-hidden="true" />
+      <div className="relative z-20 hidden h-full flex-shrink-0 lg:block">
         <Sidebar activeView={activeView} onNavigate={onNavigate} />
       </div>
-
-      {/* Mobile Drawer Navigation (< 1024px) */}
       <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
-        <SheetContent side="left" className="p-0 w-[260px] overflow-hidden">
+        <SheetContent side="left" className="reference-drawer p-0 w-[260px] overflow-hidden">
           <Sidebar
             activeView={activeView}
             onNavigate={onNavigate}
@@ -31,21 +31,12 @@ export const AppShell: React.FC<AppShellProps> = ({ activeView, onNavigate, chil
           />
         </SheetContent>
       </Sheet>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <Topbar
-          activeView={activeView}
-          onOpenMobileDrawer={() => setMobileDrawerOpen(true)}
-          onNavigateToJobs={() => onNavigate('jobs')}
-        />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto w-full">{children}</div>
+      <div className="relative z-10 flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <Topbar activeView={activeView} onOpenMobileDrawer={() => setMobileDrawerOpen(true)} />
+        <main className="reference-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1680px] mx-auto w-full">{children}</div>
         </main>
       </div>
-
-      {/* Global Auth Modal */}
       <AuthModal />
     </div>
   );

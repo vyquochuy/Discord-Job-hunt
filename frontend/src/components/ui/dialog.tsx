@@ -25,7 +25,7 @@ export const DialogContent = React.forwardRef<
 
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px] transition-opacity animate-in fade-in" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay/40 backdrop-blur-[2px] transition-opacity animate-in fade-in" />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
@@ -38,7 +38,7 @@ export const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-text-muted hover:text-text-primary hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40">
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40">
           <X className="w-4 h-4" />
           <span className="sr-only">Đóng</span>
         </DialogPrimitive.Close>
@@ -49,7 +49,7 @@ export const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 export const DialogHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('px-5 sm:px-6 py-4 border-b border-border bg-white flex-shrink-0', className)} {...props} />
+  <div className={cn('px-5 sm:px-6 py-4 pr-14 border-b border-border bg-surface flex-shrink-0', className)} {...props} />
 );
 DialogHeader.displayName = 'DialogHeader';
 
@@ -80,7 +80,7 @@ DialogBody.displayName = 'DialogBody';
 export const DialogFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'px-5 sm:px-6 py-3.5 bg-slate-50 border-t border-border flex items-center justify-end gap-2.5 flex-shrink-0',
+      'px-5 sm:px-6 py-3.5 bg-surface-2 border-t border-border flex items-center justify-end gap-2.5 flex-shrink-0',
       className
     )}
     {...props}

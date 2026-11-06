@@ -194,7 +194,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         <DialogHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-sm flex items-center justify-center flex-shrink-0 border border-slate-200 mt-0.5">
+              <div className="app-company-logo w-10 h-10 rounded-lg bg-surface-muted text-text-secondary font-bold text-sm flex items-center justify-center flex-shrink-0 border border-border mt-0.5">
                 {getCompanyMonogram(job?.company_name)}
               </div>
               <div className="min-w-0 flex-1">
@@ -229,7 +229,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               <p className="text-sm font-medium">Đang tải chi tiết công việc và phân tích tương thích...</p>
             </div>
           ) : error ? (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-danger text-center">
+            <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-sm text-danger text-center">
               {error}
             </div>
           ) : job ? (
@@ -252,7 +252,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                     {/* 7 signals bars */}
-                    <div className="space-y-2 bg-white p-3.5 rounded-lg border border-primary-100/80">
+                    <div className="space-y-2 bg-surface p-3.5 rounded-lg border border-primary-100/80">
                       <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">
                         Bảng phân tích 7 chỉ số
                       </div>
@@ -262,10 +262,10 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                         return (
                           <div key={sig.key}>
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="text-slate-700 font-medium">{sig.name}</span>
+                              <span className="text-text-secondary font-medium">{sig.name}</span>
                               <span className="font-semibold text-text-primary">{Math.round(percent)}%</span>
                             </div>
-                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-1.5 w-full bg-surface-muted rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-primary rounded-full transition-all duration-300"
                                 style={{ width: `${percent}%` }}
@@ -277,7 +277,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     </div>
 
                     {/* Evidence summary */}
-                    <div className="space-y-2 bg-white p-3.5 rounded-lg border border-primary-100/80 flex flex-col">
+                    <div className="space-y-2 bg-surface p-3.5 rounded-lg border border-primary-100/80 flex flex-col">
                       <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1">
                         Tổng hợp bằng chứng đối soát
                       </div>
@@ -292,7 +292,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+                <div className="p-3.5 bg-surface-2 border border-border rounded-lg flex items-center justify-between gap-3">
                   <p className="text-xs text-text-secondary">
                     Chưa có kết quả phân tích 7 chỉ số tương thích cho vị trí này.
                   </p>
@@ -373,7 +373,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                         className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium border ${
                           s.is_required
                             ? 'bg-primary-50 text-primary-800 border-primary-200'
-                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                            : 'bg-surface-2 text-text-secondary border-border'
                         }`}
                       >
                         {s.canonical_name || 'Skill'}
@@ -389,7 +389,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">
                   Mô tả công việc chi tiết (JD)
                 </h4>
-                <div className="p-4 bg-slate-50 border border-border rounded-lg text-xs sm:text-sm text-text-primary leading-relaxed max-h-[300px] overflow-y-auto whitespace-pre-wrap font-sans">
+                <div className="p-4 bg-surface-2 border border-border rounded-lg text-xs sm:text-sm text-text-primary leading-relaxed max-h-[300px] overflow-y-auto whitespace-pre-wrap font-sans">
                   {job.description || 'Không có nội dung mô tả.'}
                 </div>
               </div>
@@ -442,7 +442,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                   showToast('Tính năng nộp hồ sơ tự động đang sẵn sàng cho công việc này.', 'info');
                 }
               }}
-              icon={<Send className="w-3.5 h-3.5 text-emerald-600" />}
+              icon={<Send className="w-3.5 h-3.5 text-success-600" />}
             >
               <span>Nộp đơn</span>
             </Button>

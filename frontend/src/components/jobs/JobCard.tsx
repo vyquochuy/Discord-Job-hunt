@@ -31,7 +31,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
         {/* Header: Company Avatar & Title & Source */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center flex-shrink-0 border border-slate-200">
+            <div className="app-company-logo w-10 h-10 rounded-lg bg-surface-muted text-text-secondary font-bold text-xs flex items-center justify-center flex-shrink-0 border border-border">
               {monogram}
             </div>
             <div className="min-w-0 flex-1">
@@ -56,24 +56,24 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
 
         {/* Metadata badges */}
         <div className="flex items-center gap-1.5 flex-wrap text-xs text-text-secondary mb-3">
-          <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-            <MapPin className="w-3 h-3 text-slate-400" />
+          <span className="inline-flex items-center gap-1 bg-surface-2 border border-border px-2 py-0.5 rounded text-[11px]">
+            <MapPin className="w-3 h-3 text-text-muted" />
             <span className="truncate max-w-[120px]">{job.location || 'Việt Nam'}</span>
           </span>
 
-          <span className="inline-flex items-center gap-1 bg-blue-50/70 border border-blue-200 text-blue-700 px-2 py-0.5 rounded text-[11px]">
-            <Laptop className="w-3 h-3 text-blue-500" />
+          <span className="inline-flex items-center gap-1 bg-primary-50 border border-primary-200 text-primary-700 px-2 py-0.5 rounded text-[11px]">
+            <Laptop className="w-3 h-3 text-primary-500" />
             <span>{job.work_mode || 'ONSITE'}</span>
           </span>
 
-          <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-            <Layers className="w-3 h-3 text-slate-400" />
+          <span className="inline-flex items-center gap-1 bg-surface-2 border border-border px-2 py-0.5 rounded text-[11px]">
+            <Layers className="w-3 h-3 text-text-muted" />
             <span>{job.level || 'All Levels'}</span>
           </span>
 
           {(job.min_salary || job.max_salary) && (
-            <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded text-[11px] font-medium">
-              <DollarSign className="w-3 h-3 text-emerald-500" />
+            <span className="inline-flex items-center gap-1 bg-success-50 border border-success-200 text-success-700 px-2 py-0.5 rounded text-[11px] font-medium">
+              <DollarSign className="w-3 h-3 text-success-600" />
               <span>{salaryText}</span>
             </span>
           )}
@@ -82,10 +82,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
             <span
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${
                 matchScore >= 80
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-success-50 text-success-700 border-success-200'
                   : matchScore >= 60
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                  ? 'bg-warning-50 text-warning-700 border-warning-200'
+                  : 'bg-surface-2 text-text-secondary border-border'
               }`}
             >
               {Math.round(matchScore)}% Match
@@ -104,7 +104,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
       {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-border mt-auto text-xs text-text-muted">
         <div className="flex items-center gap-1">
-          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <Clock className="w-3.5 h-3.5 text-text-muted" />
           <span>{formatDate(job.posted_at || job.created_at)}</span>
         </div>
 
@@ -118,7 +118,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
           className="text-xs gap-1"
         >
           <span>Chi tiết</span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+          <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
         </Button>
       </div>
     </Card>

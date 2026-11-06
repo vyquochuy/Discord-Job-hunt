@@ -31,14 +31,36 @@ export function unsaveJob(jobId: string): Promise<{ message: string }> {
   return client.delete(`/jobs/${jobId}/save`);
 }
 
-export function triggerDailyBatch(limitPerSource = 50): Promise<{
-  total_sources: number;
-  total_collected: number;
-  total_standardized: number;
-  total_matches_created: number;
-  sources_summary?: Record<string, number>;
-}> {
-  return client.post(`/jobs/daily-batch?limit_per_source=${limitPerSource}`, null, { timeout: 300000 });
+export type ScanMode = 'quick' | 'standard' | 'full' | 'custom';
+
+export interface DailyBatchSummary {
+  scan_mode: string;
+  full_scan_sources: string[];
+  sources_scanned: string[];
+  total_fetched: number;
+  new_jobs_created: number;
+  unchanged_jobs: number;
+  duplicates_detected: number;
+  ingestion_errors: number;
+  expired_marked: number;
+  expired_total: number;
+  total_active_jobs: number;
+  total_matches_evaluated: number;
+  strong_matches_count: number;
+  good_matches_count: number;
+  review_required_count: number;
+  blocked_count: number;
+  duration_seconds: number;
+  status: string;
+}
+
+export function triggerDailyBatch(
+  limitPerSource = 50,
+  scanMode?: ScanMode,
+): Promise<DailyBatchSummary> {
+  const query = new URLSearchParams({ limit_per_source: String(limitPerSource) });
+  if (scanMode) query.set('scan_mode', scanMode);
+  return client.post(`/jobs/daily-batch?${query.toString()}`, null, { timeout: 300000 });
 }
 
 export function triggerCollection(source = 'mock', limit = 5): Promise<unknown> {

@@ -177,4 +177,29 @@
 
 **Consequences:** Complete elimination of false substring matches; dynamic and grounded multi-project selection tailored to any technical role.
 
+---
+
+## ADR-013 — Three Selectable Design Themes via Semantic CSS Tokens
+
+**Status:** Accepted
+
+**Context:** The Figma Make exploration (`frontendv2/Redesign`) produced three complete visual directions — **A. Modern Enterprise**, **B. Liquid Glass**, **C. AI Intelligence** — differing in more than colour: surface elevation, corner radii, blur/backdrop filters, ambient gradients, glow effects, and a light/dark inversion. The product needed all three available at runtime without forking the app, duplicating components, or shipping three separate frontends.
+
+**Decision:**
+1. **One component tree, three token sets.** Themes are pure CSS custom properties applied through `data-theme` on `<html>`. No component is duplicated and no layout, content, data, or business logic branches on the active theme.
+2. **Single source of truth** is `frontend/src/styles/themes.css`: three token blocks (`:root,[data-theme="enterprise"]`, `[data-theme="glass"]`, `[data-theme="ai"]`) plus a shared layer of component treatment classes (`.app-shell`, `.app-sidebar`, `.app-card`, `.app-btn-primary`, `.app-theme-switcher`, …).
+3. **Semantic migration, not a CSS shim.** Raw palette utilities (`bg-white`, `bg-slate-*`, `text-slate-*`, `bg-emerald-*`, …) were replaced across components/pages with semantic tokens (`bg-surface`, `border-border`, `text-text-muted`, `bg-success-50`, …). Tailwind maps each token to `rgb(var(--*-rgb) / <alpha-value>)` so alpha modifiers keep working; translucent tokens (`surface`, `surface-2`, `surface-muted`, `border`) resolve through fixed `var(--*-alpha)` pairs and must never take `/opacity`.
+4. **Theme C is dark, so status scales are inverted** (e.g. `--primary-50` is the darkest step, `--primary-700` the lightest) to keep `bg-*-50` + `text-*-700` legible without per-component conditionals.
+5. **Typography is theme-invariant** — DM Sans (body) and Manrope (display) in all three themes, matching Figma.
+6. **Persistence & no-flash.** `localStorage['jh_theme']` is the source of truth; `index.html` contains a pre-hydration inline script that sets `data-theme` and `color-scheme` before first paint, so a reload never flashes the wrong theme.
+7. **Accessibility over strict colour fidelity.** Four Figma values failed WCAG AA on their own canvases; they were nudged to the minimum passing value, documented inline in `themes.css`. Theme A's `#3668f5` primary was kept exactly as decided, since it only misses AA for primary-coloured text sitting directly on the page canvas (4.35:1) while passing on surfaces (4.71:1).
+
+**Reason:** Keeps one maintainable codebase while delivering three genuinely distinct visual identities, and makes future themes a token-only addition.
+
+**Consequences:**
+- Adding a theme = appending one token block; no component edits.
+- Components must use semantic tokens only — a raw palette class is a regression.
+- The PDF preview iframe is pinned to `color-scheme: light` (`.app-pdf-frame`) so the resume always renders as white paper, including in the dark theme.
+- Verified matrix: 8 routes × 3 themes, runtime switching without reload, no-flash reload, zero layout drift, zero horizontal overflow, no console errors, 28/28 audited contrast pairs ≥ 4.5:1.
+
 

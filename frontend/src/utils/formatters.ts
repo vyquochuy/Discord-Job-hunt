@@ -67,23 +67,23 @@ export function getSourceBadgeInfo(source?: string | null): { label: string; col
   const s = (source || 'other').toLowerCase();
   switch (s) {
     case 'itviec':
-      return { label: 'ITViec', colorClass: 'bg-red-50 text-red-700 border-red-200' };
+      return { label: 'ITViec', colorClass: 'bg-danger-50 text-danger-700 border-danger-200' };
     case 'topcv':
-      return { label: 'TopCV', colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+      return { label: 'TopCV', colorClass: 'bg-success-50 text-success-700 border-success-200' };
     case 'remotive':
-      return { label: 'Remotive', colorClass: 'bg-blue-50 text-blue-700 border-blue-200' };
+      return { label: 'Remotive', colorClass: 'bg-primary-50 text-primary-700 border-primary-200' };
     case 'careerlink':
-      return { label: 'CareerLink', colorClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+      return { label: 'CareerLink', colorClass: 'bg-cyan-50 text-cyan-600 border-cyan-100' };
     case 'topdev':
-      return { label: 'TopDev', colorClass: 'bg-orange-50 text-orange-700 border-orange-200' };
+      return { label: 'TopDev', colorClass: 'bg-warning-50 text-warning-700 border-warning-200' };
     case 'vietnamworks':
-      return { label: 'VietnamWorks', colorClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+      return { label: 'VietnamWorks', colorClass: 'bg-violet-50 text-violet-700 border-violet-200' };
     case 'manual':
-      return { label: 'Nhập tay', colorClass: 'bg-purple-50 text-purple-700 border-purple-200' };
+      return { label: 'Nhập tay', colorClass: 'bg-primary-50 text-primary-700 border-primary-200' };
     case 'mock':
-      return { label: 'Demo', colorClass: 'bg-slate-100 text-slate-700 border-slate-300' };
+      return { label: 'Demo', colorClass: 'bg-surface-muted text-text-secondary border-border' };
     default:
-      return { label: source || 'Đối tác', colorClass: 'bg-slate-50 text-slate-600 border-slate-200' };
+      return { label: source || 'Đối tác', colorClass: 'bg-surface-2 text-text-secondary border-border' };
   }
 }
 

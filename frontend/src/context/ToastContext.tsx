@@ -52,22 +52,22 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               key={toast.id}
               className={cn(
                 'pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-elevated text-sm transition-all transform duration-200 animate-in fade-in slide-in-from-bottom-2',
-                isSuccess && 'bg-white border-emerald-200 text-slate-800',
-                isError && 'bg-white border-red-200 text-slate-800',
-                isWarning && 'bg-white border-amber-200 text-slate-800',
-                isInfo && 'bg-white border-blue-200 text-slate-800'
+                isSuccess && 'bg-surface border-success-200 text-text-primary',
+                isError && 'bg-surface border-danger-200 text-text-primary',
+                isWarning && 'bg-surface border-warning-200 text-text-primary',
+                isInfo && 'bg-surface border-primary-200 text-text-primary'
               )}
             >
               <div className="flex-shrink-0 mt-0.5">
-                {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                {isError && <AlertCircle className="w-4 h-4 text-red-600" />}
-                {isWarning && <AlertTriangle className="w-4 h-4 text-amber-600" />}
-                {isInfo && <Info className="w-4 h-4 text-blue-600" />}
+                {isSuccess && <CheckCircle2 className="w-4 h-4 text-success-600" />}
+                {isError && <AlertCircle className="w-4 h-4 text-danger-600" />}
+                {isWarning && <AlertTriangle className="w-4 h-4 text-warning-600" />}
+                {isInfo && <Info className="w-4 h-4 text-primary-600" />}
               </div>
               <div className="flex-1 text-xs sm:text-sm font-medium leading-snug">{toast.message}</div>
               <button
                 onClick={() => removeToast(toast.id)}
-                className="text-slate-400 hover:text-slate-600 rounded p-0.5 transition-colors"
+                className="text-text-muted hover:text-text-secondary rounded p-0.5 transition-colors"
                 aria-label="Đóng thông báo"
               >
                 <X className="w-3.5 h-3.5" />

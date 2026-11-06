@@ -9,6 +9,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { DangerConfirmDialog } from '../components/ui/danger-confirm-dialog';
+import { useTheme } from '../theme/ThemeContext';
+import { THEMES } from '../theme/tokens';
 import {
   Server,
   Activity,
@@ -23,11 +25,13 @@ import {
   Save,
   CheckCircle2,
   XCircle,
+  Palette,
 } from 'lucide-react';
 
 export const SystemPage: React.FC = () => {
   const { currentUser, isSuperuser, openAuthModal } = useAuth();
   const { showToast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const [apiBaseInput, setApiBaseInput] = useState('');
   const [resolutionSource, setResolutionSource] = useState('');
@@ -217,14 +221,14 @@ export const SystemPage: React.FC = () => {
 
       {/* Superuser Status Banner */}
       {!isSuperuser && (
-        <Card className="p-4 border-l-4 border-l-amber-500 bg-amber-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <Card className="p-4 border-l-4 border-l-warning bg-warning-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-warning-100 text-warning-700 flex items-center justify-center flex-shrink-0">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-900">Yêu cầu quyền Quản trị viên (Superuser)</div>
-              <p className="text-xs text-slate-600 mt-0.5">
+              <div className="text-sm font-semibold text-text-primary">Yêu cầu quyền Quản trị viên (Superuser)</div>
+              <p className="text-xs text-text-secondary mt-0.5">
                 {currentUser
                   ? 'Tài khoản hiện tại không có quyền Superuser. Toàn bộ tính năng cấu hình và dọn dẹp hệ thống đã bị khóa.'
                   : 'Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản Quản trị viên để thực hiện các thao tác hệ thống.'}
@@ -241,6 +245,68 @@ export const SystemPage: React.FC = () => {
           </Button>
         </Card>
       )}
+
+      {/* SECTION 0: Appearance */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Palette className="w-4 h-4 text-primary" />
+          <h2 className="text-sm sm:text-base font-bold text-text-primary uppercase tracking-wider">
+            Giao diện (Theme)
+          </h2>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Chọn giao diện hiển thị</CardTitle>
+            <CardDescription>
+              Áp dụng ngay lập tức trên toàn bộ ứng dụng và được ghi nhớ trên thiết bị này. Nội dung, dữ liệu và chức năng không thay đổi.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Chọn giao diện">
+              {THEMES.map((option) => {
+                const selected = theme === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setTheme(option.id)}
+                    className="app-theme-option p-4 text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2 min-w-0">
+                        <b
+                          className={`inline-grid h-5 w-5 place-items-center rounded border text-[10px] font-bold ${
+                            selected
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-border bg-surface-2 text-text-secondary'
+                          }`}
+                        >
+                          {option.short}
+                        </b>
+                        <span className="truncate text-sm font-semibold text-text-primary">{option.label}</span>
+                      </span>
+                      {selected && <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-primary" />}
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-text-secondary">{option.description}</p>
+                    <div className="mt-3 flex gap-1.5">
+                      {option.swatches.map((color) => (
+                        <span
+                          key={color}
+                          className="h-4 w-4 rounded-full border border-border"
+                          style={{ background: color }}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* SECTION 1: Infrastructure */}
       <div className="space-y-3">
@@ -301,7 +367,7 @@ export const SystemPage: React.FC = () => {
                 type="button"
                 disabled={!isSuperuser}
                 onClick={() => handlePreset('/api/v1')}
-                className="px-2 py-0.5 rounded border border-border bg-slate-50 hover:bg-slate-100 text-slate-700 font-mono disabled:opacity-50"
+                className="px-2 py-0.5 rounded border border-border bg-surface-2 hover:bg-surface-muted text-text-secondary font-mono disabled:opacity-50"
               >
                 /api/v1 (Same-Origin)
               </button>
@@ -309,7 +375,7 @@ export const SystemPage: React.FC = () => {
                 type="button"
                 disabled={!isSuperuser}
                 onClick={() => handlePreset('http://localhost:8000/api/v1')}
-                className="px-2 py-0.5 rounded border border-border bg-slate-50 hover:bg-slate-100 text-slate-700 font-mono disabled:opacity-50"
+                className="px-2 py-0.5 rounded border border-border bg-surface-2 hover:bg-surface-muted text-text-secondary font-mono disabled:opacity-50"
               >
                 http://localhost:8000/api/v1 (Localhost)
               </button>
@@ -320,19 +386,19 @@ export const SystemPage: React.FC = () => {
               <div
                 className={`p-4 rounded-lg border text-xs sm:text-sm ${
                   healthResult.healthy
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-red-50 border-red-200 text-red-900'
+                    ? 'bg-success-50 border-success-200 text-success-700'
+                    : 'bg-danger-50 border-danger-200 text-danger-700'
                 }`}
               >
                 <div className="flex items-center gap-2 font-semibold mb-2">
                   {healthResult.healthy ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <CheckCircle2 className="w-4 h-4 text-success-600" />
                       <span>Kết nối Online thành công (200 OK)</span>
                     </>
                   ) : (
                     <>
-                      <XCircle className="w-4 h-4 text-red-600" />
+                      <XCircle className="w-4 h-4 text-danger-600" />
                       <span>Không thể liên lạc với máy chủ Backend</span>
                     </>
                   )}
@@ -340,25 +406,25 @@ export const SystemPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-500 block">Độ trễ (Latency):</span>
+                    <span className="text-text-muted block">Độ trễ (Latency):</span>
                     <span className="font-bold">{healthResult.latencyMs} ms</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block">Dịch vụ:</span>
+                    <span className="text-text-muted block">Dịch vụ:</span>
                     <span className="font-bold">{healthResult.service || 'job-hunt-backend'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block">Liveness:</span>
+                    <span className="text-text-muted block">Liveness:</span>
                     <span className="font-bold">{healthResult.status || 'ok'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block">Trạng thái:</span>
+                    <span className="text-text-muted block">Trạng thái:</span>
                     <span className="font-bold">{healthResult.healthy ? 'Sẵn sàng' : 'Lỗi kết nối'}</span>
                   </div>
                 </div>
 
                 {healthResult.error && (
-                  <p className="mt-2 text-xs text-red-700 bg-white/70 p-2 rounded border border-red-200">
+                  <p className="mt-2 text-xs text-danger-700 bg-surface-2 p-2 rounded border border-danger-200">
                     {healthResult.error}
                   </p>
                 )}
@@ -409,7 +475,7 @@ export const SystemPage: React.FC = () => {
                 disabled={!isSuperuser}
                 loading={actionLoading === 'tailoring_only'}
                 onClick={() => triggerMaintenancePurge('tailoring_only', 'Dọn dẹp Tailoring Cache')}
-                icon={<Trash2 className="w-3.5 h-3.5 text-amber-600" />}
+                icon={<Trash2 className="w-3.5 h-3.5 text-warning-600" />}
               >
                 <span>Dọn dẹp Tailoring Cache</span>
               </Button>
@@ -491,7 +557,7 @@ export const SystemPage: React.FC = () => {
                 disabled={!isSuperuser}
                 loading={actionLoading === 'reset_demo'}
                 onClick={triggerResetDemo}
-                icon={<Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
+                icon={<Sparkles className="w-3.5 h-3.5 text-success-600" />}
               >
                 <span>Khôi phục Dữ liệu mẫu</span>
               </Button>
@@ -509,7 +575,7 @@ export const SystemPage: React.FC = () => {
           </h2>
         </div>
 
-        <Card className="border-2 border-danger/60 bg-red-50/20">
+        <Card className="border-2 border-danger/60 bg-danger-50">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-danger flex items-center gap-2">
@@ -518,12 +584,12 @@ export const SystemPage: React.FC = () => {
               </CardTitle>
               <Badge variant="danger">Scope: all (Critical)</Badge>
             </div>
-            <CardDescription className="text-red-900/80 leading-relaxed mt-1">
+            <CardDescription className="text-danger-700 leading-relaxed mt-1">
               Thao tác này sẽ làm rỗng hoàn toàn tất cả các bảng dữ liệu trong PostgreSQL: Jobs, Candidates, Resumes, Applications, Skills. Thao tác có hiệu lực ngay lập tức và <strong>hoàn toàn không thể khôi phục</strong>.
             </CardDescription>
           </CardHeader>
 
-          <CardFooter className="justify-end bg-red-50/50 border-t border-red-200">
+          <CardFooter className="justify-end bg-danger-50 border-t border-danger-200">
             <Button
               variant="critical"
               size="sm"
