@@ -89,6 +89,7 @@ export default {
         },
         green: alpha('green'),
         overlay: alpha('overlay'),
+        scrim: 'var(--scrim)',
         terminal: {
           DEFAULT: 'var(--code-bg)',
           foreground: 'var(--code-text)',

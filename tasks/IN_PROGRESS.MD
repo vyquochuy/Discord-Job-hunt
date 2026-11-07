@@ -25,6 +25,33 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
   - **Accessibility**: 4 giá trị Figma không đạt WCAG AA được nudge tối thiểu (A `--text-muted` `#697386`→`#677184`; B `--text-muted` `#607983`→`#586f79`, `--primary` `#087fba`→`#0772a7`), ghi chú inline trong `themes.css`; 28/28 cặp màu audit đạt ≥ 4.5:1.
   - **Bug thật đã vá trong quá trình verify**: overlay theme B bị tile do `background-size` hardcode (→ token `--page-overlay-size`); `Button` thiếu `whitespace-nowrap`; `Input`/`Select` wrapper thiếu `min-w-0`; `DialogHeader` thiếu `pr-14` (nút X đè badge); sidebar 244px làm nhãn "Hệ thống & Dữ liệu" + badge `Admin` tràn 1px (→ 252px); iframe PDF kế thừa `color-scheme: dark` (→ `.app-pdf-frame`); thanh accent `::after` ở nav item không có trong Figma và bị cắt thành nửa viên thuốc ở mép sidebar (→ gỡ bỏ); nhãn stat card Dashboard bị `truncate` 1 dòng (→ `line-clamp-2`); `ResumePage` nhận response không phải JSON (API base cấu hình sai) và render iframe với `undefined` trong URL (→ guard shape + toast lỗi rõ ràng).
   - **Ma trận xác minh**: 8 route × 3 theme + job-detail modal + mobile drawer, chuyển theme không reload, reload không nháy, 0 layout drift, 0 tràn ngang, 0 console error. `npm run build` xanh (1697 modules).
+  - **Đã bị thay thế bởi Phase 9.3**: sản phẩm rút về một bản sắc Liquid Glass với 2 chế độ sáng/tối; theme A (Modern Enterprise) và C (AI Intelligence) đã bị xoá khỏi code. Phần còn giá trị là cơ chế: một component tree, token ngữ nghĩa, `themes.css` làm nguồn duy nhất, script pre-hydration chống nháy.
+- **Phase 9.2 (HOÀN THÀNH — 2026-11-06): Tối ưu hiệu năng Liquid Glass (giữ nguyên bản sắc thiết kế)** — chi tiết tại `docs/DECISIONS.MD` ADR-014:
+  - **Đo trước khi sửa**: harness CDP (`perf.mjs`, 4 route × 3 theme, fixture 60 job, 1440×900). Theme Glass `/jobs` đạt **113.2 ms/frame avg, p95 176.4 ms, 81 frame rơi** (≈8 fps) trong khi Enterprise/AI chỉ 16–18 ms → nguyên nhân quy về `backdrop-filter`, không phải DOM/data.
+  - **Xác định mô hình chi phí**: quét biến thể blur trên `/jobs` cho thấy bán kính blur gần như miễn phí, chi phí nằm ở **mỗi surface phải đọc lại backdrop (~20 ms/frame)**: hiện tại 37.3 ms → giảm nửa bán kính 34.4 ms → bỏ hẳn backdrop 16.6 ms.
+  - **Cắt blur trên bề mặt dữ liệu**: `--card-blur: none` cho Glass (62 element backdrop-filter trên `/jobs` → 0), giữ cảm giác kính bằng gradient chuyển sắc `rgba(255,255,255,.82→.62)` + viền sáng + inset highlight.
+  - **Cắt blur trên navigation**: sidebar/topbar/hero nằm trên nền gradient tĩnh vốn đã mịn → blur gần như vô hình nhưng tốn ~20 ms/frame; giữ độ trong suốt (`rgba(240,250,252,.66)` / `rgba(238,249,251,.55)`) + viền sáng. Enterprise/AI cũng bỏ `--topbar-blur` (~95% đục) và thêm `--hero-blur: none`.
+  - **Blur chỉ còn ở overlay thật**: dialog/sheet scrim giữ `backdrop-blur-[2px]` — nơi nội dung thực sự trôi phía sau và bán kính nhỏ rất rẻ.
+  - **Ambient blob**: bỏ `filter: blur(90px)` trên 2 layer lớn (bị re-blur mỗi lần repaint) → `radial-gradient(... transparent 78%)`, kích thước 760/640px, chi phí filter = 0.
+  - **Transition theo thuộc tính + cô lập paint**: `.app-card` chỉ transition `border-color`/`background-color` (bỏ `box-shadow`/`border-radius`/`transform` gây re-raster toàn bộ card khi hover và khi đổi theme) + `contain: paint`; gỡ `transition-all` ở `JobCard`, `Card` hoverable, row Dashboard/Resume/Recommendations, Toast, Sidebar, Tabs, thanh tiến trình JobDetailModal.
+  - **Chặn transition ở first paint**: `html:not(.theme-transitions) * { transition: none !important }` + `ThemeContext` thêm class trong `requestAnimationFrame` → hết hiện tượng fade nền 350 ms mỗi lần load (reload AI giờ settle ngay `rgb(8,13,28)` ở 400 ms).
+  - **React**: `JobCard` bọc `React.memo` (+ `displayName`); handler `onOpenJobDetail` đã là `useCallback` ổn định nên memo có hiệu lực; bỏ `text-rendering: optimizeLegibility`.
+  - **Suy giảm mềm**: `prefers-reduced-motion` ẩn ambient layer; `prefers-reduced-transparency` ép surface đặc; dưới 1024px bỏ toàn bộ backdrop-filter (GPU mobile trả giá cao nhất).
+  - **Kết quả đo lại** (5 pass stability, median): Glass `/jobs` **16.6 ms** (min 16.54 / max 17.65), p95 176.4 → 18–23 ms, frame rơi 81 → 0–2; Glass dashboard 95.0 → 15.1 ms; applications 27.6 → 9.75 ms; cả 3 theme (bấy giờ) đều 15–17 ms (60 fps). Số element có backdrop-filter: 62 → 0.
+  - **Không hồi quy thị giác**: ảnh matrix trước/sau gần như trùng khớp (sidebar tint cyan, ambient glow, card kính trong); contrast 9/9 cặp văn bản/bề mặt mới ≥ 4.5:1 (worst-case trên stop tối nhất của canvas). `npm run build` xanh.
+- **Phase 9.3 (HOÀN THÀNH — 2026-11-07): Rút gọn Appearance về 2 chế độ Liquid Glass (Sáng mặc định + Tối đầy đủ)** — chi tiết tại `docs/DECISIONS.MD` ADR-015:
+  - **Xoá theme A & C**: `ThemeId = 'light' | 'dark'`; `data-theme` chỉ còn `glass` (`:root`, mặc định) và `glass-dark`. Toàn bộ token của Modern Enterprise và AI Intelligence bị xoá khỏi `themes.css`, không chỉ ẩn.
+  - **Dark là đảo token của cùng một bản sắc**: giữ nguyên cặp accent azure/cyan + violet, radius card 19px / sidebar 24px, cùng thang elevation và các class treatment; không component nào rẽ nhánh theo mode.
+  - **Giữ nguyên ngân sách blur ADR-014**: `--card-blur` / `--sidebar-blur` / `--topbar-blur` / `--hero-blur` vẫn `none` ở **cả hai** mode; chất kính đến từ gradient trong suốt + viền sáng 1px + inset highlight (dark dùng hairline trắng 14%).
+  - **Surface tối gần đặc ở nơi cần đọc**: `--surface` = `rgb(18 32 46 / 0.9)` để dialog/sheet/toast/bảng/form luôn đọc được; card vẫn giữ gradient trong suốt vì nằm trên canvas.
+  - **Token `--scrim` mới** (`light rgba(15,23,42,.38)` / `dark rgba(2,8,16,.72)`) thay `bg-overlay/40` cho overlay dialog/sheet — scrim 40% gần đen gần như không làm tối trang dark.
+  - **Scale màu ngữ nghĩa đảo ở dark** (`*-50` = nền tint đậm nhất, `*-600/700` = chữ sáng) để giữ nguyên vocabulary `bg-primary-50 text-primary-700`.
+  - **Lưu trữ + theo OS + không nháy**: `localStorage['jh_theme']` (`light`|`dark`) thắng; nếu chưa có thì theo `prefers-color-scheme` và chỉ cập nhật live khi người dùng chưa chọn. Giá trị cũ migrate im lặng: `glass`/`enterprise` → `light`, `ai` → `dark`. Script pre-paint trong `index.html` áp `data-theme` + `color-scheme` trước first paint.
+  - **Một toggle icon-only**: button `role="switch"` 58×34, icon Sun/Moon, thumb trượt `translateX(24px)` ở dark, transition transform 200 ms, tắt dưới `prefers-reduced-motion`; không tên theme, không mô tả trong header. SystemPage hiển thị trạng thái "Liquid Glass Sáng/Tối" + toggle.
+  - **Kết quả xác minh**: 8 route × 2 mode, 0 layout drift, 0 tràn ngang, 0 console error; toggle runtime đổi `glass` ⇄ `glass-dark`, persist `light`/`dark`, `textContent: ''`, 2 icon / 1 button; reload không nháy tại 400 ms = `glass-dark` / `rgb(8, 18, 30)`; mobile 390×844 toggle hiển thị 58×34 tại x=265, topbar 62px, không tràn.
+  - **Hiệu năng**: light 16.65 / 16.47 / 12.80 ms, dark 16.58 / 15.64 / 16.45 ms (`/jobs`, `/`, `/applications`), backdrop-filter **0**, frame rơi 0; đổi theme 43.6 ms → dark và 58.4 ms → light (2–3 frame).
+  - **Contrast**: 28/28 cặp trong phạm vi ≥ 4.5:1 (dark card muted 5.80, sidebar muted 6.03, dialog muted 6.16, nav active 6.97, chips 8.69–10.94). Ghi nhận ngoài phạm vi: chữ trắng trên gradient nút primary = 3.54:1 — gradient Figma có sẵn, giống nhau ở cả 2 mode, không tự ý đổi.
+  - **CSS giảm 53.4 → 49.2 kB** dù thêm dark mode, nhờ xoá 2 bộ token. `npm run build` xanh (1697 modules, CSS 49.23 kB / JS 397.67 kB).
 
 ## Relevant Files
 - `backend/app/api/v1/endpoints/resumes.py` (Vá BOLA PDF & Query Token Auth)
@@ -37,12 +64,16 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 - `backend/tests/test_phase2_auth_hardening.py`
 - `backend/tests/test_phase3_cors_xss.py`
 - `docs/AUTHENTICATION_AND_JWT.md` & `MIGRATION_PLAN.md`
-- `frontend/src/styles/themes.css` (Nguồn chân lý duy nhất cho 3 bộ token + treatment classes)
-- `frontend/tailwind.config.js` (Map token ngữ nghĩa → CSS vars, DM Sans/Manrope)
-- `frontend/src/theme/` (`tokens.ts`, `ThemeContext.tsx`, `ThemeSwitcher.tsx`)
-- `frontend/index.html` (script pre-hydration chống nháy theme)
+- `frontend/src/styles/themes.css` (Nguồn chân lý duy nhất cho 2 bộ token Liquid Glass Light/Dark + treatment classes)
+- `frontend/tailwind.config.js` (Map token ngữ nghĩa → CSS vars, `scrim`, DM Sans/Manrope)
+- `frontend/src/theme/` (`tokens.ts` mode model + legacy migration, `ThemeContext.tsx` persistence/OS-follow, `ThemeSwitcher.tsx` Sun/Moon switch)
+- `frontend/index.html` (script pre-paint chống nháy theme, `data-theme="glass"` mặc định)
 - `frontend/src/components/layout/` (`AppShell.tsx`, `Sidebar.tsx`, `Topbar.tsx`)
-- `frontend/src/pages/SystemPage.tsx` (SECTION 0 "Giao diện" chọn theme)
+- `frontend/src/pages/SystemPage.tsx` (SECTION 0 "Giao diện" hiển thị mode + toggle)
+- `frontend/src/theme/ThemeContext.tsx` (gate `.theme-transitions` chống fade ở first paint)
+- `frontend/src/components/ui/dialog.tsx` & `sheet.tsx` (overlay dùng `bg-scrim`)
+- `frontend/src/components/jobs/JobCard.tsx` (`React.memo` + bỏ `transition-all`)
+- `frontend/src/components/ui/card.tsx`, `tabs.tsx`, `context/ToastContext.tsx`, `components/layout/Sidebar.tsx` (transition theo thuộc tính)
 
 ## Next Steps
 1. **SEC-05 SSRF Defense Hardening**: Bổ sung transport IP pinning cho `URLFetcher` để triệt tiêu cửa sổ Time-Of-Check to Time-Of-Use (TOCTOU) DNS rebinding.
@@ -53,5 +84,7 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 6. **Phase 2.8 (HOÀN THÀNH — 2026-11-04)**: Full Unexpired Scanning & Expiry Detection cho 5 nền tảng VN (ITViec, TopCV, TopDev, VietnamWorks, CareerLink) — `full_scan`, smart stop, `EXPIRED` status, `expire_outdated_jobs`, 18 tests pass.
 7. **Phase 2.9 candidate — Expiry UX**: Ẩn job `EXPIRED` khỏi danh sách mặc định (toggle "Hiện tin đã hết hạn"), widget "tin sắp hết hạn trong 3 ngày" trên Dashboard.
 8. Phase 2.9 candidate: Taxonomy 4 chiều (title/seniority/location/work-model) cho UI filter & scoring.
-9. **Phase 9.1 (HOÀN THÀNH — 2026-11-06)**: Khôi phục 3 theme thiết kế Figma Make (A Modern Enterprise / B Liquid Glass / C AI Intelligence) vào `frontend/` bằng semantic CSS tokens, switcher runtime, không fork codebase — chi tiết tại `docs/DECISIONS.MD` ADR-013.
-10. **Phase 9.1 follow-up (tùy chọn)**: Commit toàn bộ thay đổi theme (hiện còn uncommitted ~37 file) và chụp lại ảnh so sánh 3 theme cho tài liệu.
+9. **Phase 9.1 (HOÀN THÀNH — 2026-11-06, ĐÃ BỊ THAY THẾ bởi Phase 9.3)**: Khôi phục 3 theme thiết kế Figma Make (A Modern Enterprise / B Liquid Glass / C AI Intelligence) — chi tiết tại `docs/DECISIONS.MD` ADR-013. Theme A & C đã bị xoá khỏi code.
+10. **Phase 9.2 (HOÀN THÀNH — 2026-11-06)**: Tối ưu hiệu năng Liquid Glass — Glass `/jobs` 113.2 ms → 16.6 ms/frame (frame rơi 81 → 0), backdrop-filter 62 → 0 element, giữ nguyên bản sắc thị giác; chi tiết tại `docs/DECISIONS.MD` ADR-014.
+11. **Phase 9.3 (HOÀN THÀNH — 2026-11-07)**: Rút gọn appearance về 2 chế độ Liquid Glass (Sáng mặc định + Tối), toggle Sun/Moon icon-only, theo OS khi chưa chọn, migrate giá trị `jh_theme` cũ, không nháy khi reload; chi tiết tại `docs/DECISIONS.MD` ADR-015.
+12. **Phase 9.3 follow-up (tùy chọn)**: Commit toàn bộ thay đổi appearance + tối ưu hiệu năng (đang uncommitted trong `frontend/`), thêm script benchmark `perf.mjs` vào `frontend/scripts/` để chặn hồi quy blur trong CI.

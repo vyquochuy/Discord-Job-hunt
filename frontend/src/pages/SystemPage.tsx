@@ -10,7 +10,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { DangerConfirmDialog } from '../components/ui/danger-confirm-dialog';
 import { useTheme } from '../theme/ThemeContext';
-import { THEMES } from '../theme/tokens';
+import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import {
   Server,
   Activity,
@@ -31,7 +31,7 @@ import {
 export const SystemPage: React.FC = () => {
   const { currentUser, isSuperuser, openAuthModal } = useAuth();
   const { showToast } = useToast();
-  const { theme, setTheme } = useTheme();
+  const { isDark } = useTheme();
 
   const [apiBaseInput, setApiBaseInput] = useState('');
   const [resolutionSource, setResolutionSource] = useState('');
@@ -251,58 +251,28 @@ export const SystemPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <Palette className="w-4 h-4 text-primary" />
           <h2 className="text-sm sm:text-base font-bold text-text-primary uppercase tracking-wider">
-            Giao diện (Theme)
+            Giao diện
           </h2>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Chọn giao diện hiển thị</CardTitle>
+            <CardTitle>Chế độ hiển thị</CardTitle>
             <CardDescription>
               Áp dụng ngay lập tức trên toàn bộ ứng dụng và được ghi nhớ trên thiết bị này. Nội dung, dữ liệu và chức năng không thay đổi.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Chọn giao diện">
-              {THEMES.map((option) => {
-                const selected = theme === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setTheme(option.id)}
-                    className="app-theme-option p-4 text-left"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-2 min-w-0">
-                        <b
-                          className={`inline-grid h-5 w-5 place-items-center rounded border text-[10px] font-bold ${
-                            selected
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-border bg-surface-2 text-text-secondary'
-                          }`}
-                        >
-                          {option.short}
-                        </b>
-                        <span className="truncate text-sm font-semibold text-text-primary">{option.label}</span>
-                      </span>
-                      {selected && <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-primary" />}
-                    </div>
-                    <p className="mt-2 text-xs leading-relaxed text-text-secondary">{option.description}</p>
-                    <div className="mt-3 flex gap-1.5">
-                      {option.swatches.map((color) => (
-                        <span
-                          key={color}
-                          className="h-4 w-4 rounded-full border border-border"
-                          style={{ background: color }}
-                        />
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text-primary">
+                  Liquid Glass {isDark ? 'Tối' : 'Sáng'}
+                </p>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  {isDark ? 'Bề mặt tối, viền sáng, độ tương phản cao.' : 'Bề mặt sáng, viền kính, quầng gradient dịu.'}
+                </p>
+              </div>
+              <ThemeSwitcher />
             </div>
           </CardContent>
         </Card>

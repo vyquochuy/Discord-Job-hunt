@@ -75,7 +75,7 @@ export const Topbar: React.FC<TopbarProps> = ({ activeView, onOpenMobileDrawer }
 
       {/* Right: Theme switcher, status indicator & User control */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <ThemeSwitcher className="hidden sm:inline-flex" />
+        <ThemeSwitcher />
 
         {/* Backend live indicator */}
         <div

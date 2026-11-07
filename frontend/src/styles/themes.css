@@ -1,18 +1,18 @@
 /* ==========================================================================
-   Job Hunter — 3-theme design system
-   A. Modern Enterprise  (enterprise, default)
-   B. Liquid Glass       (glass)
-   C. AI Intelligence    (ai)
+   Job Hunter — Liquid Glass appearance system
 
-   Source of truth: frontendv2/Redesign/src/index.css (Figma Make).
-   All three themes share the same DOM, layout, content and business logic.
-   Themes differ only through these tokens + component treatment classes.
+   One visual identity, two renderings:
+     :root, [data-theme='glass']        → Liquid Glass Light  (default)
+     [data-theme='glass-dark']          → Liquid Glass Dark
 
-   PERF (ADR-014): backdrop-filter is a budgeted resource. It is banned on
-   repeated data surfaces (cards, rows, kanban columns) and on the sidebar /
-   topbar / hero, which sit over an already-smooth static gradient. Live blur
-   survives only on dialog/sheet scrims. The glass read comes from translucency
-   + a light border + an inset highlight.
+   Both modes expose exactly the same semantic token names, so no component,
+   page or business rule ever branches on the appearance mode. Themes differ
+   only through these tokens + the shared treatment classes below.
+
+   Performance contract (see ADR-014): backdrop-filter is a budgeted resource.
+   It is `none` on cards, list rows, sidebar, topbar and hero in BOTH modes —
+   the glass read comes from translucency + light border + inset highlight.
+   Live blur survives only on dialog/sheet scrims.
    ========================================================================== */
 
 /* PERF: no transitions during the very first paint. Without this gate the
@@ -25,190 +25,17 @@ html:not(.theme-transitions) *::after {
 }
 
 /* --------------------------------------------------------------------------
-   1. THEME A — MODERN ENTERPRISE
+   1. LIQUID GLASS — LIGHT (default)
    -------------------------------------------------------------------------- */
 :root,
-[data-theme='enterprise'] {
-  color-scheme: light;
-
-  /* canvas */
-  --bg-rgb: 244 246 249;
-  --bg: rgb(var(--bg-rgb));
-
-  /* surfaces */
-  --surface-rgb: 255 255 255;
-  --surface-alpha: 1;
-  --surface: rgb(var(--surface-rgb) / var(--surface-alpha));
-  --surface-solid-rgb: 255 255 255;
-
-  --surface-2-rgb: 248 250 252;
-  --surface-2-alpha: 1;
-  --surface-2: rgb(var(--surface-2-rgb) / var(--surface-2-alpha));
-
-  --surface-muted-rgb: 241 245 249;
-  --surface-muted-alpha: 1;
-
-  /* lines */
-  --line-rgb: 231 235 240;
-  --line-alpha: 1;
-  --line: rgb(var(--line-rgb) / var(--line-alpha));
-  --line-subtle-rgb: 241 245 249;
-  --line-strong-rgb: 203 213 225;
-
-  /* text */
-  --text-rgb: 23 32 47;
-  --text: rgb(var(--text-rgb));
-  --text-secondary-rgb: 71 85 105;
-  /* Figma #697386 nudged 1.5% darker so muted labels clear 4.5:1 on the canvas. */
-  --text-muted-rgb: 103 113 132;
-
-  /* brand */
-  --primary-rgb: 54 104 245;
-  --primary: rgb(var(--primary-rgb));
-  --primary-hover-rgb: 29 78 216;
-  --primary-50-rgb: 239 246 255;
-  --primary-100-rgb: 219 234 254;
-  --primary-200-rgb: 191 219 254;
-  --primary-300-rgb: 147 197 253;
-  --primary-400-rgb: 96 165 250;
-  --primary-500-rgb: 59 130 246;
-  --primary-600-rgb: 54 104 245;
-  --primary-700-rgb: 29 78 216;
-  --primary-800-rgb: 30 64 175;
-  --primary-900-rgb: 30 58 138;
-
-  --violet-rgb: 139 92 246;
-  --violet-50-rgb: 245 243 255;
-  --violet-100-rgb: 237 233 254;
-  --violet-200-rgb: 221 214 254;
-  --violet-500-rgb: 139 92 246;
-  --violet-600-rgb: 124 58 237;
-  --violet-700-rgb: 109 40 217;
-
-  --cyan-rgb: 12 200 211;
-  --cyan-50-rgb: 236 254 255;
-  --cyan-100-rgb: 207 250 254;
-  --cyan-500-rgb: 6 182 212;
-  --cyan-600-rgb: 8 145 178;
-
-  --green-rgb: 22 168 117;
-
-  /* status */
-  --success-rgb: 22 163 74;
-  --success-50-rgb: 240 253 244;
-  --success-100-rgb: 220 252 231;
-  --success-600-rgb: 22 163 74;
-  --success-700-rgb: 21 128 61;
-
-  --warning-rgb: 217 119 6;
-  --warning-50-rgb: 255 251 235;
-  --warning-100-rgb: 254 243 199;
-  --warning-600-rgb: 217 119 6;
-  --warning-700-rgb: 180 83 9;
-
-  --danger-rgb: 220 38 38;
-  --danger-50-rgb: 254 242 242;
-  --danger-100-rgb: 254 226 226;
-  --danger-600-rgb: 220 38 38;
-  --danger-700-rgb: 185 28 28;
-
-  --critical-rgb: 153 27 27;
-  --critical-50-rgb: 254 242 242;
-  --critical-800-rgb: 153 27 27;
-
-  /* overlay + terminal */
-  --overlay-rgb: 15 23 42;
-  --code-bg: #0f172a;
-  --code-text: #e2e8f0;
-
-  /* radii */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-control: 10px;
-  --radius-card: 14px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-
-  /* elevation */
-  --shadow-subtle: 0 1px 2px 0 rgb(15 23 42 / 0.05);
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.03), 0 8px 24px rgba(16, 24, 40, 0.035);
-  --shadow-elevated: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
-  --shadow-dialog: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  --shadow-primary: 0 5px 12px rgba(54, 104, 245, 0.2);
-
-  /* page layer */
-  --page-overlay: none;
-  --page-overlay-size: auto;
-  --ambient-display: none;
-  --ambient-1-color: #6ed4e7;
-  --ambient-2-color: #b8a3f5;
-
-  /* sidebar */
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e7ebf0;
-  --sidebar-blur: none;
-  --sidebar-shadow: none;
-  --sidebar-radius: 0;
-  --sidebar-margin: 0;
-  --sidebar-height: 100vh;
-
-  /* topbar */
-  --topbar-bg: rgba(255, 255, 255, 0.95);
-  --topbar-border: #e7ebf0;
-  --topbar-blur: none;
-
-  /* nav */
-  --nav-hover-bg: #f8fafc;
-  --nav-active-bg: rgba(54, 104, 245, 0.09);
-  --nav-active-color: #3668f5;
-  --nav-active-shadow: none;
-  --nav-active-text-shadow: none;
-
-  /* brand mark */
-  --brand-bg: linear-gradient(145deg, #3668f5, #7549ef);
-  --brand-radius: 10px;
-  --brand-shadow: 0 6px 14px rgba(54, 104, 245, 0.22);
-
-  /* primary button */
-  --btn-primary-bg: #3668f5;
-  --btn-primary-hover-bg: #1d4ed8;
-  --btn-primary-shadow: 0 5px 12px rgba(54, 104, 245, 0.2);
-
-  /* cards */
-  --card-bg: #ffffff;
-  --card-border: #e7ebf0;
-  --card-blur: none;
-  --hero-blur: none;
-  --hero-bg: #ffffff;
-  --stat-accent-color: transparent;
-  --company-logo-radius: 9px;
-  --company-logo-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  --kanban-col-bg: rgba(248, 250, 252, 0.85);
-  --profile-cover-bg: linear-gradient(135deg, #3668f5, #8b5cf6);
-
-  /* misc */
-  --focus-ring: rgb(54 104 245 / 0.4);
-  --chart-glow: none;
-  --line-glow: none;
-
-  /* switcher */
-  --switcher-bg: #f8fafc;
-  --switcher-border: #e7ebf0;
-  --switcher-shadow: none;
-  --switcher-active-bg: #ffffff;
-  --switcher-active-shadow: 0 2px 7px rgba(0, 0, 0, 0.06);
-  --switcher-chip-border: #e7ebf0;
-}
-
-/* --------------------------------------------------------------------------
-   2. THEME B — LIQUID GLASS
-   -------------------------------------------------------------------------- */
 [data-theme='glass'] {
   color-scheme: light;
 
+  /* canvas */
   --bg-rgb: 223 240 245;
   --bg: rgb(var(--bg-rgb));
 
+  /* surfaces */
   --surface-rgb: 255 255 255;
   --surface-alpha: 0.64;
   --surface: rgb(var(--surface-rgb) / var(--surface-alpha));
@@ -221,20 +48,22 @@ html:not(.theme-transitions) *::after {
   --surface-muted-rgb: 240 248 250;
   --surface-muted-alpha: 0.6;
 
+  /* lines */
   --line-rgb: 255 255 255;
   --line-alpha: 0.7;
   --line: rgb(var(--line-rgb) / var(--line-alpha));
   --line-subtle-rgb: 255 255 255;
   --line-strong-rgb: 255 255 255;
 
+  /* text */
   --text-rgb: 23 48 58;
   --text: rgb(var(--text-rgb));
   --text-secondary-rgb: 64 96 110;
   /* Figma #607983 deepened so muted labels clear 4.5:1 on the pale glass canvas. */
   --text-muted-rgb: 88 111 121;
 
-  /* Figma #087fba deepened so links / active nav / white-on-primary clear 4.5:1.
-     The signature button + brand gradients are unaffected (separate tokens). */
+  /* primary — Figma #087fba deepened so links / active nav / white-on-primary
+     clear 4.5:1. Button + brand gradients are separate tokens. */
   --primary-rgb: 7 114 167;
   --primary: rgb(var(--primary-rgb));
   --primary-hover-rgb: 6 105 155;
@@ -249,6 +78,7 @@ html:not(.theme-transitions) *::after {
   --primary-800-rgb: 8 85 125;
   --primary-900-rgb: 9 70 102;
 
+  /* accent scales */
   --violet-rgb: 138 110 232;
   --violet-50-rgb: 243 241 254;
   --violet-100-rgb: 233 229 253;
@@ -288,9 +118,11 @@ html:not(.theme-transitions) *::after {
   --critical-800-rgb: 160 30 45;
 
   --overlay-rgb: 15 23 42;
+  --scrim: rgba(15, 23, 42, 0.38);
   --code-bg: #123a4a;
   --code-text: #e6f7fb;
 
+  /* geometry — identical in both modes */
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-control: 12px;
@@ -298,12 +130,14 @@ html:not(.theme-transitions) *::after {
   --radius-xl: 20px;
   --radius-2xl: 24px;
 
+  /* elevation */
   --shadow-subtle: 0 1px 2px 0 rgb(31 91 116 / 0.06);
   --shadow-card: 0 14px 36px rgba(31, 91, 116, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   --shadow-elevated: 0 18px 44px rgba(31, 91, 116, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   --shadow-dialog: 0 28px 70px rgba(31, 91, 116, 0.22);
   --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(25, 134, 174, 0.2);
 
+  /* page canvas decoration */
   --page-overlay: radial-gradient(circle at 72% 12%, rgba(75, 201, 221, 0.35), transparent 28%),
     radial-gradient(circle at 30% 92%, rgba(152, 121, 236, 0.25), transparent 32%),
     linear-gradient(135deg, #e9f5f7, #d4eaf1 48%, #ece9f8);
@@ -312,6 +146,7 @@ html:not(.theme-transitions) *::after {
   --ambient-1-color: #6ed4e7;
   --ambient-2-color: #b8a3f5;
 
+  /* shell surfaces */
   /* PERF: the sidebar floats over the page gradient, which is already smooth —
      a live backdrop-filter here cost ~20 ms/frame while changing almost nothing
      visually. The glass read comes from translucency + border + inset highlight. */
@@ -333,6 +168,7 @@ html:not(.theme-transitions) *::after {
   --nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 20px rgba(21, 116, 145, 0.08);
   --nav-active-text-shadow: none;
 
+  /* brand + primary button */
   --brand-bg: linear-gradient(145deg, #05a7c0, #7b7dea);
   --brand-radius: 50%;
   --brand-shadow: inset 0 1px 1px #ffffff, 0 8px 18px rgba(23, 137, 168, 0.25);
@@ -341,12 +177,13 @@ html:not(.theme-transitions) *::after {
   --btn-primary-hover-bg: linear-gradient(135deg, #0b81a8, #4f78d0);
   --btn-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(25, 134, 174, 0.2);
 
+  /* cards */
+  --card-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62));
+  --card-border: rgba(255, 255, 255, 0.7);
   /* PERF: cards are data-heavy and numerous — no backdrop-filter here.
      The glass read comes from the translucent sheen above + inset highlight.
      Live blur is reserved for overlays (dialog/sheet) where content actually
      passes behind the surface. */
-  --card-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62));
-  --card-border: rgba(255, 255, 255, 0.7);
   --card-blur: none;
   --hero-blur: none;
   --hero-bg: linear-gradient(140deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.28));
@@ -360,180 +197,198 @@ html:not(.theme-transitions) *::after {
   --chart-glow: none;
   --line-glow: none;
 
+  /* appearance toggle */
   --switcher-bg: rgba(255, 255, 255, 0.3);
   --switcher-border: rgba(255, 255, 255, 0.7);
   --switcher-shadow: inset 0 1px 0 #ffffff;
-  --switcher-active-bg: rgba(255, 255, 255, 0.7);
+  --switcher-active-bg: rgba(255, 255, 255, 0.72);
   --switcher-active-shadow: 0 2px 7px rgba(0, 0, 0, 0.05);
-  --switcher-chip-border: rgba(255, 255, 255, 0.9);
 }
 
 /* --------------------------------------------------------------------------
-   3. THEME C — AI INTELLIGENCE
+   2. LIQUID GLASS — DARK
+   Same identity, inverted canvas. Azure/cyan + violet accents are preserved;
+   surfaces stay translucent glass, now lit from the top edge instead of the
+   bottom. Radii, spacing and elevation language are identical to Light.
    -------------------------------------------------------------------------- */
-[data-theme='ai'] {
+[data-theme='glass-dark'] {
   color-scheme: dark;
 
-  --bg-rgb: 8 13 28;
+  /* canvas */
+  --bg-rgb: 8 18 30;
   --bg: rgb(var(--bg-rgb));
 
-  --surface-rgb: 16 23 42;
-  --surface-alpha: 1;
+  /* surfaces — dark glass panels read as near-solid so dialogs, toasts,
+     tables and form fields stay legible over any background. */
+  --surface-rgb: 18 32 46;
+  --surface-alpha: 0.9;
   --surface: rgb(var(--surface-rgb) / var(--surface-alpha));
-  --surface-solid-rgb: 16 23 42;
+  --surface-solid-rgb: 18 32 46;
 
-  --surface-2-rgb: 12 19 37;
-  --surface-2-alpha: 1;
+  --surface-2-rgb: 255 255 255;
+  --surface-2-alpha: 0.045;
   --surface-2: rgb(var(--surface-2-rgb) / var(--surface-2-alpha));
 
-  --surface-muted-rgb: 17 26 48;
-  --surface-muted-alpha: 1;
+  --surface-muted-rgb: 255 255 255;
+  --surface-muted-alpha: 0.1;
 
-  --line-rgb: 32 43 69;
-  --line-alpha: 1;
+  /* lines — light hairlines read as glass edges on dark */
+  --line-rgb: 255 255 255;
+  --line-alpha: 0.14;
   --line: rgb(var(--line-rgb) / var(--line-alpha));
-  --line-subtle-rgb: 26 36 58;
-  --line-strong-rgb: 45 60 92;
+  --line-subtle-rgb: 34 50 66;
+  --line-strong-rgb: 58 80 100;
 
-  --text-rgb: 240 245 255;
+  /* text */
+  --text-rgb: 232 243 248;
   --text: rgb(var(--text-rgb));
-  --text-secondary-rgb: 170 185 214;
-  --text-muted-rgb: 119 134 165;
+  --text-secondary-rgb: 178 200 210;
+  --text-muted-rgb: 139 166 179;
 
-  --primary-rgb: 78 140 255;
+  /* primary — glass azure, lifted for AA on dark surfaces */
+  --primary-rgb: 84 178 214;
   --primary: rgb(var(--primary-rgb));
-  --primary-hover-rgb: 110 165 255;
-  --primary-50-rgb: 15 26 52;
-  --primary-100-rgb: 21 36 71;
-  --primary-200-rgb: 30 52 100;
-  --primary-300-rgb: 40 70 130;
-  --primary-400-rgb: 55 95 175;
-  --primary-500-rgb: 66 115 220;
-  --primary-600-rgb: 78 140 255;
-  --primary-700-rgb: 110 165 255;
-  --primary-800-rgb: 150 195 255;
-  --primary-900-rgb: 190 220 255;
+  --primary-hover-rgb: 112 199 231;
+  --primary-50-rgb: 10 32 43;
+  --primary-100-rgb: 14 43 57;
+  --primary-200-rgb: 20 57 75;
+  --primary-300-rgb: 28 76 99;
+  --primary-400-rgb: 44 110 141;
+  --primary-500-rgb: 60 146 180;
+  --primary-600-rgb: 84 178 214;
+  --primary-700-rgb: 122 205 233;
+  --primary-800-rgb: 160 223 243;
+  --primary-900-rgb: 200 240 250;
 
-  --violet-rgb: 155 109 255;
-  --violet-50-rgb: 26 22 52;
-  --violet-100-rgb: 36 29 71;
-  --violet-200-rgb: 50 40 100;
-  --violet-500-rgb: 155 109 255;
-  --violet-600-rgb: 174 138 255;
-  --violet-700-rgb: 196 170 255;
+  /* accent scales — same inversion rule: *-50 is the deepest tint */
+  --violet-rgb: 165 143 245;
+  --violet-50-rgb: 25 22 45;
+  --violet-100-rgb: 34 29 60;
+  --violet-200-rgb: 46 40 80;
+  --violet-500-rgb: 165 143 245;
+  --violet-600-rgb: 186 168 250;
+  --violet-700-rgb: 206 192 252;
 
-  --cyan-rgb: 6 216 228;
-  --cyan-50-rgb: 8 40 50;
-  --cyan-100-rgb: 12 55 66;
-  --cyan-500-rgb: 6 216 228;
-  --cyan-600-rgb: 70 230 238;
+  --cyan-rgb: 96 214 232;
+  --cyan-50-rgb: 9 37 45;
+  --cyan-100-rgb: 13 51 61;
+  --cyan-500-rgb: 96 214 232;
+  --cyan-600-rgb: 132 228 243;
 
-  --green-rgb: 48 214 155;
+  --green-rgb: 60 214 160;
 
-  --success-rgb: 48 214 155;
-  --success-50-rgb: 16 43 36;
-  --success-100-rgb: 20 55 45;
-  --success-600-rgb: 48 214 155;
-  --success-700-rgb: 90 230 175;
+  --success-rgb: 52 211 153;
+  --success-50-rgb: 11 41 34;
+  --success-100-rgb: 15 53 44;
+  --success-600-rgb: 52 211 153;
+  --success-700-rgb: 110 231 183;
 
-  --warning-rgb: 245 185 66;
-  --warning-50-rgb: 48 38 16;
-  --warning-100-rgb: 62 48 18;
-  --warning-600-rgb: 245 185 66;
-  --warning-700-rgb: 250 205 110;
+  --warning-rgb: 246 190 76;
+  --warning-50-rgb: 47 37 15;
+  --warning-100-rgb: 61 47 17;
+  --warning-600-rgb: 246 190 76;
+  --warning-700-rgb: 252 212 130;
 
-  --danger-rgb: 255 110 130;
-  --danger-50-rgb: 52 20 30;
-  --danger-100-rgb: 70 26 40;
-  --danger-600-rgb: 255 110 130;
-  --danger-700-rgb: 255 150 165;
+  --danger-rgb: 250 118 134;
+  --danger-50-rgb: 51 19 29;
+  --danger-100-rgb: 69 25 39;
+  --danger-600-rgb: 250 118 134;
+  --danger-700-rgb: 255 160 172;
 
-  --critical-rgb: 255 90 90;
-  --critical-50-rgb: 60 18 25;
-  --critical-800-rgb: 255 120 120;
+  --critical-rgb: 255 100 110;
+  --critical-50-rgb: 59 17 24;
+  --critical-800-rgb: 255 132 138;
 
-  --overlay-rgb: 2 5 12;
-  --code-bg: #050a16;
-  --code-text: #dbe6ff;
+  --overlay-rgb: 2 8 16;
+  --scrim: rgba(2, 8, 16, 0.72);
+  --code-bg: #071c27;
+  --code-text: #dcf3fa;
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-control: 9px;
-  --radius-card: 12px;
-  --radius-xl: 14px;
-  --radius-2xl: 16px;
+  /* geometry — identical in both modes */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-control: 12px;
+  --radius-card: 19px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
 
-  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-  --shadow-card: 0 12px 35px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.025);
-  --shadow-elevated: 0 16px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.5);
-  --shadow-primary: 0 0 20px rgba(45, 120, 255, 0.2);
+  /* elevation — deeper drop shadows, faint top-edge light */
+  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+  --shadow-card: 0 16px 40px rgba(2, 10, 18, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-elevated: 0 20px 48px rgba(2, 10, 18, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-dialog: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 26px rgba(12, 120, 160, 0.35);
 
-  --page-overlay: linear-gradient(rgba(69, 104, 173, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(69, 104, 173, 0.025) 1px, transparent 1px);
-  --page-overlay-size: 30px 30px;
-  --ambient-display: none;
-  --ambient-1-color: transparent;
-  --ambient-2-color: transparent;
+  /* page canvas decoration — the same two glass glows, deepened */
+  --page-overlay: radial-gradient(circle at 72% 12%, rgba(45, 170, 195, 0.22), transparent 30%),
+    radial-gradient(circle at 30% 92%, rgba(120, 96, 210, 0.2), transparent 34%),
+    linear-gradient(135deg, #081521, #0a1a28 48%, #100e24);
+  --page-overlay-size: cover;
+  --ambient-display: block;
+  --ambient-1-color: #2f9fbb;
+  --ambient-2-color: #7a68c9;
 
-  --sidebar-bg: #090f20;
-  --sidebar-border: #202b45;
+  /* shell surfaces */
+  --sidebar-bg: rgba(9, 22, 33, 0.66);
+  --sidebar-border: rgba(255, 255, 255, 0.14);
   --sidebar-blur: none;
-  --sidebar-shadow: none;
-  --sidebar-radius: 0;
-  --sidebar-margin: 0;
-  --sidebar-height: 100vh;
+  --sidebar-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --sidebar-radius: 24px;
+  --sidebar-margin: 12px 0 12px 12px;
+  --sidebar-height: calc(100vh - 24px);
 
-  --topbar-bg: rgba(8, 13, 28, 0.84);
-  --topbar-border: #202b45;
+  --topbar-bg: rgba(9, 22, 33, 0.55);
+  --topbar-border: rgba(255, 255, 255, 0.12);
   --topbar-blur: none;
 
-  --nav-hover-bg: rgba(255, 255, 255, 0.04);
-  --nav-active-bg: linear-gradient(90deg, rgba(56, 123, 255, 0.16), rgba(8, 216, 228, 0.04));
-  --nav-active-color: #7fb2ff;
-  --nav-active-shadow: none;
-  --nav-active-text-shadow: 0 0 18px rgba(78, 140, 255, 0.4);
+  --nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: rgba(84, 178, 214, 0.16);
+  --nav-active-color: #8fd3ea;
+  --nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.25);
+  --nav-active-text-shadow: none;
 
-  --brand-bg: linear-gradient(145deg, #176dff, #04d8e4);
-  --brand-radius: 8px;
-  --brand-shadow: 0 0 24px rgba(31, 119, 255, 0.28);
+  /* brand + primary button — the signature glass gradients are unchanged */
+  --brand-bg: linear-gradient(145deg, #05a7c0, #7b7dea);
+  --brand-radius: 50%;
+  --brand-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 10px 22px rgba(10, 120, 150, 0.4);
 
-  --btn-primary-bg: linear-gradient(120deg, #286dff, #0bb8dd);
-  --btn-primary-hover-bg: linear-gradient(120deg, #1f61ef, #09a6c8);
-  --btn-primary-shadow: 0 0 20px rgba(45, 120, 255, 0.2);
+  --btn-primary-bg: linear-gradient(135deg, #0d91bd, #5d86de);
+  --btn-primary-hover-bg: linear-gradient(135deg, #0b81a8, #4f78d0);
+  --btn-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 26px rgba(12, 120, 160, 0.35);
 
-  --card-bg: linear-gradient(145deg, #111a30, #0e1528);
-  --card-border: #202b45;
+  /* cards */
+  --card-bg: linear-gradient(160deg, rgba(20, 40, 55, 0.82), rgba(12, 27, 40, 0.66));
+  --card-border: rgba(255, 255, 255, 0.14);
   --card-blur: none;
   --hero-blur: none;
-  --hero-bg: radial-gradient(circle at 10% 0, rgba(52, 111, 255, 0.18), transparent 42%),
-    linear-gradient(145deg, #111a30, #0e1528);
-  --stat-accent-color: rgba(6, 216, 228, 0.12);
-  --company-logo-radius: 9px;
-  --company-logo-shadow: 0 0 16px rgba(78, 140, 255, 0.15);
-  --kanban-col-bg: rgba(8, 14, 29, 0.7);
-  --profile-cover-bg: linear-gradient(120deg, #1758d8, #0798bd);
+  --hero-bg: radial-gradient(circle at 12% 0, rgba(84, 178, 214, 0.16), transparent 46%),
+    linear-gradient(140deg, rgba(22, 44, 60, 0.72), rgba(12, 28, 42, 0.5));
+  --stat-accent-color: rgba(96, 214, 232, 0.14);
+  --company-logo-radius: 12px;
+  --company-logo-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  --kanban-col-bg: rgba(10, 24, 36, 0.55);
+  --profile-cover-bg: linear-gradient(135deg, #087fba, #8a6ee8);
 
-  --focus-ring: rgb(78 140 255 / 0.5);
-  --chart-glow: drop-shadow(0 0 8px rgba(78, 140, 255, 0.16));
-  --line-glow: drop-shadow(0 0 5px rgb(78 140 255));
+  --focus-ring: rgb(84 178 214 / 0.5);
+  --chart-glow: none;
+  --line-glow: none;
 
-  --switcher-bg: #080e1e;
-  --switcher-border: #202b45;
-  --switcher-shadow: none;
-  --switcher-active-bg: #151f36;
-  --switcher-active-shadow: inset 0 0 0 1px rgba(79, 141, 255, 0.25);
-  --switcher-chip-border: #2c3a5c;
+  /* appearance toggle */
+  --switcher-bg: rgba(255, 255, 255, 0.06);
+  --switcher-border: rgba(255, 255, 255, 0.14);
+  --switcher-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --switcher-active-bg: rgba(255, 255, 255, 0.14);
+  --switcher-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /* --------------------------------------------------------------------------
-   4. GLOBAL SHELL TREATMENTS
+   3. GLOBAL SHELL TREATMENTS
    -------------------------------------------------------------------------- */
 .app-shell {
   position: relative;
   background: var(--bg);
   color: rgb(var(--text-rgb));
-  transition: background-color 0.35s ease, color 0.35s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .app-shell__overlay {
@@ -551,7 +406,7 @@ html:not(.theme-transitions) *::after {
   border-radius: 999px;
   pointer-events: none;
   z-index: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.25s ease;
 }
 
 /* PERF: the ambient blobs used `filter: blur(90px)` on two large fixed layers,
@@ -574,34 +429,30 @@ html:not(.theme-transitions) *::after {
 }
 
 /* --------------------------------------------------------------------------
-   5. SIDEBAR
+   4. SIDEBAR
    -------------------------------------------------------------------------- */
 .app-sidebar {
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
+  border: 1px solid var(--sidebar-border);
   border-radius: var(--sidebar-radius);
   margin: var(--sidebar-margin);
   height: var(--sidebar-height);
   box-shadow: var(--sidebar-shadow);
   backdrop-filter: var(--sidebar-blur);
   -webkit-backdrop-filter: var(--sidebar-blur);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease,
-    border-radius 0.3s ease, margin 0.3s ease;
-}
-
-[data-theme='glass'] .app-sidebar {
-  border: 1px solid var(--sidebar-border);
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease,
+    border-radius 0.25s ease, margin 0.25s ease;
 }
 
 .app-brand-mark {
   background: var(--brand-bg);
   border-radius: var(--brand-radius);
   box-shadow: var(--brand-shadow);
-  transition: background 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease;
+  transition: background 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease;
 }
 
 /* --------------------------------------------------------------------------
-   6. NAVIGATION
+   5. NAVIGATION
    -------------------------------------------------------------------------- */
 .app-nav-item {
   position: relative;
@@ -629,18 +480,18 @@ html:not(.theme-transitions) *::after {
    no separate edge indicator bar. */
 
 /* --------------------------------------------------------------------------
-   7. TOPBAR
+   6. TOPBAR
    -------------------------------------------------------------------------- */
 .app-topbar {
   background: var(--topbar-bg);
   border-bottom-color: var(--topbar-border);
   backdrop-filter: var(--topbar-blur);
   -webkit-backdrop-filter: var(--topbar-blur);
-  transition: background-color 0.35s ease, border-color 0.35s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 /* --------------------------------------------------------------------------
-   8. CARDS
+   7. CARDS
    -------------------------------------------------------------------------- */
 .app-card {
   background: var(--card-bg);
@@ -708,14 +559,14 @@ html:not(.theme-transitions) *::after {
   color: var(--code-text);
 }
 
-/* PDF preview must always read as a white paper sheet, in every theme. */
+/* PDF preview must always read as a white paper sheet, in every mode. */
 .app-pdf-frame {
   color-scheme: light;
   background: #ffffff;
 }
 
 /* --------------------------------------------------------------------------
-   9. PRIMARY BUTTON
+   8. PRIMARY BUTTON
    -------------------------------------------------------------------------- */
 .app-btn-primary {
   background: var(--btn-primary-bg);
@@ -728,116 +579,77 @@ html:not(.theme-transitions) *::after {
 }
 
 /* --------------------------------------------------------------------------
-   10. THEME SWITCHER
+   9. APPEARANCE TOGGLE — compact Sun/Moon switch
+   A single button; the thumb slides between the two icon slots.
    -------------------------------------------------------------------------- */
 .app-theme-switcher {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  background: var(--switcher-bg);
+  flex-shrink: 0;
+  width: 58px;
+  height: 34px;
+  padding: 4px;
   border: 1px solid var(--switcher-border);
-  border-radius: var(--radius-control);
+  border-radius: 999px;
+  background: var(--switcher-bg);
   box-shadow: var(--switcher-shadow);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.app-theme-switcher button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: rgb(var(--text-muted-rgb));
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+.app-theme-switcher:hover {
+  border-color: rgb(var(--primary-rgb) / 0.5);
 }
 
-.app-theme-switcher button:hover {
-  color: rgb(var(--text-rgb));
-}
-
-.app-theme-switcher button:focus-visible {
+.app-theme-switcher:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-.app-theme-switcher button[aria-checked='true'] {
+.app-theme-switcher__thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
   background: var(--switcher-active-bg);
-  color: rgb(var(--text-rgb));
   box-shadow: var(--switcher-active-shadow);
-  font-weight: 600;
+  transition: transform 0.2s ease, background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.app-theme-switcher b {
+[data-theme='glass-dark'] .app-theme-switcher__thumb {
+  transform: translateX(24px);
+}
+
+.app-theme-switcher__icon {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--switcher-chip-border);
-  border-radius: 5px;
-  font-size: 9px;
-  font-weight: 700;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  width: 24px;
+  height: 24px;
+  color: rgb(var(--text-muted-rgb));
+  transition: color 0.2s ease;
 }
 
-.app-theme-switcher button[aria-checked='true'] b {
-  background: rgb(var(--primary-rgb));
-  border-color: rgb(var(--primary-rgb));
-  color: #ffffff;
-}
-
-/* System page theme option cards */
-.app-theme-option {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-subtle);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.app-theme-option:hover {
-  border-color: rgb(var(--primary-rgb) / 0.5);
-  box-shadow: var(--shadow-elevated);
-}
-
-.app-theme-option[aria-checked='true'] {
-  border-color: rgb(var(--primary-rgb));
-  box-shadow: 0 0 0 1px rgb(var(--primary-rgb) / 0.35), var(--shadow-elevated);
+.app-theme-switcher__icon[data-active='true'] {
+  color: rgb(var(--primary-rgb));
 }
 
 /* --------------------------------------------------------------------------
-   11. SMALL SCREEN ADJUSTMENTS
+   10. SMALL SCREEN ADJUSTMENTS
    -------------------------------------------------------------------------- */
 @media (max-width: 1023px) {
   .app-sidebar {
-    margin: 0;
-    height: 100%;
-    border-radius: 0;
-  }
-  [data-theme='glass'] .app-sidebar {
     margin: 8px;
     height: calc(100% - 16px);
-  }
-}
-
-@media (max-width: 767px) {
-  .app-theme-switcher button span {
-    display: none;
-  }
-  .app-theme-switcher button {
-    padding: 0 8px;
+    border-radius: 0;
   }
 }
 
 /* --------------------------------------------------------------------------
-   12. PERFORMANCE & ACCESSIBILITY FALLBACKS
+   11. PERFORMANCE & ACCESSIBILITY FALLBACKS
    -------------------------------------------------------------------------- */
 
 /* Sticky blurred bars over scrolling content are the most expensive surface on
@@ -846,6 +658,7 @@ html:not(.theme-transitions) *::after {
   .app-topbar {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    background: var(--topbar-solid, var(--topbar-bg));
   }
   .app-sidebar {
     backdrop-filter: none;
@@ -854,12 +667,19 @@ html:not(.theme-transitions) *::after {
   [data-theme='glass'] .app-sidebar {
     background: rgba(244, 251, 252, 0.94);
   }
+  [data-theme='glass-dark'] .app-sidebar {
+    background: rgba(10, 24, 36, 0.94);
+  }
 }
 
 /* Respect "reduce motion": decorative ambient layers are pure ornament. */
 @media (prefers-reduced-motion: reduce) {
   .app-ambient {
     display: none;
+  }
+  /* No sliding thumb either — the icon state still communicates the mode. */
+  .app-theme-switcher__thumb {
+    transition: none;
   }
 }
 
@@ -881,17 +701,14 @@ html:not(.theme-transitions) *::after {
   [data-theme='glass'] .app-card {
     background: #fbfefe;
   }
-  [data-theme='ai'] .app-sidebar {
-    background: #090f20;
+  [data-theme='glass-dark'] .app-sidebar {
+    background: #0b1a26;
   }
-  [data-theme='ai'] .app-topbar {
-    background: #0a0f1e;
+  [data-theme='glass-dark'] .app-topbar {
+    background: #0a1824;
   }
-  [data-theme='ai'] .app-card,
-  [data-theme='ai'] .app-hero-card {
-    background: #111a30;
-  }
-  [data-theme='enterprise'] .app-card {
-    background: #ffffff;
+  [data-theme='glass-dark'] .app-card,
+  [data-theme='glass-dark'] .app-hero-card {
+    background: #12232f;
   }
 }

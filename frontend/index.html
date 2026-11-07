@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="enterprise">
+<html lang="vi" data-theme="glass">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,17 +11,26 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233668f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>" />
     <!-- Runtime Environment Injection (Optional) -->
     <script src="/env.js" onerror="/* env.js is optional in local/Vite development */"></script>
-    <!-- Apply the persisted theme before first paint to avoid a flash of the wrong theme. -->
+    <!-- Apply the persisted appearance before first paint to avoid a flash of the wrong mode.
+         Liquid Glass Light is the default; the OS preference is used until the user picks. -->
     <script>
       (function () {
+        var root = document.documentElement;
+        var dark;
         try {
           var stored = localStorage.getItem('jh_theme');
-          var theme = stored === 'glass' || stored === 'ai' || stored === 'enterprise' ? stored : 'enterprise';
-          document.documentElement.setAttribute('data-theme', theme);
-          document.documentElement.style.colorScheme = theme === 'ai' ? 'dark' : 'light';
+          if (stored === 'dark' || stored === 'ai') {
+            dark = true;
+          } else if (stored === 'light' || stored === 'glass' || stored === 'enterprise') {
+            dark = false;
+          } else {
+            dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          }
         } catch (error) {
-          document.documentElement.setAttribute('data-theme', 'enterprise');
+          dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
         }
+        root.setAttribute('data-theme', dark ? 'glass-dark' : 'glass');
+        root.style.colorScheme = dark ? 'dark' : 'light';
       })();
     </script>
   </head>

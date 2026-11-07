@@ -181,7 +181,7 @@
 
 ## ADR-013 — Three Selectable Design Themes via Semantic CSS Tokens
 
-**Status:** Accepted
+**Status:** Superseded by ADR-015 (product reduced to two Liquid Glass modes)
 
 **Context:** The Figma Make exploration (`frontendv2/Redesign`) produced three complete visual directions — **A. Modern Enterprise**, **B. Liquid Glass**, **C. AI Intelligence** — differing in more than colour: surface elevation, corner radii, blur/backdrop filters, ambient gradients, glow effects, and a light/dark inversion. The product needed all three available at runtime without forking the app, duplicating components, or shipping three separate frontends.
 
@@ -201,5 +201,83 @@
 - Components must use semantic tokens only — a raw palette class is a regression.
 - The PDF preview iframe is pinned to `color-scheme: light` (`.app-pdf-frame`) so the resume always renders as white paper, including in the dark theme.
 - Verified matrix: 8 routes × 3 themes, runtime switching without reload, no-flash reload, zero layout drift, zero horizontal overflow, no console errors, 28/28 audited contrast pairs ≥ 4.5:1.
+
+**Superseded (ADR-015):** Themes A (Modern Enterprise) and C (AI Intelligence) were removed from the product. What survives unchanged from this ADR is the *mechanism*: one component tree, semantic CSS custom properties behind `data-theme`, a single token file (`themes.css`), semantic-only utilities, theme-invariant typography, and the pre-hydration no-flash script. The three-block token model became two blocks (`glass` light + `glass-dark`). The measurements above are retained as the historical record of the 3-theme period.
+
+---
+
+## ADR-014 — Liquid Glass Performance Budget
+
+**Status:** Accepted
+
+**Context:** The Liquid Glass theme applied `backdrop-filter: blur(20px) saturate(135%)` to every `.app-card`. On the jobs grid that meant **62 live backdrop-filter surfaces** on one screen. A CDP frame-timing audit (headless Chrome, 1440×900, 60-job fixture) measured the cost:
+
+| Glass route | avg frame | p95 | dropped (>33 ms) |
+| --- | --- | --- | --- |
+| `/jobs` (60 cards) | **113.2 ms** | 176.4 ms | **81** |
+| `/` dashboard | 95.0 ms | 138.2 ms | 5 |
+| `/applications` | 27.6 ms | 42.0 ms | 1 |
+| `/market` | 10.3 ms | 10.3 ms | 0 |
+
+Enterprise and AI sat at 16–18 ms on the same routes, so the regression was attributable entirely to backdrop-filter, not to DOM size or data volume.
+
+A controlled variant sweep on `/jobs` isolated the cost model:
+
+| Variant | avg frame | dropped |
+| --- | --- | --- |
+| sidebar `blur(16px) saturate(1.2)`, topbar `blur(10px)` | 37.3 ms | 65 |
+| sidebar `blur(12px)`, topbar `blur(8px)`, no saturate | 37.7 ms | 54 |
+| sidebar `blur(10px)`, topbar `blur(6px)` | 34.4 ms | 41 |
+| no backdrop-filter | **16.6 ms** | **0** |
+
+**Blur radius is nearly free; the cost is per-surface backdrop readback.** Halving every radius recovered ~3 ms of 21; removing the surfaces recovered all of it.
+
+**Decision:**
+1. **Backdrop-filter is a scarce resource, budgeted per viewport.** It is allowed on at most one or two surfaces that actually have content scrolling behind them. It is banned on repeated data surfaces (cards, list rows, table rows, kanban columns).
+2. **The glass read does not require a live filter.** Translucency + a 1px light border + an inset highlight reproduce the material on top of the page gradient. Glass cards use `linear-gradient(160deg, rgba(255,255,255,.82), rgba(255,255,255,.62))` with `--card-blur: none`.
+3. **Navigation surfaces drop the filter too.** The sidebar and topbar sit over an already-smooth static page gradient; blurring it is visually near-inert. They keep translucency (`rgba(240,250,252,.66)` / `rgba(238,249,251,.55)`), their light border, and the ambient layer behind them.
+4. **Live blur is reserved for true overlays** — dialog and sheet scrims keep `backdrop-blur-[2px]`, where content genuinely passes behind and the low radius is cheap.
+5. **Ambient blobs use gradient falloff, not `filter: blur()`.** Two large fixed layers with `blur(90px)` were re-blurred on every repaint; a `radial-gradient(... transparent 78%)` is visually equivalent and free.
+6. **Transitions are property-scoped and paint-contained.** `transition-all` is banned on card/list surfaces (it makes the browser track every animatable property, including `box-shadow`, `border-radius` and `transform`, forcing a re-raster on hover and on theme switch). Cards transition `border-color`/`background-color` only and declare `contain: paint`.
+7. **No transitions before first paint.** `html:not(.theme-transitions) * { transition: none !important }` gates the body background transition; `ThemeContext` adds the class on the first animation frame.
+8. **Graceful degradation is mandatory.** `prefers-reduced-motion: reduce` hides the decorative ambient layer; `prefers-reduced-transparency: reduce` forces solid surfaces; below 1024 px all backdrop-filters are dropped (mobile GPUs pay the most for them).
+
+**Reason:** The theme must be usable, not just attractive. Glass `/jobs` scrolling at 113 ms/frame (8 fps) is broken for a job board whose primary task is scanning a long list. The optimised theme keeps the material language while hitting the 60 fps budget.
+
+**Consequences:**
+- Glass `/jobs` went from 113.2 ms → **16.6 ms median** (min 16.54, max 17.65), p95 176.4 → ~18–23 ms, dropped frames 81 → 0–2. Both Liquid Glass modes now sit at 15–17 ms.
+- Backdrop-filter element count on `/jobs` went 62 → 0; live blur survives only on overlay scrims.
+- Glass text contrast re-verified against the new translucent surfaces: 9/9 pairs ≥ 4.5:1 worst-case over the darkest canvas stops (card muted text 4.88:1, sidebar muted 4.74:1).
+- Adding a new glass surface requires a budget justification — a backdrop-filter on a repeated element is a regression, same as a raw palette class.
+- Benchmark harness: `perf.mjs` (4 routes × 2 modes) must force `Emulation.setEmulatedMedia` to `no-preference`; headless Chrome otherwise reports both `prefers-reduced-motion` and `prefers-reduced-transparency` as `reduce` and silently measures the fallback path.
+- Post-ADR-015 re-verification: Light 16.65 / 16.47 / 12.80 ms and Dark 16.58 / 15.64 / 16.45 ms on `/jobs`, `/`, `/applications`; backdrop-filter count 0 in both modes; dropped frames 0. The budget applies unchanged to both modes — dark is not granted extra blur.
+
+---
+
+## ADR-015 — Two-Mode Liquid Glass Appearance (Light default, Dark added)
+
+**Status:** Accepted — supersedes ADR-013
+
+**Context:** ADR-013 shipped three *different* visual identities (Modern Enterprise, Liquid Glass, AI Intelligence) selectable at runtime. In use this was a product problem, not a feature: three designs meant three sets of visual decisions to maintain, three token blocks to keep contrast-correct, and a header control that had to name and describe each option. The product has one identity — Liquid Glass — and what users actually want from an appearance control is light or dark. ADR-014 had already optimised the blur budget, so adding a dark rendering had to fit inside that budget rather than reopen it.
+
+**Decision:**
+1. **Appearance collapses to a mode, not a design.** `ThemeId = 'light' | 'dark'`. `data-theme` is `glass` (default, on `:root`) or `glass-dark`. Themes A and C and all their tokens are deleted, not hidden.
+2. **Dark is a token-only inversion of the same identity.** Same azure/cyan + violet accent pair, same 19 px card radius, 24 px sidebar radius, same spacing, elevation language and glass treatment classes. No component, page, or business rule branches on the mode.
+3. **Glass reads through translucency, not blur.** `--card-blur`, `--sidebar-blur`, `--topbar-blur` and `--hero-blur` stay `none` in **both** modes, preserving the ADR-014 budget. Dark keeps translucent card gradients and swaps to light hairlines (`rgb(255 255 255 / 0.14)`) + a top-edge inset highlight.
+4. **Dark surfaces are near-solid where legibility depends on them.** `--surface` is `rgb(18 32 46 / 0.9)` — dialogs, sheets, toasts, tables and form fields must stay readable over any background. Cards keep the translucent gradient because they sit on the page canvas.
+5. **A dedicated `--scrim` token** (`light rgba(15,23,42,.38)`, `dark rgba(2,8,16,.72)`) replaces `bg-overlay/40` for dialog/sheet overlays: a 40 % near-black scrim barely dims a dark page.
+6. **Semantic colour scales invert in dark** (`*-50` = deepest tint background, `*-600/700` = light text), matching the badge pattern `bg-primary-50 text-primary-700`. This keeps one utility vocabulary across modes.
+7. **Persistence, OS follow, no flash.** Stored `localStorage['jh_theme']` (`light` | `dark`) wins; otherwise the OS `prefers-color-scheme` decides, and live OS changes apply only while no stored preference exists. Legacy values migrate silently: `glass` / `enterprise` → `light`, `ai` → `dark`. The `index.html` pre-paint script applies `data-theme` and `color-scheme` before first paint.
+8. **One compact toggle, icons only.** A single `role="switch"` button (58×34) with Sun/Moon icons and a sliding thumb (`translateX(24px)` in dark), 200 ms transform transition, disabled under `prefers-reduced-motion`. No theme names, no descriptions in the header control; the System page may label the active mode in text.
+9. **Transitions stay at 200–300 ms** and remain property-scoped (`background-color`, `color`, `border-color`, `box-shadow`, thumb `transform`), so the ADR-014 paint-containment rules still hold.
+
+**Reason:** One identity is what the product is. Light/dark is the appearance dimension users expect, and a two-icon switch is smaller, clearer and self-explanatory compared with a three-card selector. Keeping dark token-only preserves the "one component tree" property that made the original architecture cheap to extend.
+
+**Consequences:**
+- `themes.css` shrank from 53.4 kB to 49.2 kB of built CSS despite gaining a full dark mode, because two token blocks were deleted.
+- Adding a future mode = one token block; components still never branch on appearance.
+- Verified: 8 routes × 2 modes, no layout drift, zero horizontal overflow, no console errors; runtime toggle persists and restores; no-flash reload resolves `glass-dark` at 400 ms; mobile 390×844 keeps the toggle visible (58×34 at x=265) with no overflow.
+- Contrast: 28/28 in-scope pairs ≥ 4.5:1 (dark card muted 5.80, sidebar muted 6.03, dialog muted 6.16, nav active 6.97, chips 8.69–10.94).
+- Known, intentionally unchanged: white text on the primary button gradient is 3.54:1. This is the pre-existing Figma gradient, identical in both modes, and was reported rather than silently restyled.
 
 
