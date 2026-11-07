@@ -1,103 +1,92 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, Database, RefreshCw, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
-import { Card, CardHeader, CardTitle } from '../components/ui/card';
+import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import * as marketApi from '../api/market.api';
-import { MarketAnalytics } from '../types/market';
+import { Input } from '../components/ui/input';
+import { Select } from '../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { getMarketFilters, getMarketTab } from '../api/market.api';
+import type { FilterOption, Granularity, MarketFilters, MarketQuery, MarketResponses, MarketTab, SkillsOptions } from '../types/market';
+import { useMarketQuery } from './market/useMarketQuery';
+import { Notice } from './market/MarketCharts';
+import { OverviewPanel, HiringPanel, SalaryPanel, SkillsPanel, RolesPanel, GeographyPanel, EmployersPanel, InsightsPanel } from './market/MarketPanels';
 
-export const MarketPage: React.FC = () => {
-  const [data, setData] = useState<MarketAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  const load = () => {
-    setLoading(true);
-    setError(false);
-    marketApi.getMarketAnalytics().then(setData).catch(() => setError(true)).finally(() => setLoading(false));
+const tabs: Array<[MarketTab, string]> = [
+  ['overview', 'Tổng quan'], ['hiring-trends', 'Xu hướng'], ['salaries', 'Lương'],
+  ['skills', 'Kỹ năng'], ['roles', 'Vai trò'], ['geography', 'Địa lý'],
+  ['employers', 'Nhà tuyển dụng'], ['insights', 'Nhận định'],
+];
+const filterFields = [
+  ['category', 'Nhóm nghề (derived)', 'categories'], ['level', 'Cấp bậc', 'levels'],
+  ['location', 'Địa điểm', 'locations'], ['region', 'Vùng (derived)', 'regions'],
+  ['source', 'Nguồn', 'sources'], ['work_mode', 'Hình thức làm việc', 'work_modes'], ['skill', 'Kỹ năng', 'skills'],
+] as const;
+export function MarketPage() {
+  const [tab, setTab] = useState<MarketTab>('overview');
+  const [filters, setFilters] = useState<MarketFilters>({ include_expired: false });
+  const [revision, setRevision] = useState(0);
+  const [granularity, setGranularity] = useState<Granularity>('auto');
+  const [skills, setSkills] = useState<SkillsOptions>({ limit: 25 });
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const catalog = useMarketQuery(`catalog:${revision}`, signal => getMarketFilters(signal));
+  const update = (key: keyof MarketFilters, value: string) => setFilters(current => ({ ...current, [key]: value || undefined }));
+  const invalidDates = !!(filters.date_from && filters.date_to && filters.date_from > filters.date_to);
+  const query: MarketQuery = { ...filters, ...(tab === 'hiring-trends' ? { granularity } : {}), ...(tab === 'skills' ? skills : {}) };
+  const options = (items: FilterOption[] = [], selected?: string) => [{ value: '', label: 'Tất cả' }, ...items.map(i => ({ value: i.value, label: `${i.label} (${i.jobs})` })), ...(selected && !items.some(i => i.value === selected) ? [{ value: selected, label: selected }] : [])];
+  const renderTab = () => {
+    const props = { query, revision };
+    switch (tab) {
+      case 'overview': return <MarketView {...props} tab="overview">{data => <OverviewPanel data={data} drill={update} />}</MarketView>;
+      case 'hiring-trends': return <MarketView {...props} tab="hiring-trends">{data => <HiringPanel data={data} drill={update} />}</MarketView>;
+      case 'salaries': return <MarketView {...props} tab="salaries">{data => <SalaryPanel data={data} drill={update} />}</MarketView>;
+      case 'skills': return <MarketView {...props} tab="skills">{data => <SkillsPanel data={data} drill={update} />}</MarketView>;
+      case 'roles': return <MarketView {...props} tab="roles">{data => <RolesPanel data={data} drill={update} />}</MarketView>;
+      case 'geography': return <MarketView {...props} tab="geography">{data => <GeographyPanel data={data} drill={update} />}</MarketView>;
+      case 'employers': return <MarketView {...props} tab="employers">{data => <EmployersPanel data={data} drill={update} />}</MarketView>;
+      case 'insights': return <MarketView {...props} tab="insights">{data => <InsightsPanel data={data} />}</MarketView>;
+    }
   };
-
-  useEffect(load, []);
-
-  const maxSource = useMemo(() => Math.max(...(data?.sources.map((item) => item.jobs) ?? []), 1), [data]);
-  const maxSkill = useMemo(() => Math.max(...(data?.top_skills.map((item) => item.jobs) ?? []), 1), [data]);
-
-  return (
-    <div className="space-y-5 sm:space-y-6">
-      <PageHeader
-        title="Thị trường IT Việt Nam"
-        description="Tín hiệu tổng hợp từ dữ liệu ingestion, tách biệt với hồ sơ và workflow ứng tuyển cá nhân."
-        badge={<span className="rounded-md bg-primary-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary-700">Market intelligence</span>}
-        actions={<Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={loading ? 'w-3.5 h-3.5 animate-spin' : 'w-3.5 h-3.5'} /> Cập nhật</Button>}
-      />
-
-      {error && (
-        <Card className="border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
-          Không thể tải dữ liệu thị trường. Kiểm tra kết nối backend và thử lại.
-        </Card>
-      )}
-
-      {loading && !data ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => <div key={item} className="h-28 animate-pulse rounded-[14px] bg-surface" />)}
+  return <div className="space-y-5 sm:space-y-6">
+    <PageHeader title="Thị trường IT Việt Nam" description="8 góc nhìn từ dữ liệu tuyển dụng đã thu thập; không đại diện toàn bộ thị trường Việt Nam." actions={<Button variant="outline" size="sm" onClick={() => setRevision(r => r + 1)}><RefreshCw className="h-3.5 w-3.5" />Cập nhật</Button>} />
+    <Card className="space-y-4 p-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Input type="date" label="Từ ngày đăng" value={filters.date_from ?? ''} max={filters.date_to || undefined} onChange={e => update('date_from', e.target.value)} />
+        <Input type="date" label="Đến ngày đăng" value={filters.date_to ?? ''} min={filters.date_from || undefined} onChange={e => update('date_to', e.target.value)} />
+        {filterFields.filter(([field]) => field === 'category' || field === 'location').map(([field, , catalogField]) => <Select key={field} label={field === 'category' ? 'Nhóm nghề suy luận' : 'Địa điểm'} value={filters[field] ?? ''} options={options(catalog.data?.[catalogField], filters[field])} onChange={e => update(field, e.target.value)} />)}
+      </div>
+      <button type="button" className="inline-flex items-center gap-2 text-sm font-medium text-primary" aria-expanded={advancedOpen} aria-controls="market-advanced-filters" onClick={() => setAdvancedOpen(open => !open)}><SlidersHorizontal className="h-4 w-4" />Bộ lọc nâng cao <ChevronDown className={`h-4 w-4 ${advancedOpen ? 'rotate-180' : ''}`} /></button>
+      <div id="market-advanced-filters" hidden={!advancedOpen} className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {filterFields.filter(([field]) => field !== 'category' && field !== 'location').map(([field, label, catalogField]) => <Select key={field} label={field === 'region' ? 'Vùng' : label} value={filters[field] ?? ''} options={options(catalog.data?.[catalogField], filters[field])} onChange={e => update(field, e.target.value)} />)}
+          <Input label="Tên công ty chuẩn hóa (chính xác)" value={filters.company ?? ''} maxLength={200} onChange={e => update('company', e.target.value)} />
         </div>
-      ) : data ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Metric icon={<Database />} label="Tin đang hoạt động" value={data.total_active_jobs.toLocaleString('vi-VN')} detail={`${data.sources.length} nguồn dữ liệu`} tone="blue" />
-            <Metric icon={<Activity />} label="Tin đã hết hạn" value={data.total_expired_jobs.toLocaleString('vi-VN')} detail="Lịch sử được bảo toàn" tone="violet" />
-            <Metric icon={<TrendingUp />} label="Lương cao nhất" value={formatSalary(data.salary.max)} detail={`Trung bình max: ${formatSalary(data.salary.average_max)}`} tone="cyan" />
-            <Metric icon={<BarChart3 />} label="Kỹ năng đã chuẩn hóa" value={data.top_skills.length.toLocaleString('vi-VN')} detail="Top nhu cầu hiện tại" tone="green" />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
-            <Card>
-              <CardHeader>
-                <CardTitle>Phân bổ theo nguồn</CardTitle>
-                <p className="mt-1 text-xs text-text-secondary">Số job active đã chuẩn hóa từ pipeline ingestion.</p>
-              </CardHeader>
-              <div className="space-y-4 px-5 pb-5">
-                {data.sources.length === 0 ? <Empty /> : data.sources.map((item, index) => (
-                  <div key={item.source}>
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="font-semibold text-text-primary">{item.source}</span>
-                      <span className="text-text-secondary">{item.jobs.toLocaleString('vi-VN')}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className={`app-chart-bar h-full rounded-full ${['bg-primary-500', 'bg-violet-500', 'bg-cyan-500', 'bg-success-600'][index % 4]}`} style={{ width: `${(item.jobs / maxSource) * 100}%` }} /></div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Kỹ năng được săn đón</CardTitle>
-                <p className="mt-1 text-xs text-text-secondary">Xếp hạng theo số lượng job có liên kết kỹ năng.</p>
-              </CardHeader>
-              <div className="space-y-3 px-5 pb-5">
-                {data.top_skills.length === 0 ? <Empty /> : data.top_skills.slice(0, 8).map((item, index) => (
-                  <div key={item.skill} className="grid grid-cols-[24px_1fr_42px] items-center gap-2 text-xs">
-                    <span className="text-[10px] font-bold text-text-muted">{String(index + 1).padStart(2, '0')}</span>
-                    <div><div className="mb-1 flex justify-between"><span className="font-medium">{item.skill}</span><span className="text-text-secondary">{item.jobs}</span></div><div className="app-progress-track h-1.5 rounded-full"><div className="app-chart-bar h-full rounded-full bg-primary" style={{ width: `${(item.jobs / maxSkill) * 100}%` }} /></div></div>
-                    <span className="text-right text-[10px] text-text-muted">{Math.round((item.jobs / maxSkill) * 100)}%</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          <Card className="app-hero-card border-primary-100 bg-gradient-to-br from-primary-50 to-surface">
-            <div className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.14em] text-primary">Data provenance</div><h2 className="font-display text-base font-bold">Một lớp dữ liệu chung cho toàn hệ thống</h2><p className="mt-1 text-xs text-text-secondary">Dashboard chỉ hiển thị aggregate công khai; không đọc candidate profile và không thay đổi matching cá nhân.</p></div><div className="rounded-lg bg-surface-2 px-3 py-2 text-xs font-medium text-text-secondary shadow-sm">{data.total_active_jobs.toLocaleString('vi-VN')} active records</div></div>
-          </Card>
-        </>
-      ) : null}
-    </div>
-  );
-};
-
-function Metric({ icon, label, value, detail, tone }: { icon: React.ReactNode; label: string; value: string; detail: string; tone: 'blue' | 'violet' | 'cyan' | 'green' }) {
-  const styles = { blue: 'bg-primary-50 text-primary-600', violet: 'bg-violet-50 text-violet-600', cyan: 'bg-cyan-50 text-cyan-600', green: 'bg-success-50 text-success-600' };
-  return <Card className="app-stat-card relative flex min-h-[106px] items-start gap-3 overflow-hidden p-4"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${styles[tone]}`}>{React.cloneElement(icon as React.ReactElement, { className: 'h-4 w-4' })}</div><div><div className="text-xs text-text-secondary">{label}</div><div className="mt-1 font-display text-2xl font-bold tracking-tight">{value}</div><div className="mt-1 text-[10px] text-success-600">{detail}</div></div></Card>;
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!filters.include_expired} onChange={e => setFilters(f => ({ ...f, include_expired: e.target.checked }))} />Bao gồm tin hết hạn</label>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs"><Button variant="ghost" size="sm" onClick={() => { setFilters({ include_expired: false }); setSkills({ limit: 25 }); }}>Xóa bộ lọc</Button><span className="text-text-secondary">Mặc định chỉ tin đang hoạt động · bộ lọc áp dụng cho mọi tab</span></div>
+      <div className="flex flex-wrap gap-2">{filterFields.filter(([field]) => !!filters[field]).map(([field, label, catalogField]) => <Button key={field} variant="outline" size="sm" onClick={() => update(field, '')} aria-label={`Xóa bộ lọc ${label}: ${filters[field]}`}>{label.replace(' (derived)', '')}: {catalog.data?.[catalogField]?.find(item => item.value === filters[field])?.label ?? filters[field]} ×</Button>)}{filters.company && <Button variant="outline" size="sm" onClick={() => update('company', '')}>Công ty: {filters.company} ×</Button>}{filters.include_expired && <Button variant="outline" size="sm" onClick={() => setFilters(f => ({ ...f, include_expired: false }))}>Bao gồm tin hết hạn ×</Button>}</div>
+      {catalog.error && <p role="alert" className="text-xs text-danger-700">Danh mục bộ lọc: {catalog.error} <button className="underline" onClick={() => setRevision(r => r + 1)}>Thử lại</button></p>}
+      {invalidDates && <p role="alert" className="text-sm text-danger-700">Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.</p>}
+    </Card>
+    <Tabs value={tab} onValueChange={value => setTab(value as MarketTab)}>
+      <div className="overflow-x-auto pb-1"><TabsList aria-label="Market intelligence views">{tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}</TabsList></div>
+      {tabs.map(([value]) => <TabsContent key={value} value={value} className="space-y-4">
+        {tab === value && <>
+          {tab === 'hiring-trends' && <div className="max-w-xs"><Select label="Độ chi tiết thời gian" value={granularity} onChange={e => setGranularity(e.target.value as Granularity)} options={['auto', 'day', 'week', 'month'].map(v => ({ value: v, label: v }))} /></div>}
+          {tab === 'skills' && <div className="grid gap-3 sm:grid-cols-3"><Input label="Tìm kỹ năng trong bảng" value={skills.search ?? ''} maxLength={80} onChange={e => setSkills(s => ({ ...s, search: e.target.value }))} /><Select label="Nhóm kỹ năng" value={skills.skill_category ?? ''} options={[{ value: '', label: 'Tất cả' }, ...['LANGUAGE', 'FRAMEWORK', 'DATABASE', 'CLOUD', 'TOOL', 'CONCEPT', 'OTHER'].map(v => ({ value: v, label: v }))]} onChange={e => setSkills(s => ({ ...s, skill_category: e.target.value }))} /><Select label="Số kỹ năng tối đa" value={String(skills.limit ?? 25)} options={[10, 25, 50, 100].map(n => ({ value: String(n), label: String(n) }))} onChange={e => setSkills(s => ({ ...s, limit: Number(e.target.value) }))} /></div>}
+          {!invalidDates && renderTab()}
+        </>}
+      </TabsContent>)}
+    </Tabs>
+  </div>;
 }
-
-function Empty() { return <div className="rounded-lg border border-dashed border-border p-5 text-center text-xs text-text-secondary">Chưa có dữ liệu aggregate.</div>; }
-function formatSalary(value: number | null) { return value == null ? '—' : `${value.toLocaleString('vi-VN')} đ`; }
+function MarketView<K extends MarketTab>({ tab, query, revision, children }: { tab: K; query: MarketQuery; revision: number; children: (data: MarketResponses[K]) => ReactNode }) {
+  const [retry, setRetry] = useState(0);
+  const key = `${tab}:${revision}:${retry}:${JSON.stringify(query)}`;
+  const state = useMarketQuery(key, signal => getMarketTab(tab, query, signal));
+  if (state.error) return <Card className="space-y-3 p-5" role="alert"><p className="text-sm text-danger-700">{state.error}</p><Button variant="outline" size="sm" onClick={() => setRetry(r => r + 1)}>Thử lại</Button></Card>;
+  if (!state.data) return <p role="status" className="p-5 text-sm text-text-secondary">Đang tải dữ liệu thị trường…</p>;
+  return <>{children(state.data)}<Notice meta={state.data.meta} /></>;
+}

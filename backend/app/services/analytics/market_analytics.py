@@ -1,4 +1,4 @@
-from collections import Counter
+from app.services.analytics.stats import native_midpoint
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.job import Job, JobSkill, JobStatusEnum, RawJob, Skill
@@ -23,11 +23,22 @@ async def get_market_analytics(db: AsyncSession) -> dict:
     )
     top_skills = [{"skill": skill, "jobs": count} for skill, count in skill_rows]
 
+    # Legacy shape keeps average_max semantics; only valid native VND ranges
+    # participate, never a mixed USD/VND aggregate.
     salary = await db.execute(
-        select(func.min(Job.min_salary), func.avg(Job.max_salary), func.max(Job.max_salary))
-        .where(Job.status == JobStatusEnum.ACTIVE, Job.max_salary.is_not(None))
+        select(Job.min_salary, Job.max_salary)
+        .where(
+            Job.status == JobStatusEnum.ACTIVE,
+            func.upper(func.trim(Job.salary_currency)) == "VND",
+            Job.max_salary.is_not(None),
+        )
     )
-    minimum, average, maximum = salary.one()
+    valid = [(low, high) for low, high in salary.all() if native_midpoint(low, high) is not None]
+    lows = [low for low, _ in valid if low is not None]
+    highs = [high for _, high in valid]
+    minimum = min(lows) if lows else None
+    average = sum(highs) / len(highs) if highs else None
+    maximum = max(highs) if highs else None
     return {
         "total_active_jobs": active,
         "total_expired_jobs": expired,

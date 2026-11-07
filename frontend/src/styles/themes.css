@@ -214,66 +214,65 @@ html:not(.theme-transitions) *::after {
 [data-theme='glass-dark'] {
   color-scheme: dark;
 
-  /* canvas */
-  --bg-rgb: 8 18 30;
+  /* canvas — Dracula-inspired charcoal */
+  --bg-rgb: 40 42 54;
   --bg: rgb(var(--bg-rgb));
 
-  /* surfaces — dark glass panels read as near-solid so dialogs, toasts,
-     tables and form fields stay legible over any background. */
-  --surface-rgb: 18 32 46;
-  --surface-alpha: 0.9;
+  /* surfaces — translucent Dracula slate, retaining the glass layering. */
+  --surface-rgb: 68 71 90;
+  --surface-alpha: 0.94;
   --surface: rgb(var(--surface-rgb) / var(--surface-alpha));
-  --surface-solid-rgb: 18 32 46;
+  --surface-solid-rgb: 68 71 90;
 
-  --surface-2-rgb: 255 255 255;
+  --surface-2-rgb: 248 248 242;
   --surface-2-alpha: 0.045;
   --surface-2: rgb(var(--surface-2-rgb) / var(--surface-2-alpha));
 
-  --surface-muted-rgb: 255 255 255;
+  --surface-muted-rgb: 248 248 242;
   --surface-muted-alpha: 0.1;
 
   /* lines — light hairlines read as glass edges on dark */
-  --line-rgb: 255 255 255;
-  --line-alpha: 0.14;
+  --line-rgb: 248 248 242;
+  --line-alpha: 0.16;
   --line: rgb(var(--line-rgb) / var(--line-alpha));
-  --line-subtle-rgb: 34 50 66;
-  --line-strong-rgb: 58 80 100;
+  --line-subtle-rgb: 68 71 90;
+  --line-strong-rgb: 98 101 120;
 
   /* text */
-  --text-rgb: 232 243 248;
+  --text-rgb: 248 248 242;
   --text: rgb(var(--text-rgb));
-  --text-secondary-rgb: 178 200 210;
-  --text-muted-rgb: 139 166 179;
+  --text-secondary-rgb: 220 220 214;
+  --text-muted-rgb: 189 189 185;
 
-  /* primary — glass azure, lifted for AA on dark surfaces */
-  --primary-rgb: 84 178 214;
+  /* primary — Dracula cyan for links; buttons use a deeper gradient below. */
+  --primary-rgb: 139 233 253;
   --primary: rgb(var(--primary-rgb));
-  --primary-hover-rgb: 112 199 231;
-  --primary-50-rgb: 10 32 43;
-  --primary-100-rgb: 14 43 57;
-  --primary-200-rgb: 20 57 75;
-  --primary-300-rgb: 28 76 99;
-  --primary-400-rgb: 44 110 141;
-  --primary-500-rgb: 60 146 180;
-  --primary-600-rgb: 84 178 214;
-  --primary-700-rgb: 122 205 233;
-  --primary-800-rgb: 160 223 243;
-  --primary-900-rgb: 200 240 250;
+  --primary-hover-rgb: 158 238 255;
+  --primary-50-rgb: 40 42 54;
+  --primary-100-rgb: 50 53 68;
+  --primary-200-rgb: 58 61 77;
+  --primary-300-rgb: 68 71 90;
+  --primary-400-rgb: 85 89 110;
+  --primary-500-rgb: 108 112 130;
+  --primary-600-rgb: 139 233 253;
+  --primary-700-rgb: 164 239 255;
+  --primary-800-rgb: 194 244 255;
+  --primary-900-rgb: 224 250 255;
 
   /* accent scales — same inversion rule: *-50 is the deepest tint */
-  --violet-rgb: 165 143 245;
-  --violet-50-rgb: 25 22 45;
-  --violet-100-rgb: 34 29 60;
-  --violet-200-rgb: 46 40 80;
-  --violet-500-rgb: 165 143 245;
-  --violet-600-rgb: 186 168 250;
-  --violet-700-rgb: 206 192 252;
+  --violet-rgb: 206 166 255;
+  --violet-50-rgb: 45 38 61;
+  --violet-100-rgb: 58 48 78;
+  --violet-200-rgb: 77 62 101;
+  --violet-500-rgb: 206 166 255;
+  --violet-600-rgb: 205 170 252;
+  --violet-700-rgb: 221 195 255;
 
-  --cyan-rgb: 96 214 232;
-  --cyan-50-rgb: 9 37 45;
-  --cyan-100-rgb: 13 51 61;
-  --cyan-500-rgb: 96 214 232;
-  --cyan-600-rgb: 132 228 243;
+  --cyan-rgb: 139 233 253;
+  --cyan-50-rgb: 37 48 61;
+  --cyan-100-rgb: 46 59 74;
+  --cyan-500-rgb: 139 233 253;
+  --cyan-600-rgb: 164 239 255;
 
   --green-rgb: 60 214 160;
 
@@ -299,10 +298,10 @@ html:not(.theme-transitions) *::after {
   --critical-50-rgb: 59 17 24;
   --critical-800-rgb: 255 132 138;
 
-  --overlay-rgb: 2 8 16;
-  --scrim: rgba(2, 8, 16, 0.72);
-  --code-bg: #071c27;
-  --code-text: #dcf3fa;
+  --overlay-rgb: 24 25 34;
+  --scrim: rgba(24, 25, 34, 0.72);
+  --code-bg: #282a36;
+  --code-text: #f8f8f2;
 
   /* geometry — identical in both modes */
   --radius-xs: 6px;
@@ -320,16 +319,16 @@ html:not(.theme-transitions) *::after {
   --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 26px rgba(12, 120, 160, 0.35);
 
   /* page canvas decoration — the same two glass glows, deepened */
-  --page-overlay: radial-gradient(circle at 72% 12%, rgba(45, 170, 195, 0.22), transparent 30%),
-    radial-gradient(circle at 30% 92%, rgba(120, 96, 210, 0.2), transparent 34%),
-    linear-gradient(135deg, #081521, #0a1a28 48%, #100e24);
+  --page-overlay: radial-gradient(circle at 72% 12%, rgba(139, 233, 253, 0.08), transparent 30%),
+    radial-gradient(circle at 30% 92%, rgba(189, 147, 249, 0.1), transparent 34%),
+    linear-gradient(135deg, #282a36, #2d2e40 48%, #282a36);
   --page-overlay-size: cover;
   --ambient-display: block;
-  --ambient-1-color: #2f9fbb;
-  --ambient-2-color: #7a68c9;
+  --ambient-1-color: rgba(139, 233, 253, 0.1);
+  --ambient-2-color: rgba(189, 147, 249, 0.12);
 
   /* shell surfaces */
-  --sidebar-bg: rgba(9, 22, 33, 0.66);
+  --sidebar-bg: rgba(40, 42, 54, 0.86);
   --sidebar-border: rgba(255, 255, 255, 0.14);
   --sidebar-blur: none;
   --sidebar-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -337,39 +336,39 @@ html:not(.theme-transitions) *::after {
   --sidebar-margin: 12px 0 12px 12px;
   --sidebar-height: calc(100vh - 24px);
 
-  --topbar-bg: rgba(9, 22, 33, 0.55);
+  --topbar-bg: rgba(40, 42, 54, 0.86);
   --topbar-border: rgba(255, 255, 255, 0.12);
   --topbar-blur: none;
 
   --nav-hover-bg: rgba(255, 255, 255, 0.06);
-  --nav-active-bg: rgba(84, 178, 214, 0.16);
-  --nav-active-color: #8fd3ea;
+  --nav-active-bg: rgba(139, 233, 253, 0.13);
+  --nav-active-color: #8be9fd;
   --nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.25);
   --nav-active-text-shadow: none;
 
-  /* brand + primary button — the signature glass gradients are unchanged */
-  --brand-bg: linear-gradient(145deg, #05a7c0, #7b7dea);
+  /* brand + primary button — deeper gradient keeps white labels readable. */
+  --brand-bg: linear-gradient(145deg, #8be9fd, #bd93f9);
   --brand-radius: 50%;
-  --brand-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 10px 22px rgba(10, 120, 150, 0.4);
+  --brand-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 10px 22px rgba(24, 25, 34, 0.4);
 
-  --btn-primary-bg: linear-gradient(135deg, #0d91bd, #5d86de);
-  --btn-primary-hover-bg: linear-gradient(135deg, #0b81a8, #4f78d0);
-  --btn-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 26px rgba(12, 120, 160, 0.35);
+  --btn-primary-bg: linear-gradient(135deg, #245c70, #664594);
+  --btn-primary-hover-bg: linear-gradient(135deg, #1e5062, #593b82);
+  --btn-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 26px rgba(24, 25, 34, 0.35);
 
   /* cards */
-  --card-bg: linear-gradient(160deg, rgba(20, 40, 55, 0.82), rgba(12, 27, 40, 0.66));
+  --card-bg: linear-gradient(160deg, rgba(68, 71, 90, 0.94), rgba(55, 57, 73, 0.9));
   --card-border: rgba(255, 255, 255, 0.14);
   --card-blur: none;
   --hero-blur: none;
-  --hero-bg: radial-gradient(circle at 12% 0, rgba(84, 178, 214, 0.16), transparent 46%),
-    linear-gradient(140deg, rgba(22, 44, 60, 0.72), rgba(12, 28, 42, 0.5));
-  --stat-accent-color: rgba(96, 214, 232, 0.14);
+  --hero-bg: radial-gradient(circle at 12% 0, rgba(139, 233, 253, 0.1), transparent 46%),
+    linear-gradient(140deg, rgba(68, 71, 90, 0.94), rgba(55, 57, 73, 0.9));
+  --stat-accent-color: rgba(139, 233, 253, 0.2);
   --company-logo-radius: 12px;
   --company-logo-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  --kanban-col-bg: rgba(10, 24, 36, 0.55);
-  --profile-cover-bg: linear-gradient(135deg, #087fba, #8a6ee8);
+  --kanban-col-bg: rgba(68, 71, 90, 0.7);
+  --profile-cover-bg: linear-gradient(135deg, #245c70, #664594);
 
-  --focus-ring: rgb(84 178 214 / 0.5);
+  --focus-ring: rgb(139 233 253 / 0.6);
   --chart-glow: none;
   --line-glow: none;
 
@@ -668,7 +667,7 @@ html:not(.theme-transitions) *::after {
     background: rgba(244, 251, 252, 0.94);
   }
   [data-theme='glass-dark'] .app-sidebar {
-    background: rgba(10, 24, 36, 0.94);
+    background: rgba(40, 42, 54, 0.96);
   }
 }
 
@@ -702,13 +701,13 @@ html:not(.theme-transitions) *::after {
     background: #fbfefe;
   }
   [data-theme='glass-dark'] .app-sidebar {
-    background: #0b1a26;
+    background: #282a36;
   }
   [data-theme='glass-dark'] .app-topbar {
-    background: #0a1824;
+    background: #282a36;
   }
   [data-theme='glass-dark'] .app-card,
   [data-theme='glass-dark'] .app-hero-card {
-    background: #12232f;
+    background: #44475a;
   }
 }

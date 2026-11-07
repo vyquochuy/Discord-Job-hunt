@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Optional
-from pydantic import field_validator, ValidationInfo
+from pydantic import Field, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     DETAIL_FETCH_TIMEOUT: float = 10.0       # Timeout cho từng lần fetch detail (giây)
     DETAIL_FETCH_MAX_ATTEMPTS: int = 2       # Số lần retry (backoff 1.5s/3s)
     DETAIL_FETCH_MAX_PER_RUN: int = 20       # Trần số detail fetch cho 1 lần chạy nguồn
+
+    # Market Analytics (Phase 9.4)
+    # Tỷ giá quy đổi USD -> VND chỉ dùng cho thống kê lương; mọi giá trị quy đổi
+    # đều được đánh dấu "estimated" trong API/UI. Có thể override bằng env.
+    MARKET_USD_TO_VND: float = Field(default=26000.0, gt=0, allow_inf_nan=False)
+    MARKET_MIN_SAMPLE: int = 5               # Ngưỡng mẫu tối thiểu cho 1 nhóm chỉ số
+    MARKET_SALARY_MIN_SAMPLE: int = 10       # Ngưỡng mẫu tối thiểu cho thống kê lương
 
 
 

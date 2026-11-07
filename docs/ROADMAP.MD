@@ -260,6 +260,12 @@
 
 ---
 
+### Phase 9.4 — Vietnam IT Market Analytics
+
+**Status:** IN PROGRESS — implementation and verification tracked in `tasks/IN_PROGRESS.md`.
+
+Eight in-page tabs reuse shared job data, deterministic aggregates and Liquid Glass tokens. No generated history, salary values or forecasts. Methodology, limitations and runnable checks: [MARKET_ANALYTICS.md](MARKET_ANALYTICS.md).
+
 ## Phase 10 — Train Model LLM Chuyên Biệt Cho Viết CV & Cover Letter
 
 **Status:** PLANNED (Backlog)

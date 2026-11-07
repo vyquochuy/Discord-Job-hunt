@@ -53,6 +53,43 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
   - **Contrast**: 28/28 cặp trong phạm vi ≥ 4.5:1 (dark card muted 5.80, sidebar muted 6.03, dialog muted 6.16, nav active 6.97, chips 8.69–10.94). Ghi nhận ngoài phạm vi: chữ trắng trên gradient nút primary = 3.54:1 — gradient Figma có sẵn, giống nhau ở cả 2 mode, không tự ý đổi.
   - **CSS giảm 53.4 → 49.2 kB** dù thêm dark mode, nhờ xoá 2 bộ token. `npm run build` xanh (1697 modules, CSS 49.23 kB / JS 397.67 kB).
 
+## Phase 9.4 — Vietnam IT Labor Market Analytics Platform (IN PROGRESS)
+
+**Goal:** mở rộng module Market Intelligence thành 8 tab phân tích thị trường IT Việt Nam trên dữ liệu aggregate thật từ PostgreSQL, không tạo nguồn dữ liệu song song và không bịa số liệu.
+
+**Backend**
+- `backend/app/services/analytics/` tách thành lõi dùng chung: `MarketFilters` + `JobFact` loader, taxonomy suy ra (category/region/role family), percentile/FX/coverage, time buckets.
+- Module mới: `overview`, `hiring_trends`, `salary_intelligence`, `skills_intelligence`, `role_intelligence`, `geography_intelligence`, `employer_intelligence`, `insight_engine`, `catalog`.
+- Endpoints `/api/v1/market`: `filters`, `overview`, `hiring-trends`, `salaries`, `skills`, `roles`, `geography`, `employers`, `insights`; giữ `/analytics` tương thích.
+- Mọi response có `meta` (`sample_size`, `total_jobs`, `coverage`, `status`, `notes`) để phân biệt `ok` / `insufficient` / `empty` / `unavailable`.
+- Loại `MERGED`; mặc định `ACTIVE`, tùy chọn gồm `EXPIRED`. Hoãn index/migration cho đến khi profiling trên dữ liệu lớn chứng minh cần thiết (~1.500 tin hiện tại).
+
+**Frontend**
+- `MarketPage.tsx` thành shell: PageHeader + filter bar dùng chung + 8 tab + nội dung tab.
+- `frontend/src/pages/market/` chứa 8 tab module; `frontend/src/components/market/` chứa chart SVG thuần (line/area, bar, histogram, donut, sparkline, heatmap), status/coverage notice, stat card.
+- Hook `useMarketQuery` có abort + cache state; tab không active unmount; filter/drill-down dùng chung.
+- Thứ tự triển khai: Hiring Trends → Salary → Skills → Overview → Roles → Geography → Employers → Insights.
+
+**Verification so far (2026-11-07)**
+- Backend isolated market + health + job-model + normalizer checks: 24 passed; no external AI calls.
+- Frontend: all 8 tabs implemented in existing Market route; `npm run build` passed (1700 modules), `node scripts/check-market.mjs` passed (API encoding/abort options + eight empty-state panels).
+- No new dependencies, migrations or polling. Cache deferred; requests are abortable and stale-response guarded. Browser visual/interaction QA remains a release follow-up.
+- Read-only configured PostgreSQL smoke: 9 new endpoints returned 200 over 1,505 active records; salaries correctly `insufficient`.
+- Invalid salary regression RED: 5 failures (NaN/infinity/negative/reversed/zero) → GREEN after validation.
+- Methodology and reproducible checks: `docs/MARKET_ANALYTICS.md`.
+- Full-suite coverage and visual browser verification are not yet claimed.
+
+**Market UI refinement (2026-11-07)**
+- Dark mode: Dracula-inspired charcoal/slate with cyan/violet accents; light mode and zero-blur performance budget preserved.
+- Shared filters condensed to dates/category/location; advanced filters remain accessible and active filters removable. Tab names localized.
+- KPI hierarchy and concise expandable methodology updated; line chart with axes/peak, salary histogram and source donut supplement ranking bars. `npm run build` and `node scripts/check-market.mjs` passed (empty/populated charts, zero bins, true donut proportions). Browser visual QA still pending.
+
+**Data honesty rules**
+- Lương chỉ thống kê trên tin có `salary_currency` VND/USD; USD quy đổi VND theo `MARKET_USD_TO_VND` và gắn nhãn `estimated`.
+- Category/vùng là suy ra từ `normalized_title` / `normalized_location`, gắn nhãn derived.
+- Phát hiện spike `posted_at` (bulk backfill) và hiển thị caveat, không làm mượt.
+- Insights là quan sát tất định, không phải dự báo; không dùng LLM sinh số.
+
 ## Relevant Files
 - `backend/app/api/v1/endpoints/resumes.py` (Vá BOLA PDF & Query Token Auth)
 - `backend/app/api/v1/endpoints/auth.py` & `backend/app/repositories/candidate.py` (Vá Candidate Stealing & Race Condition)
