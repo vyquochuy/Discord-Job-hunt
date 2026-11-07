@@ -32,6 +32,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [theme]);
 
+  // PERF: enable colour transitions only after the first paint. Otherwise the
+  // initial `background-color` transition animates a full-page repaint on every
+  // load (a brief fade from the browser default to the theme canvas).
+  useEffect(() => {
+    const root = document.documentElement;
+    const id = window.requestAnimationFrame(() => root.classList.add('theme-transitions'));
+    return () => {
+      window.cancelAnimationFrame(id);
+      root.classList.remove('theme-transitions');
+    };
+  }, []);
+
   // Follow the OS preference only while the user has not picked a theme yet.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;

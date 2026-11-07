@@ -492,7 +492,7 @@ export const ResumePage: React.FC<ResumePageProps> = ({
                 key={item.id}
                 hoverable
                 onClick={() => onSelectResumeId(item.id)}
-                className="p-4 sm:p-5 flex flex-col justify-between cursor-pointer transition-all"
+                className="p-4 sm:p-5 flex flex-col justify-between cursor-pointer transition-[border-color,background-color]"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">

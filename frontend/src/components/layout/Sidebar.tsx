@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        'app-sidebar reference-sidebar h-full bg-surface border-r border-border flex flex-col justify-between select-none transition-all duration-200',
+        'app-sidebar reference-sidebar h-full bg-surface border-r border-border flex flex-col justify-between select-none transition-[width] duration-200',
         collapsed ? 'w-[68px]' : 'w-[252px]',
         className
       )}

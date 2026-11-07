@@ -132,7 +132,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = ({
                 key={rec.job_id}
                 hoverable
                 onClick={() => onOpenJobDetail(rec.job_id)}
-                className="p-4 sm:p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all"
+                className="p-4 sm:p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-[border-color,background-color]"
               >
                 <div className="flex items-start gap-3.5 min-w-0 flex-1">
                   {/* Rank badge */}

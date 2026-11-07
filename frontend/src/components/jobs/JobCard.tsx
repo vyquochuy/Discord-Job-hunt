@@ -12,7 +12,7 @@ export interface JobCardProps {
   className?: string;
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail, className }) => {
+export const JobCard = React.memo(function JobCard({ job, matchScore, onOpenDetail, className }: JobCardProps) {
   const monogram = getCompanyMonogram(job.company_name);
   const sourceInfo = getSourceBadgeInfo(job.source);
 
@@ -25,7 +25,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
     <Card
       hoverable
       onClick={() => onOpenDetail(job.id)}
-      className={`p-4 sm:p-5 flex flex-col justify-between cursor-pointer transition-all ${className || ''}`}
+      className={`p-4 sm:p-5 flex flex-col justify-between cursor-pointer ${className || ''}`}
     >
       <div>
         {/* Header: Company Avatar & Title & Source */}
@@ -123,4 +123,5 @@ export const JobCard: React.FC<JobCardProps> = ({ job, matchScore, onOpenDetail,
       </div>
     </Card>
   );
-};
+});
+JobCard.displayName = 'JobCard';

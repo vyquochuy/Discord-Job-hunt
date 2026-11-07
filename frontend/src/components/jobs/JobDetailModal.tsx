@@ -267,7 +267,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                             </div>
                             <div className="h-1.5 w-full bg-surface-muted rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-primary rounded-full transition-all duration-300"
+                                className="h-full bg-primary rounded-full transition-[width] duration-300"
                                 style={{ width: `${percent}%` }}
                               />
                             </div>

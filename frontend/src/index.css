@@ -17,7 +17,6 @@
     background: var(--bg);
     color: rgb(var(--text-rgb));
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.35s ease, color 0.35s ease;
   }

@@ -298,7 +298,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   key={rec.job_id}
                   hoverable
                   onClick={() => onOpenJobDetail(rec.job_id)}
-                  className="p-4 sm:p-4.5 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 transition-all"
+                  className="p-4 sm:p-4.5 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 transition-[border-color,background-color]"
                 >
                   <div className="flex items-start gap-3.5 min-w-0 flex-1">
                     <div className="app-company-logo w-10 h-10 rounded-lg bg-surface-muted text-text-secondary font-bold text-xs flex items-center justify-center flex-shrink-0 border border-border mt-0.5">

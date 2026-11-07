@@ -51,7 +51,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <div
               key={toast.id}
               className={cn(
-                'pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-elevated text-sm transition-all transform duration-200 animate-in fade-in slide-in-from-bottom-2',
+                'pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-elevated text-sm transition-[transform,opacity] duration-200 animate-in fade-in slide-in-from-bottom-2',
                 isSuccess && 'bg-surface border-success-200 text-text-primary',
                 isError && 'bg-surface border-danger-200 text-text-primary',
                 isWarning && 'bg-surface border-warning-200 text-text-primary',

@@ -7,7 +7,22 @@
    Source of truth: frontendv2/Redesign/src/index.css (Figma Make).
    All three themes share the same DOM, layout, content and business logic.
    Themes differ only through these tokens + component treatment classes.
+
+   PERF (ADR-014): backdrop-filter is a budgeted resource. It is banned on
+   repeated data surfaces (cards, rows, kanban columns) and on the sidebar /
+   topbar / hero, which sit over an already-smooth static gradient. Live blur
+   survives only on dialog/sheet scrims. The glass read comes from translucency
+   + a light border + an inset highlight.
    ========================================================================== */
+
+/* PERF: no transitions during the very first paint. Without this gate the
+   initial background/colour transition animates a full-page repaint on every
+   load. `ThemeContext` adds `.theme-transitions` on the first animation frame. */
+html:not(.theme-transitions) *,
+html:not(.theme-transitions) *::before,
+html:not(.theme-transitions) *::after {
+  transition: none !important;
+}
 
 /* --------------------------------------------------------------------------
    1. THEME A — MODERN ENTERPRISE
@@ -140,7 +155,7 @@
   /* topbar */
   --topbar-bg: rgba(255, 255, 255, 0.95);
   --topbar-border: #e7ebf0;
-  --topbar-blur: blur(18px);
+  --topbar-blur: none;
 
   /* nav */
   --nav-hover-bg: #f8fafc;
@@ -163,6 +178,7 @@
   --card-bg: #ffffff;
   --card-border: #e7ebf0;
   --card-blur: none;
+  --hero-blur: none;
   --hero-bg: #ffffff;
   --stat-accent-color: transparent;
   --company-logo-radius: 9px;
@@ -296,17 +312,20 @@
   --ambient-1-color: #6ed4e7;
   --ambient-2-color: #b8a3f5;
 
-  --sidebar-bg: rgba(244, 251, 252, 0.62);
+  /* PERF: the sidebar floats over the page gradient, which is already smooth —
+     a live backdrop-filter here cost ~20 ms/frame while changing almost nothing
+     visually. The glass read comes from translucency + border + inset highlight. */
+  --sidebar-bg: rgba(240, 250, 252, 0.66);
   --sidebar-border: rgba(255, 255, 255, 0.8);
-  --sidebar-blur: blur(26px) saturate(150%);
+  --sidebar-blur: none;
   --sidebar-shadow: 0 20px 50px rgba(35, 99, 119, 0.12), inset 0 1px 0 #ffffff;
   --sidebar-radius: 24px;
   --sidebar-margin: 12px 0 12px 12px;
   --sidebar-height: calc(100vh - 24px);
 
-  --topbar-bg: rgba(235, 248, 250, 0.42);
+  --topbar-bg: rgba(238, 249, 251, 0.55);
   --topbar-border: rgba(255, 255, 255, 0.6);
-  --topbar-blur: blur(18px);
+  --topbar-blur: none;
 
   --nav-hover-bg: rgba(255, 255, 255, 0.45);
   --nav-active-bg: rgba(7, 114, 167, 0.12);
@@ -322,9 +341,14 @@
   --btn-primary-hover-bg: linear-gradient(135deg, #0b81a8, #4f78d0);
   --btn-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(25, 134, 174, 0.2);
 
-  --card-bg: rgba(255, 255, 255, 0.64);
+  /* PERF: cards are data-heavy and numerous — no backdrop-filter here.
+     The glass read comes from the translucent sheen above + inset highlight.
+     Live blur is reserved for overlays (dialog/sheet) where content actually
+     passes behind the surface. */
+  --card-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62));
   --card-border: rgba(255, 255, 255, 0.7);
-  --card-blur: blur(20px) saturate(135%);
+  --card-blur: none;
+  --hero-blur: none;
   --hero-bg: linear-gradient(140deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.28));
   --stat-accent-color: transparent;
   --company-logo-radius: 12px;
@@ -462,7 +486,7 @@
 
   --topbar-bg: rgba(8, 13, 28, 0.84);
   --topbar-border: #202b45;
-  --topbar-blur: blur(18px);
+  --topbar-blur: none;
 
   --nav-hover-bg: rgba(255, 255, 255, 0.04);
   --nav-active-bg: linear-gradient(90deg, rgba(56, 123, 255, 0.16), rgba(8, 216, 228, 0.04));
@@ -481,6 +505,7 @@
   --card-bg: linear-gradient(145deg, #111a30, #0e1528);
   --card-border: #202b45;
   --card-blur: none;
+  --hero-blur: none;
   --hero-bg: radial-gradient(circle at 10% 0, rgba(52, 111, 255, 0.18), transparent 42%),
     linear-gradient(145deg, #111a30, #0e1528);
   --stat-accent-color: rgba(6, 216, 228, 0.12);
@@ -524,26 +549,28 @@
   display: var(--ambient-display);
   position: fixed;
   border-radius: 999px;
-  filter: blur(90px);
   pointer-events: none;
   z-index: 0;
   transition: opacity 0.35s ease;
 }
 
+/* PERF: the ambient blobs used `filter: blur(90px)` on two large fixed layers,
+   which forced the compositor to re-blur them on every scroll/repaint.
+   A radial-gradient produces the same soft falloff with zero filter cost. */
 .app-ambient--one {
-  width: 420px;
-  height: 420px;
-  background: var(--ambient-1-color);
-  right: 8%;
-  top: -190px;
+  width: 760px;
+  height: 760px;
+  background: radial-gradient(circle, var(--ambient-1-color) 0%, transparent 78%);
+  right: 2%;
+  top: -340px;
 }
 
 .app-ambient--two {
-  width: 330px;
-  height: 330px;
-  background: var(--ambient-2-color);
-  left: 28%;
-  bottom: -180px;
+  width: 640px;
+  height: 640px;
+  background: radial-gradient(circle, var(--ambient-2-color) 0%, transparent 78%);
+  left: 24%;
+  bottom: -330px;
 }
 
 /* --------------------------------------------------------------------------
@@ -622,12 +649,18 @@
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--card-blur);
   -webkit-backdrop-filter: var(--card-blur);
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease,
-    border-radius 0.3s ease, transform 0.2s ease;
+  /* PERF: only cheap paint-isolated transitions. Animating box-shadow /
+     border-radius / transform on dozens of cards re-rasterised the whole
+     card layer on every hover and theme switch. */
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  contain: paint;
 }
 
 .app-hero-card {
   background: var(--hero-bg);
+  /* The single feature surface per page keeps the full Liquid Glass treatment. */
+  backdrop-filter: var(--hero-blur);
+  -webkit-backdrop-filter: var(--hero-blur);
 }
 
 .app-stat-card {
@@ -800,5 +833,65 @@
   }
   .app-theme-switcher button {
     padding: 0 8px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. PERFORMANCE & ACCESSIBILITY FALLBACKS
+   -------------------------------------------------------------------------- */
+
+/* Sticky blurred bars over scrolling content are the most expensive surface on
+   mobile GPUs. Keep the glass look via opacity, drop the filter. */
+@media (max-width: 1023px) {
+  .app-topbar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .app-sidebar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  [data-theme='glass'] .app-sidebar {
+    background: rgba(244, 251, 252, 0.94);
+  }
+}
+
+/* Respect "reduce motion": decorative ambient layers are pure ornament. */
+@media (prefers-reduced-motion: reduce) {
+  .app-ambient {
+    display: none;
+  }
+}
+
+/* Respect "reduce transparency" where supported: fall back to solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  .app-card,
+  .app-hero-card,
+  .app-sidebar,
+  .app-topbar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  [data-theme='glass'] .app-sidebar {
+    background: #f1fafb;
+  }
+  [data-theme='glass'] .app-topbar {
+    background: #eaf6f8;
+  }
+  [data-theme='glass'] .app-card {
+    background: #fbfefe;
+  }
+  [data-theme='ai'] .app-sidebar {
+    background: #090f20;
+  }
+  [data-theme='ai'] .app-topbar {
+    background: #0a0f1e;
+  }
+  [data-theme='ai'] .app-card,
+  [data-theme='ai'] .app-hero-card {
+    background: #111a30;
+  }
+  [data-theme='enterprise'] .app-card {
+    background: #ffffff;
   }
 }
