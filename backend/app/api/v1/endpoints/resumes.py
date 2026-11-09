@@ -191,7 +191,7 @@ async def download_resume_pdf(
                 file_prefix=f"resume_{resume.job_id}",
                 candidate_id=str(resume.candidate_id),
             )
-            if new_pdf_path and os.path.exists(new_pdf_path):
+            if compile_ok and new_pdf_path and os.path.exists(new_pdf_path):
                 resume.pdf_path = new_pdf_path
                 await db.commit()
                 logger.info("Successfully recompiled PDF on-demand for resume_id=%s: %s", id, new_pdf_path)

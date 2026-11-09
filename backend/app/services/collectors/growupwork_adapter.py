@@ -1,7 +1,8 @@
 import asyncio
+import json
+import unicodedata
 import logging
 import re
-from datetime import datetime, timezone
 from typing import List
 import httpx
 from bs4 import BeautifulSoup
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 from app.models.job import JobLevelEnum, WorkModeEnum
 from app.schemas.job import JobExtractedData
 from app.services.collectors.base import BaseJobCollector, RawJobData
+from app.services.extraction.detail_fetcher import clean_html_to_text, parse_posted_datetime
 
 logger = logging.getLogger("growupwork_adapter")
 
@@ -36,12 +38,14 @@ class GrowUpWorkJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        unlimited = limit <= 0
+        max_pages = 80 if unlimited else min(25, max(1, (limit + 19) // 20))
+        seen = set()
 
         try:
             timeout_cfg = httpx.Timeout(10.0, connect=5.0)
             async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"GrowUpWork: Fetching page {page}/{max_pages} from {target_url}...")
 
@@ -51,6 +55,42 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                         break
 
                     soup = BeautifulSoup(response.text, "html.parser")
+                    component = soup.find("search-job-component")
+                    if component and component.get(":search_jobs"):
+                        data = json.loads(component[":search_jobs"])
+                        categories = json.loads(component.get(":all_job_categories", "[]"))
+                        category_names = {c["id"]: c["name"] for c in categories}
+                        def slug(value):
+                            text = unicodedata.normalize("NFKD", value.replace("đ", "d").replace("Đ", "D"))
+                            text = text.encode("ascii", "ignore").decode().lower()
+                            return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+                        before = len(results)
+                        for item in data.get("data", []):
+                            job_id = item.get("job_id")
+                            title = item.get("position")
+                            if not job_id or not title or job_id in seen:
+                                continue
+                            seen.add(job_id)
+                            category = slug(category_names.get(item.get("client_job_category_id"), "other"))
+                            url = f"{self.BASE_URL}/viec-lam/{category}/{slug(title)}-{job_id}"
+                            payload = {
+                                "title": title, "company": (item.get("client") or {}).get("company_name") or "",
+                                "location": item.get("place_of_work"), "salary_text": item.get("salary"),
+                                "description": "\n".join(str(item.get(k) or "") for k in ("job_description", "required_experience_and_skill", "welfare")),
+                                "posted_iso": item.get("release_date"), "expires_iso": item.get("finish_date"),
+                                "url": url, "skills": [],
+                            }
+                            results.append(RawJobData(
+                                source=self.source_name, source_url=url, source_job_id=str(job_id), raw_payload=payload,
+                                content_hash=self.compute_content_hash(json.dumps(item, sort_keys=True)),
+                            ))
+                            if not unlimited and len(results) >= limit:
+                                return results
+                        if len(results) == before or page >= int(data.get("last_page") or page):
+                            break
+                        page += 1
+                        await asyncio.sleep(0.35)
+                        continue
                     job_cards = soup.select(
                         ".job-item, .card-job, .job-card, div.box-job, div[class*='job-item'], div[class*='job_item']"
                     )
@@ -62,8 +102,9 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                         logger.info(f"GrowUpWork: No job cards found on page {page}.")
                         break
 
+                    before = len(results)
                     for card in job_cards:
-                        if len(results) >= limit:
+                        if not unlimited and len(results) >= limit:
                             break
 
                         # 1. Title & URL
@@ -114,6 +155,9 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                         job_id_match = re.search(r"[-/](\d+)(?:\.html|\?|$)", url)
                         source_job_id = job_id_match.group(1) if job_id_match else None
 
+                        if url in seen:
+                            continue
+                        seen.add(url)
                         results.append(
                             RawJobData(
                                 source=self.source_name,
@@ -125,93 +169,26 @@ class GrowUpWorkJobCollector(BaseJobCollector):
                             )
                         )
 
+                    if len(results) == before:
+                        break
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT/Japan jobs across {page-1} pages from GrowUpWork.com")
         except Exception as e:
             logger.error(f"Error scraping GrowUpWork: {e}", exc_info=True)
 
-        if not results:
-            logger.info("GrowUpWork: Using curated IT & Japanese market jobs fallback...")
-            results = self._get_curated_fallback_jobs(limit=limit)
-
-        return results
-
-    def _get_curated_fallback_jobs(self, limit: int = 10) -> List[RawJobData]:
-        curated = [
-            {
-                "title": "Kỹ Sư Cầu Nối (Bridge Software Engineer - BrSE) N2/N1",
-                "company": "FPT Software Japan / Tokyo Office",
-                "location": "Tokyo, Japan / Hybrid Hà Nội",
-                "url": "https://growupwork.com/tim-viec/comtor-brse",
-                "salary_text": "350,000 - 550,000 JPY/tháng",
-                "skills": ["Java", "Spring Boot", "AWS", "Japanese N2", "BrSE"],
-                "description": "Làm việc trực tiếp với khách hàng Nhật Bản, phân tích yêu cầu SRS, điều phối tiến độ offshore team Việt Nam và review code hệ thống Cloud Enterprise.",
-            },
-            {
-                "title": "Senior Fullstack Developer (NodeJS / ReactJS) - Tiếng Nhật N3",
-                "company": "Rikkei Japan Technology",
-                "location": "Hà Nội / Onsite Tokyo",
-                "url": "https://growupwork.com/tim-viec/lap-trinh-web",
-                "salary_text": "1,800 - 3,000 USD/tháng",
-                "skills": ["Node.js", "ReactJS", "TypeScript", "PostgreSQL", "Japanese N3"],
-                "description": "Tham gia phát triển hệ thống e-Commerce và FinTech quy mô lớn phục vụ thị trường Nhật Bản. Làm việc cùng các kỹ sư cao cấp Nhật Bản.",
-            },
-            {
-                "title": "IT Communicator / Comtor (Tiếng Nhật N1/N2)",
-                "company": "VTI Japan Group",
-                "location": "Đà Nẵng / Hồ Chí Minh",
-                "url": "https://growupwork.com/tim-viec/comtor-bse",
-                "salary_text": "1,200 - 2,200 USD/tháng",
-                "skills": ["Japanese N1", "Japanese N2", "IT Comtor", "Translation", "Scrum"],
-                "description": "Biên dịch tài liệu kỹ thuật dự án phần mềm, thông dịch các cuộc họp kỹ thuật Sprint planning giữa Khách hàng Nhật và Development team.",
-            },
-            {
-                "title": "DevOps / Cloud Engineer (AWS / Terraform) - Dự án Nhật Bản",
-                "company": "CMC Global Japan Division",
-                "location": "Hồ Chí Minh / Remote",
-                "url": "https://growupwork.com/tim-viec/viec-lam-tai-japan",
-                "salary_text": "2,000 - 3,500 USD/tháng",
-                "skills": ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD"],
-                "description": "Thiết kế hạ tầng Multi-region AWS Cloud, tối ưu hóa chi phí và bảo mật hệ thống cho các đối tác ngân hàng và tài chính Nhật Bản.",
-            },
-            {
-                "title": "Embedded Software Engineer (C/C++ / Automotive)",
-                "company": "Sun* Inc Vietnam (Sun Asterisk)",
-                "location": "Hà Nội",
-                "url": "https://growupwork.com/tim-viec/ky-su-it",
-                "salary_text": "1,500 - 2,800 USD/tháng",
-                "skills": ["C", "C++", "Embedded Linux", "RTOS", "Automotive"],
-                "description": "Phát triển phần mềm nhúng ECU cho các hãng xe hàng đầu Nhật Bản, tuân thủ tiêu chuẩn an toàn AUTOSAR và ISO 26262.",
-            },
-        ]
-        results = []
-        for idx, item in enumerate(curated[:limit], 1):
-            content_hash = self.compute_content_hash(f"{item['title']}|{item['company']}|{item['location']}|{item['url']}")
-            slug_id = re.sub(r"[^a-zA-Z0-9]+", "-", item["title"].lower()).strip("-")
-            source_job_id = f"growupwork-curated-{slug_id[:40]}-{idx}"
-            results.append(
-                RawJobData(
-                    source=self.source_name,
-                    source_url=item["url"],
-                    source_job_id=source_job_id,
-                    raw_payload=item,
-                    raw_html=f"<div><h1>{item['title']}</h1><p>{item['description']}</p></div>",
-                    content_hash=content_hash,
-                )
-            )
         return results
 
     async def parse_raw(self, raw: RawJobData) -> JobExtractedData:
         payload = raw.raw_payload or {}
 
-        desc = ""
-        if raw.raw_html:
+        desc = clean_html_to_text(str(payload.get("description") or ""))
+        if not desc and raw.raw_html:
             desc = BeautifulSoup(raw.raw_html, "html.parser").get_text(separator=" ").strip()
             desc = " ".join(desc.split())
-        else:
+        if not desc:
             desc = f"{payload.get('title', '')} tại {payload.get('company', '')}"
 
         title_lower = (payload.get("title") or "").lower()
@@ -231,5 +208,6 @@ class GrowUpWorkJobCollector(BaseJobCollector):
             description=desc,
             skills_required=payload.get("skills", []),
             skills_nice_to_have=[],
-            posted_at=datetime.now(timezone.utc),
+            posted_at=parse_posted_datetime(payload.get("posted_iso")),
+            expires_at=parse_posted_datetime(payload.get("expires_iso")),
         )

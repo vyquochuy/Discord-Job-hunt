@@ -80,7 +80,9 @@
 
 **Reason:** Applications are high-stakes, irreversible actions. Automated submission risks sending incorrect, incomplete, or unwanted applications. The cost of a bad application is higher than the cost of a manual click.
 
-**Consequences:** No fully automated blind apply pipeline. System prepares and presents on the Web — user decides and triggers submission.
+**Consequences:** No fully automated blind apply pipeline. System prepares and presents on the Web; explicit approval is a necessary condition for any future transport, not evidence that submission is implemented.
+
+**Implementation clarification (2026-11-09):** Preparation defaults to simulation/READY. Actual submission transport is not implemented (501); manual status updates record externally submitted applications.
 
 ---
 

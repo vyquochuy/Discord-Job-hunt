@@ -5,7 +5,7 @@
 ```mermaid
 graph TD
     subgraph Presentation ["Presentation Layer"]
-        WEB["Web Application<br/>Simple Blue Theme"]
+        WEB["React / TypeScript SPA<br/>Liquid Glass light/dark"]
         DISCORD["Discord Bot (Adapter)<br/>Deprecated Commands & Notifications"]
     end
 
@@ -84,15 +84,18 @@ graph TD
 ### 3.1 Web Application (`frontend/`)
 
 - **Role**: Primary user interface.
-- **Architecture**: Modular ES6 Single Page Application (SPA) without monolithic files:
-  - `core/`: Reactive state store (`store.js`), Hash-based router (`router.js`) with auth navigation guards, Decoupled event bus (`events.js`).
-  - `api/`: Domain-specific API services (`client.js`, `auth.api.js`, `jobs.api.js`, `matches.api.js`, `profile.api.js`, `resume.api.js`, `applications.api.js`, `system.api.js`).
-  - `pages/`: Independent page controllers and view renderers (`dashboard/`, `jobs/`, `profile/`, `recommendations/`, `resume/`, `applications/`, `system/`).
-  - `components/`: Reusable UI elements (`common/` navbar, modal, toast; `jobs/` job cards, filter bars).
+- **Architecture**: React 18 / TypeScript / Vite SPA in `frontend/src/`:
+  - `App.tsx`: HTML5 History navigation across Dashboard, Jobs, Market, Recommendations, Resume, Applications, Profile and System.
+  - `api/`: Typed REST client and domain API modules; read-only bounded retries, never automatic mutation retries.
+  - `context/` and `theme/`: Auth, toast and appearance providers.
+  - `pages/` and `components/`: Typed React views and shared UI.
+  - `styles/themes.css`: Semantic Liquid Glass light/dark tokens.
+- **Historical context**: The ES6 hash-router/controller app and Simple Blue design preceded React; `frontend/js`, `frontend/css`, and `frontend/legacy` are removed. `frontendv2/Redesign` is reference source, not the running app.
+- **Serving**: FastAPI serves only generated `frontend/dist`; without a build it remains API-only. Compose runs `frontend-build` (`npm ci && npm run build`) before backend startup. Rebuild UI with `docker compose run --rm frontend-build`, then `docker compose restart backend`. Static CDN hosting is an alternative configuration, not a verified deployment claim.
 - **Access Control & RBAC**:
   - **Guest Mode**: Unauthenticated public users can freely browse, search, and inspect jobs without 401 barriers.
   - **Protected Actions**: Saving jobs, matching, profile editing, resume tailoring, and application tracking require login and trigger modal authentication seamlessly.
-- **Design Characteristics**: Clean, professional, responsive, information-dense, Simple Blue design system (`--primary: #2563eb`).
+- **Design Characteristics**: Information-dense Liquid Glass with light/dark appearance, semantic tokens and reduced-motion/transparency support.
 
 ### 3.2 Backend API & Domain Core (`backend/`)
 
@@ -109,7 +112,7 @@ graph TD
       - `fact_graph.py`: Fact graph and EvidenceRegistry extracting atomic facts with canonical tools and metrics.
       - `jd_capability_analyzer.py`: JD capability extraction and candidate gap analysis.
       - `resume_intelligence.py`: Strategic positioning, MMR project selection, and layout budgeting.
-      - `gemini_resume_writer.py`: Semantic resume writer with model cascading (`gemini-3.7-flash` -> `gemini-3.6-flash` -> `gemini-flash-latest`) and exponential backoff retry.
+      - `gemini_resume_writer.py`: Semantic resume writer using `GEMINI_MODEL` (default `gemini-flash-latest`), a code-defined fallback cascade and bounded transient retries. See `AI_SYSTEM.MD` for exact current order; attempted provider model names are not availability guarantees.
       - `deterministic_composer.py`: 100% offline deterministic composer fallback.
       - `evidence_validator.py`: `ClaimLevelValidator` (6-stage claim checking) & `UnitRegenerationOrchestrator` (locked-unit selective regeneration).
       - `provenance_verifier.py`: Quantitative claim-level provenance verification.
@@ -119,11 +122,15 @@ graph TD
     - `ingestion_pipeline.py` & `deduplication/`: Multi-source collection, SHA-256 hash caching, 3-tier deduplication.
     - `notifications/`: `NotificationService` and notification provider abstractions.
 
+- **Resume access**: `/api/v1/resumes/{id}/pdf` requires authenticated ownership checks (with existing superuser override), using Bearer or supported iframe query token. UUIDs are not public capabilities. Missing PDFs recompile from PostgreSQL `latex_source` only after authorization; the compiler requires a readable exactly-one-page PDF.
+- **Application safety**: Preparation defaults to simulation and creates READY, not SENT. Real submission (`simulate_only=false`) returns 501 until a transport exists. Manual status changes track externally sent applications; they are not delivery receipts.
+- **Sources**: Current collectors are ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi, GrowUpWork, Remotive, Upwork and Mock. Saramin replaces historical TopDev (migration `009_rename_topdev_saramin`); legacy source aliases may remain. Market SQL restricts to the seven regional sources plus legacy TopDev and excludes synthetic `growupwork-curated-*` rows, Remotive, Upwork, manual and mock. Blocked sources are reported, never bypassed.
+
 ### 3.3 Background Workers (`backend/app/worker.py` & `daily_runner.py`)
 
 - **Role**: Autonomous job scanning, taxonomy sync, batch scoring, and daily notification dispatch.
 - **Modes**:
-  - `--daily-batch`: Executes full daily scan (Sync context -> Ingest jobs with 0 LLM cost -> Batch match -> Rank top jobs -> Emit notification summary).
+  - `--daily-batch`: Executes full daily scan (Sync context -> Ingest jobs -> Batch match -> Rank top jobs -> Emit notification summary; matching/tailoring is skipped if no candidate exists).
   - `--run-once`: Single collection cycle.
   - Daemon mode: Periodic collection loop.
 
@@ -131,7 +138,7 @@ graph TD
 
 - **Role**: Supplementary notification receiver and legacy command adapter.
 - **Behavior**:
-  - Receives alerts (High match alerts, Daily digest) with summary cards and direct web links (`http://localhost:3000/jobs/{id}`).
+  - Receives alerts (High match alerts, Daily digest) with summary cards and direct web links (base URL is configuration-dependent; browser job details use `/jobs?job={id}`).
   - Deprecated slash commands return brief summaries pointing users to the Web Application.
 
 ---
@@ -177,7 +184,7 @@ erDiagram
 - **JobMatch**: Deterministic match results, 7 signals, hard filter results, recommendations (`candidate_id`, `job_id`, `score`, `eligibility`, `recommendation`, `signals`, `matched_skills`).
 - **TailoredResume**: Evidence-grounded LaTeX resume (`latex_source`, `pdf_path`, `provenance_score`, `is_provenance_verified`).
 - **EvidenceMap**: Fact-checking links from each generated bullet point to source candidate facts.
-- **ApplicationLog**: Application status state machine (`DRAFT`, `READY`, `SENT`, `INTERVIEW`, `OFFER`, `REJECTED`).
+- **ApplicationLog**: Application status state machine (`DRAFT`, `READY`, `SENT`, `FAILED`, `REJECTED`, `INTERVIEW`; OFFER is a historical product concept, not a persisted enum value).
 
 ---
 
@@ -205,10 +212,10 @@ Forbidden:
 
 | Component                 | Technology                                           | Role                                   |
 | :------------------------ | :--------------------------------------------------- | :------------------------------------- |
-| **Web Frontend**          | HTML5 / JavaScript / CSS (Simple Blue Design Tokens) | Primary Product Interface              |
+| **Web Frontend**          | React 18 / TypeScript / Vite / Liquid Glass tokens | Primary Product Interface              |
 | **Backend API**           | Python 3.11+, FastAPI, Pydantic 2.0                  | API Contracts & AI Orchestration       |
 | **Database**              | PostgreSQL 16 + pgvector                             | Single Source of Truth & Vector Search |
 | **ORM & Migrations**      | Async SQLAlchemy 2.0 (`asyncpg`), Alembic            | Data Persistence                       |
 | **Background Processing** | Asyncio Worker, Redis                                | Batch Ingestion & Scheduled Jobs       |
 | **Notification Channel**  | Discord Webhook / Bot API (discord.js v14)           | Notification Adapter                   |
-| **PDF Compilation**       | `pdflatex` / `xelatex` (TeXLive Sandbox)             | Resume Generation                      |
+| **PDF Compilation**       | `pdflatex` + `pypdf` one-page validation             | Resume Generation                      |

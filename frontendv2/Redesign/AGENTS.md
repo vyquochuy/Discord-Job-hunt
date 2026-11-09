@@ -1,10 +1,10 @@
 # figma-make-app
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+Retained React + Vite + Tailwind CSS Figma Make design-reference project. This is not the live Job Hunter frontend (`../../frontend/src`). The Figma-specific setup below applies only when running inside Figma Make.
 
 ## Development Server
 
-A Vite development server is **already running** on `$PORT` (default 8443). You don't need to start it manually.
+Inside Figma Make, the environment may start Vite on `$PORT` (default 8443). A local checkout does not guarantee a running server; inspect the environment before starting or reusing one.
 
 - Preview URL: The user can access the running app through the preview panel
 - Hot reload: Changes to source files are reflected immediately

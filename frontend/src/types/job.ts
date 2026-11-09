@@ -1,5 +1,5 @@
 export type WorkMode = 'REMOTE' | 'HYBRID' | 'ONSITE';
-export type JobLevel = 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MID' | 'SENIOR' | 'UNKNOWN';
+export type JobLevel = 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MID' | 'SENIOR' | 'LEAD' | 'MANAGER' | 'UNKNOWN';
 export type JobStatus = 'ACTIVE' | 'EXPIRED' | 'CLOSED';
 
 export interface JobSkill {
@@ -50,6 +50,19 @@ export interface JobListResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+export interface JobFilterOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface JobFiltersResponse {
+  sources: JobFilterOption[];
+  levels: JobFilterOption[];
+  work_modes: JobFilterOption[];
+  locations: JobFilterOption[];
 }
 
 export interface JobFilterParams {

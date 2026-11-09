@@ -141,6 +141,71 @@ def test_percentile_and_spike_observations():
     assert derive_region(None) == 'unknown'
 
 
+MARKET_SOURCES = ('itviec', 'topcv', 'saramin', 'topdev', 'vietnamworks', 'careerlink', 'itnavi', 'growupwork')
+EXCLUDED_SOURCES = ('remotive', 'upwork', 'mock', 'manual', 'unknown')
+
+
+@pytest_asyncio.fixture
+async def mixed_market(market_client):
+    client, sessions = market_client
+    async with sessions() as db:
+        records = [(source, 'growupwork-real-123' if source == 'growupwork' else None)
+                   for source in MARKET_SOURCES + EXCLUDED_SOURCES]
+        records.append(('growupwork', 'growupwork-curated-backend-developer-1'))
+        for source, source_job_id in records:
+            record_key = source_job_id if source_job_id and source_job_id.startswith('growupwork-curated-') else source
+            skill = Skill(canonical_name=record_key)
+            db.add(skill)
+            for status in (JobStatusEnum.ACTIVE, JobStatusEnum.EXPIRED):
+                raw = RawJob(source=source, source_job_id=source_job_id,
+                             source_url=f'https://example.com/{record_key}/{status.value}',
+                             content_hash=f'{record_key}-{status.value}')
+                db.add(raw)
+                await db.flush()
+                job = Job(raw_job_id=raw.id, title='Backend Developer', normalized_title='Backend Developer',
+                          company_name=source, normalized_company=source, normalized_location='Hanoi',
+                          description='Python', posted_at=datetime(2026, 11, 1, tzinfo=timezone.utc),
+                          min_salary=10 if source in MARKET_SOURCES else 1000,
+                          max_salary=20 if source in MARKET_SOURCES else 2000,
+                          salary_currency='VND', status=status)
+                db.add(job)
+                await db.flush()
+                db.add(JobSkill(job_id=job.id, skill_id=skill.id))
+        await db.commit()
+    return client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('endpoint', ['overview', 'hiring-trends', 'salaries', 'skills', 'roles', 'geography', 'employers', 'insights'])
+async def test_market_source_whitelist(mixed_market, endpoint):
+    for include_expired, expected in [('false', 8), ('true', 16)]:
+        response = await mixed_market.get(f'/market/{endpoint}?include_expired={include_expired}')
+        assert response.status_code == 200, response.text
+        assert response.json()['meta']['total_jobs'] == expected
+    growupwork = await mixed_market.get(f'/market/{endpoint}?source=growupwork&include_expired=true')
+    assert growupwork.json()['meta']['total_jobs'] == 2
+    for source in EXCLUDED_SOURCES:
+        response = await mixed_market.get(f'/market/{endpoint}?source={source}&include_expired=true')
+        assert response.json()['meta']['total_jobs'] == 0
+
+
+@pytest.mark.asyncio
+async def test_catalog_and_legacy_source_whitelist(mixed_market):
+    catalog = (await mixed_market.get('/market/filters')).json()
+    assert {item['value'] for item in catalog['sources']} == set(MARKET_SOURCES)
+    assert {item['value'] for item in catalog['skills']} == set(MARKET_SOURCES)
+
+
+@pytest.mark.asyncio
+async def test_legacy_source_whitelist(mixed_market):
+    legacy = (await mixed_market.get('/market/analytics')).json()
+    assert legacy['total_active_jobs'] == 8
+    assert legacy['total_expired_jobs'] == 8
+    assert {item['source'] for item in legacy['sources']} == set(MARKET_SOURCES)
+    assert {item['skill'] for item in legacy['top_skills']} == set(MARKET_SOURCES)
+    assert legacy['salary'] == {'min': 10, 'average_max': 20, 'max': 20}
+
+
 def test_unknown_currency_never_assumed():
     assert salary_vnd(10, 20, None) is None
     assert salary_vnd(10, 20, 'EUR') is None

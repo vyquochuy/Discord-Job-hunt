@@ -6,12 +6,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
+from fastapi import HTTPException
 from app.models.resume import (
     ApplicationChannelEnum,
     ApplicationLog,
     ApplicationStatusEnum,
-    ResumeStatusEnum,
     TailoredResume,
 )
 from app.repositories.candidate import CandidateRepository
@@ -40,9 +39,15 @@ class ApplicationService:
         recipient_email: Optional[str] = None,
         subject: Optional[str] = None,
         body: Optional[str] = None,
-        simulate_only: bool = False,
+        simulate_only: bool = True,
     ) -> ApplicationLog:
         logger.info(f"Submitting application for job_id={job_id} (channel={channel.value}, simulate={simulate_only})...")
+
+        if not simulate_only:
+            raise HTTPException(
+                status_code=501,
+                detail="Application submission transport is not implemented. Use simulate_only=true to prepare materials, or manually track an application sent externally.",
+            )
 
         # 0. Xác định ứng viên (ưu tiên candidate_id -> user_id -> fallback get_profile)
         if candidate_id:
@@ -68,7 +73,7 @@ class ApplicationService:
         candidate = tailored_resume.candidate
 
         # 2. Xác định thông tin người nhận
-        target_email = recipient_email or job.contact_email or "hr@company.com"
+        target_email = recipient_email or job.contact_email
         target_subject = subject or f"[Job Application] {candidate.full_name} - {tailored_resume.target_title}"
         
         target_body = body
@@ -78,63 +83,19 @@ class ApplicationService:
             else:
                 target_body = f"Dear {job.company_name} Hiring Team,\n\nPlease find attached my tailored resume for the {tailored_resume.target_title} role.\n\nBest regards,\n{candidate.full_name}"
 
-        # 3. Kiểm tra nếu đã gửi trước đó (Idempotency theo từng Candidate)
-        stmt_existing = (
-            select(ApplicationLog)
-            .join(TailoredResume, ApplicationLog.tailored_resume_id == TailoredResume.id)
-            .where(
-                ApplicationLog.job_id == job.id,
-                TailoredResume.candidate_id == candidate.id,
-                ApplicationLog.status == ApplicationStatusEnum.SENT,
-            )
-            .options(
-                selectinload(ApplicationLog.job),
-                selectinload(ApplicationLog.tailored_resume),
-                selectinload(ApplicationLog.cover_letter),
-            )
-        )
-        res_existing = await session.execute(stmt_existing)
-        existing_sent = res_existing.scalars().first()
-        if existing_sent and not simulate_only:
-            logger.warning(f"Application already sent on {existing_sent.sent_at}. Returning existing record.")
-            return existing_sent
-
-        # 4. Thực hiện gửi ứng tuyển
-        app_status = ApplicationStatusEnum.SENT if not simulate_only else ApplicationStatusEnum.READY
-        sent_timestamp = datetime.now(timezone.utc) if not simulate_only else None
-        err_msg = None
-
-        if not simulate_only and channel == ApplicationChannelEnum.EMAIL:
-            # Mô phỏng / Gửi email thật qua SMTP nếu có config
-            smtp_host = getattr(settings, "SMTP_HOST", None)
-            if smtp_host:
-                try:
-                    logger.info(f"Sending real email to {target_email} via SMTP ({smtp_host})...")
-                except Exception as e:
-                    logger.error(f"Failed to send email via SMTP: {e}")
-                    app_status = ApplicationStatusEnum.FAILED
-                    err_msg = str(e)
-            else:
-                logger.info(f"SMTP not configured. Mocking email delivery to {target_email} with attached PDF {tailored_resume.pdf_path}")
-
         # 5. Lưu ApplicationLog
         app_log = ApplicationLog(
             job_id=job.id,
             tailored_resume_id=tailored_resume.id,
             cover_letter_id=tailored_resume.cover_letter.id if tailored_resume.cover_letter else None,
             channel=channel,
-            status=app_status,
+            status=ApplicationStatusEnum.READY,
             recipient_email=target_email,
             subject=target_subject,
             body=target_body,
-            sent_at=sent_timestamp,
-            error_message=err_msg,
+            sent_at=None,
         )
         session.add(app_log)
-
-        # Cập nhật trạng thái Tailored Resume
-        if app_status == ApplicationStatusEnum.SENT:
-            tailored_resume.status = ResumeStatusEnum.APPLIED
 
         await session.commit()
 
@@ -232,7 +193,7 @@ class ApplicationService:
         error_message: Optional[str] = None,
         candidate_id: Optional[uuid.UUID] = None,
     ) -> Optional[ApplicationLog]:
-        """Cập nhật trạng thái của một đơn ứng tuyển trong lifecycle (có kiểm tra quyền sở hữu)."""
+        """Track lifecycle with ownership checks; SENT records an explicit external action, never sends."""
         app_log = await cls.get_application_by_id(session, app_id, candidate_id=candidate_id)
         if not app_log:
             return None

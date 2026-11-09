@@ -1,142 +1,61 @@
-# Hướng dẫn Khởi chạy & Triển khai Discord Bot (24/7 Deployment Guide)
+# Discord adapter deployment
 
-Tài liệu này hướng dẫn chi tiết quy trình thiết lập, cấu hình và triển khai **AI Job Hunter Discord Bot** hoạt động 24/7 hoặc chạy thử nghiệm cục bộ (Local).
+Source-checked 2026-11-09. The Web Application is the primary interface; Discord is optional. Legacy slash commands remain registered and some still call protected APIs; they are not a supported multi-user authentication bridge.
 
----
+## Discord setup
 
-## 1. Chuẩn bị Token từ Discord Developer Portal
+Create an application in Discord Developer Portal; obtain its bot token and Application ID. Invite it with `bot` and `applications.commands` scopes and only the permissions needed (send messages, embed links, attach files for retained file flows). Current gateway intents in `discord-bot/src/index.ts` are Guilds, GuildMessages and DirectMessages: Message Content and Server Members privileged intents are not required by this implementation.
 
-1. Truy cập [Discord Developer Portal](https://discord.com/developers/applications).
-2. Nhấn **New Application** và đặt tên cho Bot (ví dụ: `AI Job Hunter`).
-3. Đi tới mục **Bot** trong menu bên trái:
-   - Nhấn **Reset Token** để lấy `DISCORD_TOKEN`. Lưu token này an toàn.
-   - Bật các mục trong **Privileged Gateway Intents**:
-     - ✅ **Message Content Intent**
-     - ✅ **Server Members Intent**
-4. Đi tới mục **OAuth2** -> **General**:
-   - Sao chép **Application ID** (đây chính là `DISCORD_CLIENT_ID`).
-5. Đi tới **OAuth2** -> **URL Generator**:
-   - Chọn Scopes: `bot`, `applications.commands`.
-   - Chọn Bot Permissions: `Send Messages`, `Embed Links`, `Attach Files`, `Read Message History`, `Use Slash Commands`.
-   - Sao chép liên kết được tạo và mở trên trình duyệt để mời Bot vào Server Discord của bạn.
-6. Lấy ID Server & User ID của bạn:
-   - Trong Discord, bật **User Settings -> Advanced -> Developer Mode**.
-   - Chuột phải vào tên Server của bạn -> Chọn **Copy Server ID** (`DISCORD_GUILD_ID`).
-   - Chuột phải vào tài khoản Discord của bạn -> Chọn **Copy User ID** (`ALLOWED_USER_ID`).
+## Configuration
 
----
+For direct Node execution, `dotenv.config()` reads `.env` in the **current working directory**. When running inside `discord-bot/`, configure `discord-bot/.env` (ignored), or supply process environment variables. Compose explicitly reads the root `.env`.
 
-## 2. Cấu hình biến môi trường (`.env`)
-
-Mở tệp `.env` ở thư mục gốc của dự án hoặc trong thư mục `discord-bot/` và điền:
-
-```bash
-# ------------------------------------------------------------------------------
-# Cấu hình Discord Bot
-# ------------------------------------------------------------------------------
-DISCORD_TOKEN=your_discord_bot_token_here
-DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_GUILD_ID=your_guild_id_here
-ALLOWED_USER_ID=your_discord_user_id_here
-
-# Địa chỉ API của Backend (mặc định nếu chạy local)
+```dotenv
+DISCORD_TOKEN=replace_with_bot_token
+DISCORD_CLIENT_ID=replace_with_application_id
+DISCORD_GUILD_ID=replace_with_server_id
+ALLOWED_USER_ID=replace_with_owner_discord_user_id
 BACKEND_API_URL=http://localhost:8000
-INTERNAL_API_SECRET=your_32_chars_random_secret_matching_backend
+WEB_APP_URL=http://localhost:8000
+INTERNAL_API_SECRET=replace_with_strong_random_secret_matching_backend
 ```
 
----
+Use an HTTPS backend and public Web App origin outside local development. `BACKEND_API_URL` is the backend origin (the HTTP client adds `/api/v1`); `WEB_APP_URL` is the frontend origin for links. `DISCORD_GUILD_ID` is optional: absent means global command registration, present means guild registration. Ten commands are registered at startup, not just by `npm run dev`.
 
-## 3. Khởi chạy Bot
+`INTERNAL_API_SECRET` grants privileged service access, not the Discord member's candidate identity. Never expose it to browsers or untrusted guilds. `ALLOWED_USER_ID` is checked in several handlers, but is optional and **not a universal guard** (`apply` and `resume` lack that check). Setting it is not proof all interactions are owner-only. Keep this legacy adapter in a trusted/private deployment until handler authorization and tenant mapping are reviewed. Protected candidate calls may fail or lack a candidate context; the service principal must not be described as an authenticated personal user.
 
-### Cách 1: Chạy Local trực tiếp bằng Node.js / tsx (Khuyên dùng khi dev)
+## Local execution
 
-```bash
-# Di chuyển vào thư mục bot
+From the repository root:
+
+```powershell
 cd discord-bot
-
-# Cài đặt thư viện
-npm install
-
-# Khởi chạy chế độ dev (tự động đồng bộ Slash Commands và reload khi sửa code)
+npm ci
 npm run dev
+```
 
-# Hoặc biên dịch sang JavaScript và chạy bản production
+Or build and run in that directory:
+
+```powershell
 npm run build
 npm start
 ```
 
-### Cách 2: Khởi chạy bằng Docker Compose (Cùng hệ sinh thái Backend)
+For Compose, from the repository root:
 
-Tại thư mục gốc dự án:
-
-```bash
-# Khởi động dịch vụ bot trong docker
+```powershell
 docker compose up -d discord-bot
-
-# Xem nhật ký hoạt động của bot
 docker compose logs -f discord-bot
 ```
 
----
+Compose overrides the backend origin with `http://backend:8000`. The bind mount `./discord-bot:/app` masks the image's built `dist`; ensure a local `discord-bot/dist` exists (`npm run build`) before starting. Backend startup also depends on the frontend builder. After frontend changes: `docker compose run --rm frontend-build`, then `docker compose restart backend`.
 
-## 4. Triển khai 24/7 Miễn phí (0 VNĐ)
+## Behavior and hosting limits
 
-Do Discord Bot kết nối qua WebSocket Gateway liên tục (không phải HTTP request-response thông thường), các nền tảng serverless ngủ đông như Render Free Web Service sẽ làm ngắt kết nối WebSocket sau 15 phút. Dưới đây là các giải pháp 24/7 hoàn toàn miễn phí:
+Commands currently registered: `/ping`, `/profile`, `/jobs`, `/job`, `/match`, `/recommend`, `/collect`, `/resume`, `/apply`, `/import`. Inspect `discord-bot/src/commands/` for current options; legacy collector choices and links can lag behind backend support. Profile seed files are `context/candidate-profile.yaml` and `context/master-resume.tex`, not `candidate_profile.md`.
 
-### Lựa chọn A: Hugging Face Spaces (Docker Space - Khuyên dùng)
-- **Ưu điểm**: 100% miễn phí, chạy liên tục 24/7, không bao giờ ngủ đông (always-on container).
-- **Cách làm**:
-  1. Tạo Space mới trên [Hugging Face](https://huggingface.co/spaces) -> Chọn **Docker**.
-  2. Đẩy thư mục `discord-bot` lên kho lưu trữ Git của Space:
-     ```dockerfile
-     # Dockerfile đã có sẵn trong thư mục discord-bot/
-     FROM node:20-alpine
-     WORKDIR /app
-     COPY package*.json ./
-     RUN npm install
-     COPY . .
-     RUN npm run build
-     CMD ["npm", "start"]
-     ```
-  3. Vào tab **Settings** của Space -> **Variables and secrets** -> Thêm các biến `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `ALLOWED_USER_ID`, `BACKEND_API_URL` (URL backend Render của bạn), `INTERNAL_API_SECRET`.
-  4. Space sẽ build và giữ bot online 24/7.
+Application preparation defaults to simulation in the backend; actual submission is unsupported (501). The legacy `/apply` command still defaults `simulate_only` to false, so do not interpret it as a working mail transport or a Web UI approval flow. Use the Web App for candidate workflows.
 
-### Lựa chọn B: Discloud (Nền tảng chuyên dụng cho Discord Bot)
-- **Ưu điểm**: Chuyên biệt cho discord.js / Node.js bot, hỗ trợ free tier.
-- **Cách làm**:
-  1. Đăng ký tài khoản trên [Discloud](https://discloudbot.com).
-  2. Tạo tệp `discloud.config` trong `discord-bot/`:
-     ```ini
-     NAME=JobHunterBot
-     AVATAR=https://i.imgur.com/example.png
-     TYPE=bot
-     MAIN=dist/index.js
-     RAM=100
-     AUTORESTART=false
-     VERSION=latest
-     APT=tools
-     ```
-  3. Nén mã nguồn `dist/`, `package.json` và tải lên bảng điều khiển Discloud.
+Use a host supporting a long-running Node process and outbound Discord Gateway connections. No provider's free tier is guaranteed 24/7/always-on here; check current provider terms, sleep behavior and cost. Render Free backend cold starts remain possible. Do not add keep-alive polling to defeat its idle policy. Never commit tokens or print credentials in deployment logs.
 
----
-
-## 5. Danh sách các Slash Commands khả dụng
-
-Khi bot khởi động thành công và báo:
-`🤖 Discord Bot đã đăng nhập thành công dưới tên: ...`
-`✅ Đã đăng ký thành công 10 Slash Command cho Server (...)`
-
-Bạn có thể gõ các lệnh sau trong Discord:
-
-| Lệnh | Mô tả chức năng |
-| :--- | :--- |
-| `/ping` | Kiểm tra độ trễ (latency) kết nối giữa Discord Gateway và Backend API. |
-| `/profile view` | Xem thẻ hồ sơ ứng viên, danh sách kỹ năng chuẩn hóa và dự án tiêu biểu. |
-| `/profile sync` | Đồng bộ hồ sơ từ context file (`context/candidate_profile.md`). |
-| `/jobs` | Tìm kiếm và xem danh sách việc làm IT mới nhất kèm bộ lọc trình độ, địa điểm. |
-| `/job <id>` | Xem chi tiết tin tuyển dụng, yêu cầu công nghệ và nút mở liên kết gốc. |
-| `/match <id>` | Phân tích độ khớp 7 chỉ số tất định giữa hồ sơ và JD, chỉ ra điểm mạnh & thiếu hụt. |
-| `/recommend` | Nhận bảng xếp hạng các công việc phù hợp nhất theo điểm số Match Score. |
-| `/collect [source] [limit]` | Kích hoạt quét cào tin tự động từ CareerLink, TopDev, ITNavi hoặc Mock. |
-| `/resume <job_id>` | Tự động thiết kế CV chuẩn ATS bằng LaTeX và Cover Letter, gửi trực tiếp file PDF vào channel. |
-| `/import url <link>` | Nạp và phân tích nhanh tin tuyển dụng từ link bất kỳ ngoài hệ thống. |
+Evidence: `discord-bot/src/config.ts`, `src/index.ts`, `src/services/api-client.ts`, `src/commands/apply.ts`, `src/commands/resume.ts`, `package.json`, `Dockerfile`, root `docker-compose.yml`, `backend/app/core/security.py`.

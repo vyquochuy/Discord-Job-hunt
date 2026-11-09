@@ -13,8 +13,8 @@
 - **Phân trang:** Duyệt vòng lặp đa trang qua query parameter `?page={page}`:
   - Trang 1: `https://itviec.com/it-jobs`
   - Trang 2+: `https://itviec.com/it-jobs?page={page}`
-  - Tối đa 25 trang (`max_pages = min(25, max(1, (limit + 19) // 20))`).
-- **Khoảng nghỉ giữa các trang:** `await asyncio.sleep(0.35)` để chống rate limit.
+  - `limit <= 0`: tối đa 80 trang; positive limit: `max(1, (limit + 19) // 20)`. Dừng khi đủ limit/không card hoặc 15 expired cards liên tiếp; không bảo đảm coverage toàn nguồn.
+- **Khoảng nghỉ giữa các trang:** `await asyncio.sleep(0.35)`; không bảo đảm tránh rate limit.
 
 ## 2. HTTP Headers
 
@@ -42,5 +42,6 @@ headers = {
 
 ## 4. Xử Lý Dữ Liệu & Pipeline
 
-- **Content Hash:** `compute_content_hash(f"{title}|{company}|{location}|{url}")` (SHA-256).
-- **`parse_raw()`:** Bóc tách text thô từ thẻ card HTML, gán `work_mode = ONSITE`, `level = UNKNOWN` (chuyển tiếp cho Ingestion Pipeline chuẩn hóa tiếp qua `job_normalizer`).
+- **Content Hash:** SHA-256 từ `title|company|location|url`, nối thêm `|posted_at_text` khi có text ngày đăng.
+- **`parse_raw()`:** Ưu tiên payload description từ enrichment, rồi card HTML, rồi title/company. Posted ưu tiên `posted_iso` → relative `posted_at_text` → UTC now; expiry từ `expires_iso`. Gán `work_mode = ONSITE`, `level = UNKNOWN` để pipeline chuẩn hóa tiếp.
+- Non-200 dừng fetch; exception được log và trả phần đã fetch, không có cam kết BLOCKED reporting riêng như TopCV.

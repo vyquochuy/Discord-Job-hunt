@@ -9,6 +9,12 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.models.job import Job, JobLevelEnum, JobStatusEnum, RawJob, WorkModeEnum
 from app.models.user import User
+from sqlalchemy import select
+from pypdf import PdfWriter
+from types import SimpleNamespace
+from pathlib import Path
+from app.services.tailoring.latex_compiler import LaTeXCompiler
+from app.core.config import settings
 
 
 @pytest_asyncio.fixture
@@ -103,13 +109,26 @@ async def test_multi_user_registration_and_profile_isolation(test_env):
 
 
 @pytest.mark.asyncio
-async def test_multi_user_resume_and_file_sandbox_isolation(test_env):
+async def test_multi_user_resume_and_file_sandbox_isolation(test_env, monkeypatch, tmp_path):
     """
     1. User A và User B cùng tailor resume cho một Job X.
     2. Xác nhận 2 tệp PDF và TeX được lưu độc lập ở storage/resumes/{cand_A}/{job_X} và {cand_B}/{job_X}.
     3. User B dùng token của mình để truy cập Resume của User A (Malicious ID) -> BỊ TỪ CHỐI (404 Not Found).
     """
     client, session_maker = test_env
+
+    # Exercise real sandbox paths and PDF validation; fake only the external TeX process.
+    monkeypatch.setattr(LaTeXCompiler, "get_storage_root", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr("app.services.tailoring.latex_compiler.shutil.which", lambda _: "test-pdflatex")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+
+    def compile_one_page(cmd, **kwargs):
+        writer = PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        writer.write(Path(cmd[-1]).with_suffix(".pdf"))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("app.services.tailoring.latex_compiler.subprocess.run", compile_one_page)
 
     # 1. Tạo Job X trong Database
     job_id = uuid.uuid4()
@@ -274,6 +293,9 @@ async def test_multi_user_applications_and_idor_protection(test_env):
     res_apply_a = await client.post(f"/api/v1/applications/apply/{job_id}", headers=headers_a)
     assert res_apply_a.status_code == 200
     app_a_id = res_apply_a.json()["id"]
+    assert res_apply_a.json()["status"] == "READY"
+    assert res_apply_a.json()["sent_at"] is None
+    assert res_apply_a.json()["recipient_email"] is None
 
     # 4. User B cũng nộp đơn cho Job Y -> Thành công (không bị nhầm là đã nộp)
     res_apply_b = await client.post(f"/api/v1/applications/apply/{job_id}", headers=headers_b)
@@ -313,14 +335,18 @@ async def test_superuser_sync_restriction(test_env):
     """
     client, session_maker = test_env
 
-    # 1. Đăng ký tài khoản thường (User 2)
-    # Lưu ý: User đầu tiên đăng ký sẽ tự động là Superuser trong hệ thống
+    # Registration never grants admin rights; explicitly provision the privileged fixture.
     res_first = await client.post(
         "/api/v1/auth/register",
         json={"email": "first_admin@test.com", "password": "Password123!", "full_name": "First Admin"},
     )
     token_admin = res_first.json()["access_token"]
-    assert res_first.json()["user"]["is_superuser"] is True
+    assert res_first.status_code == 201
+    assert res_first.json()["user"]["is_superuser"] is False
+    async with session_maker() as session:
+        admin = await session.scalar(select(User).where(User.email == "first_admin@test.com"))
+        admin.is_superuser = True
+        await session.commit()
 
     res_regular = await client.post(
         "/api/v1/auth/register",

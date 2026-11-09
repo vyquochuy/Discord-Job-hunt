@@ -9,7 +9,7 @@ Tài liệu này mô tả chi tiết kiến trúc và phương thức cào (scra
 Trong hệ thống AI Job Hunter Platform, thu thập dữ liệu là bước đầu tiên trong đường ống tự động hóa (Pipeline). Dữ liệu sau khi thu thập được quản lý theo nguyên tắc:
 
 - **Tách biệt tầng thu thập (Collector Layer) và tầng lưu trữ/chuẩn hóa (Ingestion & Normalization Layer)**.
-- **Zero-LLM Cost Ingestion**: Toàn bộ quá trình quét, phân tích cấu trúc DOM và chuẩn hóa ban đầu được thực hiện 100% bằng giải thuật tất định (deterministic parsing & regex matching), không tiêu tốn token AI.
+- **Deterministic collectors**: Fetch/parse/chuẩn hóa mặc định không gọi LLM trích xuất. Pipeline có `use_llm=True` tùy chọn và bước embedding riêng; không cam kết toàn pipeline luôn có chi phí AI bằng 0.
 - **Raw Data làm Source of Truth**: Mọi tin tuyển dụng thu thập về đều lưu nguyên bản payload/HTML vào bảng `raw_jobs` trước khi biến đổi sang bảng `jobs`.
 
 ```
@@ -86,13 +86,14 @@ Adapter cấu hình chuyên biệt để thu thập việc làm nhóm ngành Cô
   - Sắp xếp: Ưu tiên `sort=new` để luôn đón đầu các tin tuyển dụng mới nhất trong ngày.
 - **Giới hạn số trang quét (Pagination Guard)**:
   ```python
-  max_pages = min(25, max(1, (limit + 19) // 20))
+  unlimited = limit <= 0
+  max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
   ```
-  Hệ thống tính toán số trang cần quét dựa trên tham số `limit` (mặc định mỗi trang có khoảng 20-25 tin), tối đa không vượt quá 25 trang để tránh quá tải tài nguyên mạng.
+  Full scan chỉ bỏ giới hạn records, vẫn có cap 80 trang và dừng khi 15 expired cards liên tiếp/không card. Positive limit dùng ước lượng 20 tin/trang. Không bảo đảm thu đủ mọi tin upstream.
 
 ### 2.2. Kỹ Thuật Giả Lập Trình Duyệt (Browser-like Headers) & Chống Rate Limit
 
-Để giảm thiểu việc bị tường lửa WAF chặn hoặc trả về mã lỗi 403 Forbidden, `TopCVJobCollector` thiết lập cấu trúc HTTP Headers tương thích hoàn toàn với trình duyệt Chromium hiện đại:
+`TopCVJobCollector` gửi browser-like headers, không chạy browser và không bypass WAF/CAPTCHA. HTTP 401/403/407/429 hoặc marker challenge trong code raise `RuntimeError` BLOCKED; API collect chuyển lỗi này thành 502, daily runner ghi nguồn thất bại. Header không bảo đảm quyền truy cập:
 
 ```python
 headers = {
@@ -116,11 +117,11 @@ headers = {
   ```python
   await asyncio.sleep(0.35)
   ```
-  Độ trễ 350ms vừa đủ để không kích hoạt bộ đếm DoS của máy chủ đích, vừa tối ưu thời gian quét toàn bộ danh sách.
+  Độ trễ 350ms chỉ là pacing giữa trang, không bảo đảm tránh rate limit hoặc anti-bot.
 
 ### 2.3. Bóc Tách Cấu Trúc DOM & Bộ Chọn CSS Đa Tầng (Fallback Selectors)
 
-TopCV thường xuyên A/B testing giao diện hoặc thay đổi class CSS. Do đó, adapter áp dụng chiến lược **bộ chọn đa tầng (multi-selector fallback)** để đảm bảo không bị gãy crawler:
+TopCV thường xuyên A/B testing giao diện hoặc thay đổi class CSS. Do đó, adapter áp dụng chiến lược **bộ chọn đa tầng (multi-selector fallback)** để tăng khả năng tương thích; không bảo đảm parser luôn hoạt động:
 
 #### 1. Khung chứa tin (Job Card Container):
 
@@ -211,11 +212,11 @@ Khi đẩy vào Ingestion Pipeline:
 
 Hàm `parse_raw()` nhận đối tượng `RawJobData` và trả về `JobExtractedData`:
 
-1. Làm sạch văn bản HTML mô tả (`raw_html`) bằng `BeautifulSoup(raw.raw_html, "html.parser").get_text()`, loại bỏ khoảng trắng thừa.
+1. Làm sạch payload description đã enrich (`clean_html_to_text`); nếu dưới 80 ký tự và có raw HTML thì thay bằng card text; cuối cùng title/company nếu vẫn rỗng.
 2. Gán giá trị mặc định an toàn cho các trường chưa được suy luận:
    - `work_mode`: Mặc định `WorkModeEnum.ONSITE` (sẽ được chuẩn hóa tiếp ở bước Pipeline).
    - `level`: Mặc định `JobLevelEnum.UNKNOWN`.
-   - `posted_at`: Mốc thời gian UTC hiện tại.
+   - `posted_at`: parse `posted_iso` → `posted_at_text` → UTC now; `expires_at`: `expires_iso` hoặc `deadline_text`.
    - `skills_required`: Danh sách kỹ năng bóc tách từ badges.
 
 ---
@@ -228,7 +229,7 @@ Toàn bộ các tin trả về từ `TopCVJobCollector` (cũng như các collect
 Quy trình bao gồm 9 bước nghiêm ngặt:
 
 1. **Hash Verification**: Truy vấn `raw_jobs` theo `content_hash`. Bỏ qua nếu tin không thay đổi.
-2. **Raw Job Persistence**: Lưu hoặc cập nhật bản ghi vào `raw_jobs` (fetch_status = `FETCHED`).
+2. **Raw Job Persistence**: Lưu hoặc cập nhật `raw_jobs` (`FETCHED`); trước parsing có detail enrichment tùy chọn cho nguồn hỗ trợ, budget mặc định 20/nguồn/lượt, skip description ≥800 ký tự. Detail BLOCKED ghi `detail_meta`, giữ listing; không đồng nghĩa listing fetch thành công rỗng.
 3. **Deterministic Parsing**: Gọi `collector.parse_raw(raw_data)`.
 4. **Deterministic Skill Scanning**: Gọi `skill_normalizer.extract_skills_from_text(description)` để quét bổ sung các kỹ năng công nghệ chuẩn (canonical taxonomy) xuất hiện trong mô tả mà giao diện web chưa gắn tag.
 5. **Contact Extraction**: Trích xuất email HR tuyển dụng và link nộp đơn trực tiếp bằng Regex.
@@ -243,7 +244,7 @@ Quy trình bao gồm 9 bước nghiêm ngặt:
    - **Tầng 2 (Fuzzy Matching)**: So khớp chuỗi mờ bằng thuật toán RapidFuzz (tỷ lệ tương đồng > 88%).
    - **Tầng 3 (Semantic pgvector)**: So khớp ngữ nghĩa không gian vector cosine distance.
 8. **Vector Embedding**: Sinh vector đặc trưng ngữ nghĩa 768 chiều từ `title + company + requirements` và lưu vào PostgreSQL thông qua tiện ích mở rộng `pgvector`.
-9. **Final Persistence**: Lưu bản ghi vào bảng `jobs` (trạng thái `ACTIVE`) và tạo quan hệ nhiều-nhiều với bảng `skills` qua bảng trung gian `job_skills`.
+9. **Final Persistence**: Lưu bản ghi vào bảng `jobs` (`EXPIRED` nếu payload/date chứng minh quá hạn, nếu không `ACTIVE`) và tạo quan hệ nhiều-nhiều với bảng `skills` qua bảng trung gian `job_skills`.
 
 ---
 
@@ -256,10 +257,10 @@ Dự án hiện tích hợp 10 Source Adapters được đặt tại thư mục:
 | :-- | :---------------- | :------------------------ | :----------------------------------- | :---------------- | :---------------------------------------------------------------------------------------------------- |
 | 1   | **TopCV**         | `topcv_adapter.py`        | HTTP GET (HTML Scraping)             | HTML / DOM        | Bóc tách đa trang chuyên mục IT, Multi-class selector fallback, Browser-like headers.                 |
 | 2   | **ITViec**        | `itviec_adapter.py`       | HTTP GET (HTML Scraping)             | HTML / DOM        | Thu thập chuyên biệt việc làm IT Việt Nam, bóc tách thẻ kỹ năng `itag`, phân trang query `?page=`.    |
-| 3   | **TopDev**        | `topdev_adapter.py`       | HTTP GET (HTML Scraping)             | HTML / DOM        | Quét chuyên mục `it-jobs`, bóc tách tag công nghệ, tự động phân loại Remote/Hybrid qua tiêu đề.       |
+| 3 | **Saramin** | `saramin_adapter.py` | HTTP GET public API | JSON | Thay TopDev; page_size20, metadata pagination, dừng khi lặp ID; xem [topdev.md](topdev.md). |
 | 4   | **VietnamWorks**  | `vietnamworks_adapter.py` | HTTP POST (REST API) + HTML fallback | JSON API          | Gọi trực tiếp search API nội bộ `ms.vietnamworks.com`, bóc tách dải lương số nguyên chuẩn xác.        |
 | 5   | **Remotive**      | `remotive_adapter.py`     | HTTP GET (REST API)                  | JSON API          | Public API quốc tế (`remotive.com/api/remote-jobs`), chuyên tin Remote (Software Dev, DevOps).        |
-| 6   | **Upwork**        | `upwork_adapter.py`       | HTTP GET (RSS XML)                   | XML / RSS 2.0     | Thu thập tin Freelance/Contract quốc tế qua RSS Feed, chi phí 0đ, không bị Cloudflare chặn.           |
+| 6   | **Upwork**        | `upwork_adapter.py`       | HTTP GET (RSS XML)                   | XML / RSS 2.0     | RSS Freelance/Contract có thể bị chặn; còn synthetic curated fallback cũ, không phải live jobs.           |
 | 7   | **CareerLink**    | `careerlink_adapter.py`   | HTTP GET (HTML Scraping)             | HTML / DOM        | Quét Category 19 (IT - Phần mềm), phân trang đa trang, bóc tách chức danh và mức lương.               |
 | 8   | **ITNavi**        | `itnavi_adapter.py`       | HTTP GET (HTML Scraping)             | HTML / DOM        | Thu thập việc làm IT, xử lý thuộc tính `data-id`, bóc tách kỹ năng công nghệ và địa điểm.             |
 | 9   | **GrowUpWork**    | `growupwork_adapter.py`   | HTTP GET (HTML Scraping)             | HTML / DOM        | Việc làm IT thị trường Nhật Bản & Việt Nam, bóc tách yêu cầu chứng chỉ tiếng Nhật (N1, N2, N3, BrSE). |
@@ -284,8 +285,8 @@ File: `backend/app/services/daily_runner.py`
 
 File: `backend/app/worker.py`
 
-- Lắng nghe sự kiện từ hàng đợi Redis / ARQ task queue.
-- Thực thi tác vụ cào dữ liệu chạy ngầm, không gây nghẽn REST API phục vụ người dùng.
+- Worker hiện chạy vòng lặp asyncio hoặc `--run-once`/`--daily-batch`, không phải Redis/ARQ queue consumer; Redis chỉ được ping khi startup.
+- Collection cycle thường dùng limit incremental; daily batch mới chọn full scan theo nguồn.
 
 ### 5.3. Kích hoạt thủ công hoặc qua API
 

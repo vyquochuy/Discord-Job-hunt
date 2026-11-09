@@ -8,7 +8,7 @@
 
 ## 1. Cơ Chế Thu Thập (Public RSS Feeds)
 
-Upwork được cào thông qua các luồng RSS XML chính thức, giúp tránh 100% rào cản Cloudflare / Bot Detection mà không cần tài khoản:
+Adapter thử các RSS URL dưới đây mà không cần tài khoản; chúng có thể lỗi/bị Cloudflare chặn. Không có cam kết RSS luôn truy cập được và không bypass restriction:
 
 - **RSS Feeds cấu hình sẵn:**
   1. Danh mục Phần mềm: `https://www.upwork.com/ab/feed/jobs/rss?category2_uid=531770282580668418&sort=recency`
@@ -29,7 +29,11 @@ Adapter phân tích cú pháp thẻ `<item>` bằng `BeautifulSoup(response.text
 - **Kỹ năng yêu cầu:** `re.search(r"Skills:\s*([^<\n]+)", raw_desc)` $\rightarrow$ Tách mảng kỹ năng bằng dấu phẩy.
 - **Quốc gia khách hàng:** `re.search(r"Country:\s*([^<\n]+)", raw_desc)` $\rightarrow$ Mặc định `"Worldwide"`.
 
-## 3. Đặc Điểm Trong `parse_raw()`
+## 3. Synthetic fallback còn tồn tại
+
+Nếu không fetch được record RSS nào, code hiện gọi `_get_curated_fallback_jobs(limit)` để tạo dữ liệu curated synthetic, không phải tin live đã xác minh. Không dùng số trả về đó làm bằng chứng nguồn khỏe/coverage. Đây là hành vi cũ còn tồn tại ở Upwork, **khác GrowUpWork đã bỏ fallback**. Upwork không thuộc Vietnam Market whitelist.
+
+## 4. Đặc Điểm Trong `parse_raw()`
 
 - **Hình thức làm việc (`work_mode`):** Mặc định 100% `WorkModeEnum.REMOTE`.
 - **Cấp bậc (`level`):** Bóc tách các từ khóa `Expert`, `Intermediate`, `Entry Level` có trong mô tả bài đăng Upwork.

@@ -8,7 +8,7 @@
 
 ## 1. Cơ Chế Thu Thập (REST API Ingestion)
 
-Không dùng web scraping HTML thông thường, VietnamWorks Collector khai thác trực tiếp Search API nội bộ của Navigos Group để đạt hiệu năng cao và độ chính xác tuyệt đối:
+Không dùng web scraping HTML thông thường, VietnamWorks Collector khai thác trực tiếp Search API nội bộ của Navigos Group để lấy dữ liệu cấu trúc; không bảo đảm API luôn khả dụng hoặc dữ liệu hoàn chỉnh:
 
 - **API Search URL:** `https://ms.vietnamworks.com/job-search/v1.0/search`
 - **Base Web URL:** `https://www.vietnamworks.com`
@@ -30,10 +30,12 @@ Không dùng web scraping HTML thông thường, VietnamWorks Collector khai th�
     "filter": [],
     "ranges": [],
     "order": [],
-    "hitsPerPage": 25,
+    "hitsPerPage": 50,
     "page": 0
 }
 ```
+
+`limit <= 0`: tối đa 80 trang; positive limit: `ceil(limit/50)` trang. Dừng khi trang rỗng/ngắn, đủ limit hoặc 20 expired records liên tiếp. API lỗi có nhánh HTML fallback; không đồng nghĩa bảo đảm đủ dữ liệu hoặc phân loại mọi access restriction.
 
 ## 2. Bóc Tách Dữ Liệu Từ JSON Response
 
@@ -51,6 +53,6 @@ Dữ liệu được trích xuất trực tiếp từ các trường JSON trả 
 
 ## 3. Chuyển Đổi Trong `parse_raw()`
 
-- Làm sạch văn bản HTML của trường `jobDescription` bằng `BeautifulSoup`.
+- Chọn description dài nhất từ payload description (có thể đã enrich), `jobDescription`/detail và raw HTML rồi làm sạch. `expiredDate` epoch-ms map expiry; `approvedOn` map posted date. Tin expired được giữ để pipeline lưu lịch sử.
 - Tự động nhận diện `REMOTE` hoặc `HYBRID` nếu xuất hiện trong tiêu đề.
 - Chuyển tiếp vào Ingestion Pipeline.

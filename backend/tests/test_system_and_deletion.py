@@ -10,6 +10,7 @@ from app.main import app
 from app.models.candidate import Candidate, CandidateProject
 from app.models.job import Job, JobLevelEnum, RawJob, WorkModeEnum
 from app.models.resume import CoverLetter, ResumeStatusEnum, TailoredResume
+from app.models.user import User
 
 
 @pytest_asyncio.fixture
@@ -49,8 +50,18 @@ async def test_delete_tailored_resume_by_job_id(test_client):
     candidate_id = uuid.uuid4()
 
     async with session_maker() as session:
+        # X-Internal-Secret resolves the explicit service principal, not an arbitrary candidate.
+        principal = User(
+            id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            email="system@jobhunter.internal",
+            hashed_password="unused-test-password",
+            full_name="Internal System Service",
+        )
+        session.add(principal)
+        await session.flush()
         cand = Candidate(
             id=candidate_id,
+            user_id=principal.id,
             full_name="Nguyen Van A",
             headline="Intern",
             email="a@example.com",

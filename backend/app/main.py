@@ -196,25 +196,15 @@ if not frontend_dir.exists():
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 
 def get_frontend_index() -> Path:
-    """Trả về file index.html của bản build production (dist) nếu tồn tại, ngược lại fallback về index gốc."""
-    dist_index = frontend_dir / "dist" / "index.html"
-    if dist_index.exists():
-        return dist_index
-    return frontend_dir / "index.html"
+    """Serve only the Vite production build; use the Vite dev server for source."""
+    return frontend_dir / "dist" / "index.html"
 
 
-if frontend_dir.exists():
-    dist_dir = frontend_dir / "dist"
-    if (dist_dir / "assets").exists():
+dist_dir = frontend_dir / "dist"
+if dist_dir.is_dir():
+    if (dist_dir / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=str(dist_dir / "assets")), name="assets")
-    elif (frontend_dir / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
-
-    app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
-    if (frontend_dir / "css").exists():
-        app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
-    if (frontend_dir / "js").exists():
-        app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+    app.mount("/static", StaticFiles(directory=str(dist_dir)), name="static")
 
 
 @app.get("/env.js", include_in_schema=False)
@@ -335,6 +325,7 @@ app.include_router(api_router, prefix="/api/v1")
 
 FRONTEND_ROUTES = {
     "dashboard",
+    "market",
     "jobs",
     "recommendations",
     "resume",

@@ -6,7 +6,7 @@ Eight tabs remain inside the existing Market route; Dashboard, ingestion and per
 
 Public, read-only endpoints under `/api/v1/market`: `filters`, `overview`, `hiring-trends`, `salaries`, `skills`, `roles`, `geography`, `employers`, `insights`. `/analytics` remains compatible.
 
-All modules read existing `jobs`, `raw_jobs`, `job_skills` and `skills`. Default scope is ACTIVE; `include_expired=true` also includes EXPIRED; MERGED is always excluded. No separate data store, LLM numbers, forecast or polling loop.
+All modules read existing `jobs`, `raw_jobs`, `job_skills` and `skills`. SQL source scope is ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi and GrowUpWork, plus legacy `topdev` rows for migration compatibility (`MARKET_SOURCES` in `services/analytics/filters.py`). Saramin replaces the historical TopDev collector; migration `009_rename_topdev_saramin` handles source data. Remotive, Upwork, manual and mock are excluded, as are historical synthetic `growupwork-curated-*` source IDs. Jobs discovery remains multi-source and is not the Market dataset. Default scope is ACTIVE; `include_expired=true` also includes EXPIRED; MERGED is always excluded. No separate data store, LLM numbers, forecast or polling loop.
 
 Shared query parameters: `date_from`, `date_to` (inclusive UTC posting dates), `category`, `level`, `location`, `region`, `source`, `work_mode`, `skill`, `company`, `include_expired`. Categories and coarse regions are lexical derivations, not employer-declared classifications. Unknown titles remain Other. Seniority/work mode retain ingestion's inference limitations.
 
@@ -28,7 +28,7 @@ Each response includes `meta`: generation timestamp, applied filters, total jobs
 
 `cd frontend` then `npm run build`.
 
-Current implementation loads compact facts and aggregates in Python (no descriptions/embeddings). At substantially larger datasets, move aggregations into SQL/materialized aggregates after profiling; no speculative cache infrastructure or schema migration is required for the present ~1,500 rows.
+Current implementation loads compact facts and aggregates in Python (no descriptions/embeddings). At substantially larger datasets, move aggregations into SQL/materialized aggregates after profiling; no speculative cache infrastructure or schema migration is required without assuming a fixed current row count.
 
 ### Test evidence
 

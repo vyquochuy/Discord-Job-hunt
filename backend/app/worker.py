@@ -12,7 +12,7 @@ from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
-from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.saramin_adapter import SaraminJobCollector
 from app.services.collectors.upwork_adapter import UpworkJobCollector
 from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
@@ -41,7 +41,7 @@ async def run_collection_cycle(limit: int = 15):
         GrowUpWorkJobCollector(),
         VietnamWorksJobCollector(),
         UpworkJobCollector(),
-        TopDevJobCollector(),
+        SaraminJobCollector(),
     ]
 
 

@@ -2,10 +2,18 @@
 
 **Date:** 2026-10-06  
 **Auditor:** Senior Application Security Engineer & Backend Security Reviewer  
-**Status:** Phase 0 (Reconnaissance) Initial Assessment  
+**Status:** Historical assessment (2026-10-06); source-status reconciliation 2026-11-09, not a fresh exploitation/test run
 **Repository:** `c:\Game\Job-Hunt` (Branch: `main`)
 
 ---
+
+## Current source reconciliation (2026-11-09)
+
+SEC-01–04 fixes remain present. Historical severity/impact narratives below describe the original assessment, not newly reproduced vulnerabilities. SEC-05 remains an unpinned-DNS design risk: prechecks and redirect checks do not bind the actual httpx connection. SEC-06 is **open architectural exposure**, not mitigated by writing a migration plan: React `frontend/src/api/client.ts` still persists both tokens. SEC-07 has no global network-denial fixture (`backend/tests/conftest.py` only disables rate limiting); individual mocks do not prove suite-wide isolation. No live LLM calls or credential leakage were reproduced in this documentation review.
+
+PDF access requires an access JWT (Bearer or supported `?token=`) and ownership validation before serving/JIT. Explicit superuser/internal-service privileges remain; a UUID is not a public capability. Query JWT URLs can leak through logs/history and must be treated as credentials. The internal principal is distinct from database users but is still privileged, not a universally tenant-bound identity.
+
+Evidence: `backend/app/core/security.py`, `backend/app/api/v1/endpoints/auth.py`, `resumes.py`, `backend/app/main.py`, `backend/app/services/extraction/url_fetcher.py`, `frontend/src/api/client.ts`, `backend/tests/conftest.py`. Regression files listed below exist; their historical pass claims were not rerun here.
 
 ## 1. Summary of Findings
 
@@ -16,7 +24,7 @@
 | **SEC-03** | Service Authentication Masquerades as First Database User | **High** | Confirmed Vulnerability | **Resolved (Phase 2)** | `security.py::get_current_user_optional` |
 | **SEC-04** | Overly Permissive CORS Origin Regex for Vercel Subdomains | **Medium** | Confirmed Vulnerability | **Resolved (Phase 3)** | `main.py::CORSMiddleware` |
 | **SEC-05** | TOCTOU DNS Rebinding Window in Outbound URL Ingestion | **Medium** | Plausible Risk | Open | `url_fetcher.py::is_safe_public_url` |
-| **SEC-06** | Browser `localStorage` Token Storage Exposing Refresh Tokens | **Low** | Plausible Risk / Architecture | **Mitigated / Documented** | `client.js::setTokens` & `MIGRATION_PLAN.md` |
+| **SEC-06** | Browser `localStorage` Token Storage Exposing Refresh Tokens | **Low** | Plausible Risk / Architecture | **Open / migration proposed** | `frontend/src/api/client.ts::setTokens` & `docs/TOKEN_STORAGE_MIGRATION_PLAN.md` |
 | **SEC-07** | Live External LLM Network Calls in Test Suite | **Low** | Confirmed Hygiene / Leak | Open | `backend/tests/` |
 | **SEC-08** | LaTeX Compilation Process Escape (`\write18`) | N/A | False Positive | Mitigated | `latex_compiler.py` (`-no-shell-escape`) |
 | **SEC-09** | JWT Algorithm Confusion / `alg: none` | N/A | False Positive | Mitigated | `security.py::decode_token` |
@@ -42,7 +50,7 @@
 - **Resolution:** **RESOLVED (Phase 1)**.
   - Endpoint now depends on `get_authenticated_user_or_internal`.
   - Verifies resume ownership via `verify_resume_ownership(resume, cand, _user)`.
-  - Supports Bearer token and secure `?token=` query param authentication for inline browser preview (`<iframe>` / `<embed>`).
+  - Supports Bearer access JWT and `?token=` query param authentication (credential-bearing URL; not inherently leak-proof) for inline browser preview (`<iframe>` / `<embed>`).
 - **Regression Test:** `backend/tests/test_phase1_authorization_regression.py::test_resume_pdf_download_bola_and_query_token_auth`
 
 ---
@@ -79,7 +87,7 @@
 - **Resolution:** **RESOLVED (Phase 2)**.
   - Eliminated implicit database User fallback.
   - Returns an explicit, distinct in-memory system service principal (`00000000-0000-0000-0000-000000000001`, `system@jobhunter.internal`).
-  - Added strict validation preventing service tokens from pretending to be specific tenants unless explicit authorization context is passed.
+  - The service principal is distinct but has `is_superuser=True`; this fix removes implicit first-user identity, not all privileged access. Do not infer universal tenant scoping for internal-secret requests.
 - **Regression Test:** `backend/tests/test_phase2_auth_hardening.py::test_internal_service_masquerade`
 
 ---
@@ -113,13 +121,13 @@
 - **Impact:**
   **Medium**. Bypasses SSRF filtering to interact with internal services on `localhost` or cloud metadata services.
 - **Confidence:** **PLAUSIBLE** (Classic Time-Of-Check to Time-Of-Use design flaw).
-- **Missing Evidence:** Requires verifying whether httpx connection pooling or custom transport pinning can bind to the pre-checked IP.
+- **Current source evidence (2026-11-09):** Standard `httpx.AsyncClient` has no custom transport binding to the checked IP. Redirect targets are also prechecked, but connections remain unpinned. A bounded deterministic transport/DNS regression is still needed; no exploit was run here.
 
 ---
 
 ### SEC-06: Browser `localStorage` Token Storage Exposing Refresh Tokens
 
-- **File Path:** [`frontend/js/api/client.js`](file:///c:/Game/Job-Hunt/frontend/js/api/client.js#L42-L60)
+- **File Path:** [`frontend/src/api/client.ts`](../frontend/src/api/client.ts)
 - **Symbol:** `ApiClient.setTokens`
 - **Relevant Code Behavior:**
   Access Token (30m) and Refresh Token (30d) are stored in `window.localStorage.getItem('jh_access_token')` and `'jh_refresh_token'`.
@@ -128,7 +136,7 @@
 - **Impact:**
   **Low-Medium**. An attacker executing script in the origin can exfiltrate the 30-day refresh token, achieving persistent account access.
 - **Confidence:** **PLAUSIBLE / ARCHITECTURAL TRADE-OFF**.
-- **Missing Evidence:** No current XSS entry point is active, but storing high-value refresh tokens in `localStorage` deviates from HttpOnly Cookie recommendations.
+- **Evidence limit:** This review did not establish a reachable XSS entry point or prove its absence. Both tokens remain script-readable; the HttpOnly plan is unimplemented and must account for cross-site Pages/Render cookies and CSRF.
 
 ---
 
@@ -143,7 +151,7 @@
 - **Impact:**
   **Low**. Causes test suite stalls (over 7 minutes due to 429/503 retries), leaks keys in test logs/network traces, and causes unexpected API billing.
 - **Confidence:** **CONFIRMED** (Directly observed during Phase 0 baseline test execution).
-- **Missing Evidence:** None.
+- **Current evidence limit (2026-11-09):** The original observation is historical. Suite-wide network isolation is still absent in conftest, but live calls, billing and key leakage were not reproduced in this documentation pass.
 
 ---
 

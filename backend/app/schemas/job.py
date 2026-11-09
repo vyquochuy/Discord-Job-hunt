@@ -232,6 +232,19 @@ class JobDetailResponse(JobResponse):
     skills: List[JobSkillResponse] = []
 
 
+class JobFilterOption(BaseModel):
+    value: str
+    label: str
+    count: int = Field(ge=0)
+
+
+class JobFiltersResponse(BaseModel):
+    sources: List[JobFilterOption]
+    levels: List[JobFilterOption]
+    work_modes: List[JobFilterOption]
+    locations: List[JobFilterOption]
+
+
 class JobListResponse(BaseModel):
     items: List[JobResponse]
     total: int

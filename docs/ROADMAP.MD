@@ -1,5 +1,7 @@
 # Roadmap
 
+> Reviewed 2026-11-09: checked milestones below retain implementation history, not current production certification. Current blockers/evidence: `../tasks/IN_PROGRESS.MD` and `OPEN_ISSUES.md`. React `frontend/src` replaces deleted legacy frontend paths; never restore them from historical descriptions.
+
 ---
 
 ## Phase 0 — Foundation
@@ -77,7 +79,7 @@
 
 **Goal:** Làm giàu (enrich) tin tuyển dụng mức listing bằng JD đầy đủ từ trang chi tiết, tăng chất lượng evidence cho 7-signal matching và chống lưu nội dung trang lỗi/bị chặn làm JD.
 
-- [x] Service `detail_fetcher.py`: fetch trang chi tiết qua `URLFetcher` (SSRF-safe), 4 tầng trích xuất: JSON-LD `JobPosting` (schema.org) → site DOM selectors (ITViec/TopCV/TopDev/VietnamWorks) → largest-block heuristic → page_text.
+- [x] Service `detail_fetcher.py`: fetch trang chi tiết qua `URLFetcher` (có URL/IP validation; transport pinning còn là SEC-05), 4 tầng trích xuất: JSON-LD `JobPosting` (schema.org) → site DOM selectors (ITViec/TopCV/TopDev/VietnamWorks) → largest-block heuristic → page_text.
 - [x] Quality Validation: phát hiện challenge-trang WAF (`is_challenge_page`) và login gate (`is_login_gate`) → đánh dấu BLOCKED, **KHÔNG bypass** (Invariants 12/19); content quá ngắn → INCOMPLETE.
 - [x] Retry giới hạn (2 lần, backoff 1.5s/3s); HTTP 401/403/407/429 là terminal — không retry.
 - [x] Richer-record merge: description dài hơn thắng, skills union lossless, `datePosted` JSON-LD thắng relative text; failure bookkeeping vào `payload["detail_meta"]`.
@@ -85,7 +87,7 @@
 - [x] Pipeline: BƯỚC 2.5 enrichment với budget `DETAIL_FETCH_MAX_PER_RUN=20`, skip khi listing desc ≥ 800 ký tự, metrics mới `details_enriched/failed/skipped` trong report.
 - [x] Adapters (ITViec, TopCV, TopDev, VietnamWorks) ưu tiên `payload["description"]` đã enrich, nguyên tắc richer-record.
 - [x] 27/27 test riêng + 39/39 test liên quan pass; 4 failure suite là **tiền tồn tại** (xác nhận bằng git stash isolation).
-- [x] Báo cáo chi tiết: [docs/INGESTION_HARDENING.md](docs/INGESTION_HARDENING.md)
+- [x] Báo cáo chi tiết: [INGESTION_HARDENING.md](INGESTION_HARDENING.md)
 
 ---
 
@@ -93,9 +95,9 @@
 
 **Status:** COMPLETED
 
-**Goal:** Quét **toàn bộ** tin còn hiệu lực mà từng nền tảng Việt Nam có (không bị trần `limit`/`max_pages`), đồng thời phát hiện và đánh dấu tin đã hết hạn thay vì để chúng hiện như đang tuyển.
+**Goal:** Quét vượt giới hạn incremental để mở rộng coverage tin còn hiệu lực, đồng thời đánh dấu tin hết hạn. Full scan vẫn có trần trang/dừng an toàn; không cam kết lấy toàn bộ upstream.
 
-**Phạm vi:** ITViec, TopCV, TopDev, VietnamWorks, CareerLink. Nguồn remote nước ngoài (Remotive, Upwork, ITNavi, GrowUpWork) giữ nguyên incremental.
+**Phạm vi hiện tại:** ITViec, TopCV, Saramin (thay TopDev), VietnamWorks, CareerLink, ITNavi, GrowUpWork dùng full-scan mode; Remotive/Upwork giữ incremental. ITNavi và GrowUpWork không được phân loại là nguồn remote nước ngoài. Full scan vẫn có page cap và không bảo đảm upstream cho phép truy cập đầy đủ.
 
 - [x] `ingestion_pipeline.run(..., full_scan: bool = False)`: `full_scan=True` → `limit=0` (collector hiểu "không giới hạn") và tắt ngưỡng dừng sớm `MAX_CONSECUTIVE_UNCHANGED`.
 - [x] 5 adapter VN: `unlimited = limit <= 0`, `max_pages = 80` khi unlimited (bỏ trần cứng `min(25, ...)`), trần an toàn chống vòng lặp phân trang.
@@ -107,7 +109,7 @@
 - [x] API `POST /api/v1/jobs/collect?full_scan=true` + report mở rộng (`expired_marked`, `expired_total`, `details_*`).
 - [x] `daily_runner`: `FULL_SCAN_SOURCES` (5 nguồn VN) + BƯỚC 3.5 expiry maintenance.
 - [x] 18/18 test riêng (`test_expiry_and_full_scan.py`) + 66/66 test liên quan pass; không migration DB (`jobs.expires_at` & `JobStatusEnum.EXPIRED` đã có).
-- [x] Báo cáo chi tiết: [docs/INGESTION_HARDENING.md](docs/INGESTION_HARDENING.md) — mục Phase 2.8.
+- [x] Báo cáo chi tiết: [INGESTION_HARDENING.md](INGESTION_HARDENING.md) — mục Phase 2.8.
 
 ---
 
@@ -138,7 +140,7 @@
 - [x] **Multi-Dimensional JD Capability & Gap Analyzer (`jd_capability_analyzer.py`)**: Vector năng lực 10 domain, phát hiện lỗ hổng (`unsupported_requirements`) và lọc stop words miền chung.
 - [x] **Strategic Project Selector & Targeted MMR**: Multi-signal scoring, diversity bonus cho domain JD yêu cầu, redundancy penalty cho năng lực trùng lặp.
 - [x] **Physical Layout Planner (1-Page ATS)**: Độc lập giải bài toán ngân sách hiển thị A4 ATS (Max 3 dự án, Max 7 bullets, Min 2 dự án).
-- [x] **Gemini Semantic Resume Writer (`gemini_resume_writer.py`)**: Tích hợp Google Gemini REST API (`gemini-3.6-flash`) với Structured JSON Mode và phân rã atomic claims kèm `evidence_ids`.
+- [x] **Gemini Semantic Resume Writer (`gemini_resume_writer.py`)**: Tích hợp Google Gemini REST API (model qua settings; default hiện tại `gemini-flash-latest`, không chứng nhận availability của fallback names) với Structured JSON Mode và phân rã atomic claims kèm `evidence_ids`.
 - [x] **Deterministic Resume Composer (`deterministic_composer.py`)**: Bộ lắp ráp tất định 100% offline fallback khi mất mạng hoặc không có API key.
 - [x] **Claim-Level Validator & Unit Regeneration (`evidence_validator.py`)**: Bộ kiểm tra 6 tầng (`INVALID_EVIDENCE_ID`, `UNSUPPORTED_TECHNOLOGY`, `UNSUPPORTED_METRIC`, `EXPERIENCE_INFLATION`, `UNSUPPORTED_JD_FABRICATION`, `ARCHITECTURAL_SCOPE_SHIFT`) và cơ chế `UnitRegenerationOrchestrator` khóa chặt các unit hợp lệ.
 - [x] **Pure LaTeX Generator & pdflatex Compiler**: Xuất bản PDF 1 trang A4 ATS và Markdown Cover Letter chuẩn mực.
@@ -200,11 +202,11 @@
 **Goal:** Đưa toàn bộ hệ sinh thái AI Job Hunter lên môi trường Public Production với chi phí 0đ, tối ưu hiệu năng toàn cầu (Cloudflare CDN), đảm bảo tính sẵn sàng cao và giải quyết triệt để các rào cản về hạ tầng / AI Token.
 
 - [x] **Phase 8.1: Cloudflare Pages Frontend Deployment (0đ)**:
-  - Cấu hình dynamic `API_BASE` endpoint đa tầng trong [api.js](file:///frontend/js/api.js) (hỗ trợ `window.ENV?.API_URL`, `localStorage`, meta-tag, port fallback và relative `/api/v1`).
+  - Cấu hình endpoint hiện tại trong `frontend/src/config/env.ts` và HTTP client `frontend/src/api/client.ts`; runtime `window.ENV.API_URL` (xem source để biết thứ tự fallback).
   - Thêm quy tắc định tuyến SPA `_redirects` (`/* /index.html 200`) cho Cloudflare Pages để loại bỏ hoàn toàn lỗi 404 khi người dùng tải lại trang.
   - Chuẩn hóa toàn bộ đường dẫn static assets sang relative paths.
   - Bổ sung bộ điều khiển cấu hình Cloud API Endpoint và kiểm tra độ trễ (Ping Health Check) trên giao diện Web.
-  - Tài liệu hướng dẫn chi tiết tại [CLOUDFLARE_PAGES_GUIDE.md](file:///docs/CLOUDFLARE_PAGES_GUIDE.md).
+  - Tài liệu hướng dẫn chi tiết tại [CLOUDFLARE_PAGES_GUIDE.md](CLOUDFLARE_PAGES_GUIDE.md).
 - [ ] **Phase 8.2: Cloud Database & Serverless Cache (0đ)**:
   - Khởi tạo **Supabase PostgreSQL** (Free Tier 500MB) có tích hợp sẵn extension `pgvector`.
   - Khởi tạo **Upstash Redis** (Free 10,000 commands/ngày) phục vụ message queue và caching.
@@ -217,7 +219,7 @@
   - Deploy FastAPI Backend lên **Render.com** (Free Web Service) hoặc **Koyeb** / **Hugging Face Spaces**.
   - Cấu hình CORS cho phép domain Cloudflare Pages truy cập bảo mật.
   - Deploy Discord Bot lên **Hugging Face Spaces (Docker Space)** hoặc **Discloud** để duy trì kết nối WebSocket Gateway liên tục.
-  - Thiết lập keep-alive ping (UptimeRobot 5 phút/lần) chống cold-sleep cho backend.
+  - Tôn trọng Render Free spin-down; xử lý cold-start bằng timeout hữu hạn và thông báo UI, không thiết lập keep-alive nhằm chống sleep.
 - [ ] **Cloud Storage & Persistence Hardening**:
   - Lưu trữ Profile và Tailored Resumes vào PostgreSQL / Supabase Storage để dữ liệu không bị mất khi container khởi động lại (ephemeral filesystem).
 
@@ -232,7 +234,7 @@
 - [x] **Project Foundation & Modern Stack**:
   - Khởi tạo kiến trúc hiện đại: React 18, TypeScript 5.7+, Tailwind CSS 3.4, Vite 6, Lucide React, và Radix UI Primitives.
   - Cấu hình path mapping `@/*`, loại bỏ hoàn toàn dependency bloat (không dùng Redux/Zustand nặng nề).
-  - Sao lưu toàn bộ mã nguồn cũ vào `frontend/legacy/` đảm bảo tính an toàn và khả năng phục hồi (recoverability).
+  - Legacy `frontend/js`, `frontend/css`, `frontend/legacy` đã bị xóa sau migration; live app ở `frontend/src`, thiết kế tham chiếu ở `frontendv2/Redesign`.
 - [x] **Design System & Reusable Component Primitives**:
   - Xây dựng Design Tokens chuẩn mực: Primary `#2563EB`, Surface `#FFFFFF`, Background `#F8FAFC`, Border `#E2E8F0`, Semantic (Success, Warning, Danger, Critical).
   - Phân tầng Typography nhất quán: `Inter` (UI/Nội dung) và `JetBrains Mono` (LaTeX/Monospace code).
@@ -243,9 +245,9 @@
   - Topbar tinh gọn chỉ chứa thông tin ngữ cảnh, trạng thái kết nối và menu tài khoản.
   - Mobile Drawer với Backdrop làm mờ, mở bằng nút Hamburger, hỗ trợ đóng bằng phím Escape và chống tràn ngang (zero horizontal overflow).
 - [x] **Migrate Toàn Bộ 7 Trang Chức Năng**:
-  - `/dashboard`: 4 thẻ KPI nhanh, danh sách đề xuất hàng đầu, kết nối trực tiếp database (2,300+ jobs).
+  - `/dashboard`: KPI và đề xuất lấy qua REST API; frontend không kết nối trực tiếp database, tổng job phụ thuộc dữ liệu runtime.
   - `/jobs`: Tìm kiếm tức thì có debounce, bộ lọc đa năng (Work Mode, Level, Source), hỗ trợ Mobile Sheet Filter.
-  - `/recommendations`: Bảng xếp hạng theo thuật toán tất định 7 chỉ số, nhãn phân loại Eligibility (`ELIGIBLE`, `BORDERLINE`, `INELIGIBLE`).
+  - `/recommendations`: Bảng xếp hạng theo thuật toán tất định 7 chỉ số, nhãn phân loại Eligibility (`ELIGIBLE`, `BLOCKED`, `UNCERTAIN`).
   - `/resume`: Resume Hub quản lý danh sách CV + Workspace 4 tabs (Bản xem PDF live, Trình soạn thảo LaTeX kèm nút lưu/biên dịch, Bảng đối soát Evidence Map, và Trình tạo Cover Letter).
   - `/applications`: Bảng quản lý ứng tuyển cho desktop và tự động chuyển sang thẻ Card cho mobile kèm dropdown đổi trạng thái trực tiếp.
   - `/profile`: Single Source of Truth cho ứng viên, tích hợp Dropzone kéo thả file CV tự động trích xuất thông tin.
@@ -253,7 +255,7 @@
 - [x] **Bảo Toàn Cơ Chế Xác Thực & API Client (Behaviorally Identical)**:
   - Giữ nguyên 100% cơ chế 30m Access Token + 30d Refresh Token Rotation (`localStorage`).
   - Bảo tồn Refresh Mutex Queue (`refreshPromise`) giải quyết triệt để xung đột 401 từ các API gọi đồng thời.
-  - Tự động thử lại với Exponential Backoff khi gặp các mã lỗi tạm thời (502/503/504) và phát hiện cold-start backend.
+  - Retry hữu hạn cho read methods khi lỗi tạm thời/cold-start; không tự retry mutation do network/timeout (invariant 22).
 - [x] **Docker & Production Serving**:
   - Tối ưu hóa bundle Vite (`dist/index.html`, `dist/assets/`).
   - Tích hợp FastAPI StaticFiles tự động mount `/assets` và phục vụ trực tiếp bản build production qua Docker container backend port 8000.

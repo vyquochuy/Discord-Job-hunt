@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import (
@@ -30,6 +30,23 @@ from app.services.analytics.taxonomy import (
     derive_region,
     derive_role_family,
 )
+
+
+MARKET_SOURCES = (
+    "itviec", "topcv", "saramin", "topdev",
+    "vietnamworks", "careerlink", "itnavi", "growupwork",
+)
+
+
+def market_source_predicate():
+    """Keep supported sources, excluding historical synthetic fallback records."""
+    return and_(
+        RawJob.source.in_(MARKET_SOURCES),
+        or_(
+            RawJob.source_job_id.is_(None),
+            ~RawJob.source_job_id.startswith("growupwork-curated-"),
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +161,7 @@ def build_job_query(filters: MarketFilters) -> Select:
             RawJob.source,
         )
         .join(RawJob, RawJob.id == Job.raw_job_id)
+        .where(market_source_predicate())
     )
 
     if filters.include_expired:

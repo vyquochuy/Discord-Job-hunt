@@ -1,5 +1,7 @@
 # TODO
 
+> Correction 2026-11-09: completed sections retain historical checklists, not current guarantees or fresh test results. Live frontend is React `frontend/src`; references to deleted `frontend/js`/`frontend/legacy` describe superseded work. TopDev is replaced by Saramin; full scans now include ITNavi/GrowUpWork. Current evidence/blockers: `IN_PROGRESS.MD` and `../docs/OPEN_ISSUES.md`.
+
 ## Phase 0 — Foundation (Completed)
 - [x] Write `docker-compose.yml` defining services (postgres with pgvector, redis, backend, discord-bot, workers)
 - [x] Create `.env.example` with required variables
@@ -214,7 +216,7 @@
   - [ ] Deploy FastAPI Backend to **Render.com** (Free Web Service) or **Koyeb** / **Hugging Face Spaces**
   - [ ] Configure CORS middleware in `backend/app/main.py` to allow Cloudflare Pages domain
   - [ ] Deploy Discord Bot to **Hugging Face Spaces (Docker Space)** or **Discloud** for 24/7 WebSocket Gateway connection
-  - [ ] Set up **UptimeRobot** keep-alive ping (5-minute interval) against `/api/v1/health` to prevent backend cold sleep
+  - Respect Render Free sleep; do not add keep-alive to prevent cold sleep. Liveness is `/health` (not `/api/v1/health`); use bounded cold-start handling.
 - [ ] **8.5 Cloud Storage & Context Persistence Hardening**:
   - [ ] Persist candidate profile & generated tailored resumes directly in PostgreSQL / Supabase Storage (handling ephemeral container filesystem)
 

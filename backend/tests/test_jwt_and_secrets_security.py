@@ -211,21 +211,21 @@ def test_production_secret_fail_fast():
     os.environ["ENVIRONMENT"] = "production"
     try:
         # Default secret must fail
-        with pytest.raises(ValueError, match="Production security violation"):
+        with pytest.raises(ValueError, match="Non-development security violation"):
             Settings(
                 ENVIRONMENT="production",
                 JWT_SECRET_KEY="job_hunter_platform_secret_key_web_2026_flexible_auth",
             )
 
         # Short secret (< 32 chars) must fail
-        with pytest.raises(ValueError, match="Production security violation"):
+        with pytest.raises(ValueError, match="Non-development security violation"):
             Settings(
                 ENVIRONMENT="production",
                 JWT_SECRET_KEY="too_short_secret",
             )
 
         # Insecure internal secret must fail
-        with pytest.raises(ValueError, match="Production security violation"):
+        with pytest.raises(ValueError, match="Non-development security violation"):
             Settings(
                 ENVIRONMENT="production",
                 INTERNAL_API_SECRET="change_me_to_a_secure_random_string_32_chars",

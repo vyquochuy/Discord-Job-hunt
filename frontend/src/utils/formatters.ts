@@ -75,7 +75,8 @@ export function getSourceBadgeInfo(source?: string | null): { label: string; col
     case 'careerlink':
       return { label: 'CareerLink', colorClass: 'bg-cyan-50 text-cyan-600 border-cyan-100' };
     case 'topdev':
-      return { label: 'TopDev', colorClass: 'bg-warning-50 text-warning-700 border-warning-200' };
+    case 'saramin':
+      return { label: 'Saramin', colorClass: 'bg-warning-50 text-warning-700 border-warning-200' };
     case 'vietnamworks':
       return { label: 'VietnamWorks', colorClass: 'bg-violet-50 text-violet-700 border-violet-200' };
     case 'manual':
