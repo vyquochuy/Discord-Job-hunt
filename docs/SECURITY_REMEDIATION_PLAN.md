@@ -1,132 +1,31 @@
-# Kế hoạch Kỹ thuật Chi tiết: Khắc phục Bảo mật & Sẵn sàng Public (JobHunt)
+# Security remediation plan and source status
 
-Tài liệu này xác định kiến trúc chuẩn hóa và kế hoạch kỹ thuật chi tiết để khắc phục toàn bộ các điểm yếu bảo mật (Authentication, CORS, Rate Limiting, JWT, SSRF, LaTeX Injection, PII Leaks) của hệ thống **JobHunt** trước khi đưa mã nguồn lên môi trường công khai (Public GitHub) hoặc triển khai dịch vụ trên Internet.
+**Reviewed: 2026-11-09, current working tree.** This replaces the original pre-publication checklist; checked-in controls are not proof of deployed configuration or a fresh passing test suite. Historical findings retain their IDs in [security/FINDINGS.md](../security/FINDINGS.md).
 
----
+## Implemented controls and evidence
 
-## 1. Định danh Kiến trúc Nền tảng (Platform Architecture Identity)
+| Area | Current source behavior | Evidence |
+| --- | --- | --- |
+| Tenant isolation (SEC-01/02) | Registration creates a clean user-owned candidate and handles duplicate email integrity errors. Resume PDF authentication and ownership checks precede delivery and JIT recompilation; privileged exceptions remain. | `backend/app/api/v1/endpoints/auth.py`, `resumes.py`, `backend/app/repositories/candidate.py`; `backend/tests/test_phase1_authorization_regression.py` |
+| Service identity (SEC-03) | Valid internal secret maps to a distinct in-memory privileged service principal, not the first database user. It is not tenant identity or a Discord-user mapping. | `backend/app/core/security.py`; `backend/tests/test_phase2_auth_hardening.py` |
+| CORS (SEC-04) | Explicit `ALLOWED_CORS_ORIGINS`; hosting-wide Vercel regex removed. Default dev origins include Vite port 5173. | `backend/app/main.py`, `backend/app/core/config.py`; `backend/tests/test_phase3_cors_xss.py` |
+| JWT/passwords | Configured algorithm whitelist (default HS256), required claims/type/UUID checks, Argon2id, refresh rotation/row locking/grace and family revocation. Non-default secrets ≥32 characters required in every non-development environment. Existing access JWTs are not revoked by refresh-family revocation. | `backend/app/core/security.py`, `config.py`, `backend/app/services/auth_service.py` |
+| Bootstrap admin | Registration does not promote the first registrant and reserves the bootstrap admin email; startup does not overwrite an existing admin password. | `backend/app/api/v1/endpoints/auth.py`, `backend/app/main.py` |
+| Rate limits/errors | SlowAPI decorators protect selected auth/expensive/admin routes; generic unhandled error responses avoid raw exception disclosure. This is not a distributed quota guarantee. | `backend/app/core/limiter.py`, endpoint decorators, `backend/app/main.py` |
+| SSRF prechecks | HTTP(S)-only, DNS/IP deny checks and redirect target revalidation. **No transport pinning**; see open SEC-05 below. | `backend/app/services/extraction/url_fetcher.py` |
+| LaTeX | `-no-shell-escape`, working-directory separation, timeout and fail-closed compiler (no restrictive subprocess environment configured); readable PDF must have exactly one page. These are hardening controls, not an OS sandbox. | `backend/app/services/tailoring/latex_compiler.py`; `backend/tests/test_latex_compiler_safety.py` |
+| Local infrastructure | Postgres/Redis published on loopback. Backend port 8000 remains published, Compose runs backend/workers as root with source mounts and reload; do not present Compose as production isolation. | `docker-compose.yml` |
+| Submission | Preparation defaults to simulation; actual transport submission unsupported (501). Manual status updates track external actions. | `backend/app/services/tailoring/application_service.py`; `backend/tests/test_application_submission_safety.py` |
 
-> **"JobHunt là nền tảng hỗ trợ tìm kiếm việc làm, nơi dữ liệu tin tuyển dụng được tự động thu thập và công khai cho người dùng. Sau khi đăng nhập và tải lên CV, hệ thống sẽ xây dựng Candidate Profile từ hồ sơ cá nhân, sau đó sử dụng AI để phân tích Job Description, đánh giá mức độ phù hợp và hỗ trợ tối ưu CV cho từng vị trí — dựa hoàn toàn trên thông tin thực tế của ứng viên, không tự tạo thêm kinh nghiệm hay kỹ năng."**
+## Remaining work / acceptance gates
 
-### Mô hình Phân quyền 3 Tầng (3-Tier Access Model)
+- **SEC-05 — DNS transport pinning: OPEN.** `socket.getaddrinfo()` validates a resolution, then ordinary `httpx.AsyncClient.get()` resolves independently. Pin the actual connection to validated addresses while preserving TLS SNI/Host; validate redirects at the connection boundary. Verify locally with deterministic DNS/transport fixtures. No live DNS-rebinding exploitation was run for this documentation pass.
+- **SEC-06 — HttpOnly migration: PROPOSED, NOT MITIGATED BY DOCUMENTATION.** Both tokens remain in `frontend/src/api/client.ts` localStorage. See [TOKEN_STORAGE_MIGRATION_PLAN.md](TOKEN_STORAGE_MIGRATION_PLAN.md) for cross-site Pages/Render cookie constraints, CSRF, credentialed CORS and iframe migration gates. CORS is not XSS protection.
+- **SEC-07 — global test network isolation: OPEN / needs revalidation.** Test-level mocks exist, but `backend/tests/conftest.py` only globally disables rate limiting; it does not globally deny outbound network or clear LLM credentials. Run tests with explicit dummy environment and network isolation; a passing run without a key is not proof of isolation.
+- **Discord:** Legacy commands still use privileged internal credentials; optional owner checks are not universal. Keep deployment trusted/private, do not claim complete command deprecation or tenant mapping. See [DISCORD_BOT_DEPLOYMENT.md](DISCORD_BOT_DEPLOYMENT.md).
+- **Public-repository hygiene:** Review current files, Git history, tags, releases and forks for credentials/PII. Rotate exposed secrets. History cleanup is destructive, requires explicit approval/backups and cannot erase already-cloned data; no cleanup is claimed here. Never blindly force-push a shared repository. Candidate seed files are intentional runtime import inputs; use anonymized equivalents if publishing them.
+- **Deployment verification:** Confirm exact frontend CORS origins, strong secrets, log/query-token redaction, TLS and resource isolation in the deployed environment. `/health` must stay DB-free, `/health/ready` owns DB readiness, and no client keep-alive polling may defeat Render Free idle policy.
 
-```mermaid
-graph TD
-    Client[Người dùng / Web Browser / Client] --> Router[FastAPI Router /api/v1]
-    
-    subgraph Tier 1: Public Tier [Không yêu cầu đăng nhập]
-        Router -->|GET /jobs, GET /jobs/:id| PublicJobs[Xem & Tìm kiếm Tin tuyển dụng]
-        Router -->|GET /jobs/taxonomy/skills| PublicTaxonomy[Xem Danh mục Kỹ năng]
-        Router -->|GET /health, GET /| PublicHealth[Kiểm tra Hệ thống]
-        Router -->|POST /auth/register, /auth/login| PublicAuth[Đăng ký & Đăng nhập]
-    end
+## Validation boundaries
 
-    subgraph Tier 2: Authenticated Candidate Tier [Yêu cầu Bearer JWT Token]
-        Router -->|POST /profile/upload-resume| UploadCV[Tải lên CV & Trích xuất Hồ sơ]
-        Router -->|GET, PUT /profile| ManageProfile[Quản lý Hồ sơ Ứng viên Cá nhân]
-        Router -->|GET /matches, /recommendations/top| AIMatch[AI Phân tích JD & Điểm phù hợp 7 tín hiệu]
-        Router -->|POST /resumes/tailor/:job_id| TailorResume[Tối ưu CV AI - Zero Hallucination]
-        Router -->|GET, PUT /resumes/*| ManageResume[Tải PDF / Sửa LaTeX / Cover Letter]
-        Router -->|GET, POST /jobs/saved| SavedJobs[Lưu & Theo dõi Công việc Cá nhân]
-        Router -->|POST /applications/apply/:job_id| Applications[Nộp đơn Ứng tuyển & Quản lý Trạng thái]
-    end
-
-    subgraph Tier 3: Admin & System Tier [Yêu cầu Superuser HOẶC X-Internal-Secret]
-        Router -->|POST /system/purge-database| PurgeDB[Xóa Dữ liệu Hệ thống]
-        Router -->|POST /system/reset-demo| ResetDemo[Khôi phục Dữ liệu Mẫu]
-        Router -->|POST /jobs/collect, /daily-batch| BatchScrape[Kích hoạt Cào tin Đa nguồn]
-        Router -->|POST /matches/calculate-all| BatchMatch[Tính toán lại Toàn bộ Match]
-    end
-```
-
----
-
-## 2. Chi tiết Các Lỗ hổng & Phương án Khắc phục
-
-### 2.1. Lỗ hổng Xác thực & Phân quyền (Authentication & Authorization)
-
-| Endpoint | Trạng thái trước khi sửa | Phương án khắc phục |
-| :--- | :--- | :--- |
-| `POST /api/v1/system/purge-database` | Bỏ qua xác thực nếu client không gửi header `X-Internal-Secret` | Sửa `verify_admin_access`: Bắt buộc `X-Internal-Secret` hợp lệ HOẶC `current_user.is_superuser == True`. Từ chối tất cả trường hợp còn lại (`403 Forbidden`). |
-| `POST /api/v1/system/reset-demo` | Tương tự purge-database | Áp dụng `verify_admin_access` nghiêm ngặt. |
-| `GET, PUT /api/v1/profile` | Bỏ qua xác thực nếu thiếu header | Bắt buộc `Depends(get_current_user)`. Tự động gán/lấy `CandidateProfile` theo `user.id`. |
-| `POST /api/v1/profile/upload-resume` | Bỏ qua xác thực nếu thiếu header | Bắt buộc `Depends(get_current_user)`. Nạp thông tin CV đã phân tích vào chính profile của người dùng đăng nhập. |
-| `POST /api/v1/resumes/tailor/{job_id}` | Hoàn toàn không có Auth dependency | Bắt buộc `Depends(get_current_user)`. Chỉ sinh CV cho Candidate Profile của user. Ngăn chặn lạm dụng LLM GPT-4o. |
-| `GET, PUT, DELETE /api/v1/resumes/*` | Hoàn toàn không có Auth dependency | Bắt buộc `Depends(get_current_user)`. Kiểm tra quyền sở hữu `resume.candidate_id == user.candidate.id`. |
-| `POST /api/v1/applications/apply/{job_id}` | Hoàn toàn không có Auth dependency | Bắt buộc `Depends(get_current_user)`. |
-| `GET, PATCH /api/v1/applications/*` | Hoàn toàn không có Auth dependency | Bắt buộc `Depends(get_current_user)`, chỉ trả về đơn ứng tuyển của user. |
-| `GET /api/v1/jobs/saved` | Nếu không có token -> trả về saved jobs của toàn bộ database | Bắt buộc `Depends(get_current_user)`, chỉ trả về saved jobs của user. |
-| `POST /api/v1/jobs/{job_id}/save` | Nếu không có token -> tự động gán vào user đầu tiên | Bắt buộc `Depends(get_current_user)`. |
-| `POST /api/v1/jobs/collect`, `/daily-batch` | Hoàn toàn không có Auth dependency | Bắt buộc `verify_admin_access`. |
-| `POST /api/v1/matches/calculate-all` | Hoàn toàn không có Auth dependency | Bắt buộc `verify_admin_access`. |
-
----
-
-### 2.2. Rate Limiting & Phòng chống Cạn kiệt Ngân sách AI (Denial of Wallet)
-
-Tích hợp thư viện `slowapi` với bộ đếm IP và User ID:
-- `/api/v1/auth/login`: Giới hạn **5 requests/phút** theo IP (chống dò mật khẩu, credential stuffing).
-- `/api/v1/auth/register`: Giới hạn **3 requests/phút** theo IP (chống spam tài khoản rác).
-- `/api/v1/resumes/tailor/*`: Giới hạn **5 requests/phút** theo User ID (chống spam gọi mô hình GPT-4o/Gemini, bảo vệ chi phí API).
-- `/api/v1/jobs/ingest-manual`: Giới hạn **5 requests/phút** theo User ID.
-- `/api/v1/system/*`: Giới hạn **2 requests/phút**.
-
----
-
-### 2.3. Cấu hình CORS & Che giấu Lỗi Hệ thống
-
-1. **Cấu hình CORS an toàn:**
-   - Thay thế `allow_origins=["*"]` bằng danh sách tên miền tin cậy đọc từ biến môi trường `ALLOWED_CORS_ORIGINS`.
-   - Cấu hình mặc định cho Local Dev: `http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000`.
-   - Khi deploy Production (ví dụ Cloudflare Pages), chỉ cần thêm: `https://your-domain.pages.dev`.
-2. **Che giấu chi tiết lỗi máy chủ (Information Disclosure):**
-   - Trong `global_exception_handler` tại `backend/app/main.py`:
-     - Ghi toàn bộ `error_trace` và thông tin chi tiết vào server logger.
-     - Phản hồi HTTP 500 ra ngoài bằng JSON an toàn: `{"detail": "Internal server error. Please contact system administrator."}` thay vì phơi bày `str(exc)`.
-
----
-
-### 2.4. Phòng chống SSRF & Sandbox Biên dịch LaTeX
-
-1. **Chống SSRF (Server-Side Request Forgery) tại `url_fetcher.py`:**
-   - Khi người dùng gửi đường dẫn URL để nhập JD (`POST /api/v1/jobs/ingest-manual`), hàm phân giải DNS kiểm tra địa chỉ IP đích:
-     - Chặn các dải IP Loopback: `127.0.0.0/8`, `localhost`.
-     - Chặn các dải IP Private RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`.
-     - Chặn Cloud Metadata API: `169.254.169.254`.
-     - Chặn IPv6 nội bộ: `::1`, `fc00::/7`, `fe80::/10`.
-   - Từ chối thực hiện HTTP request nếu IP thuộc các dải bị chặn.
-2. **Sandbox Biên dịch LaTeX tại `latex_compiler.py`:**
-   - Bổ sung tham số `"-no-shell-escape"` vào lệnh thực thi của `pdflatex` và `xelatex`.
-   - Ngăn chặn triệt để nguy cơ chèn mã thực thi shell command (`\write18`) hoặc đọc file tùy ý từ hệ điều hành.
-   - Thay thế chuỗi hardcoded thông tin cá nhân tại hàm fallback PDF bằng thông tin ứng viên động hoặc ẩn danh.
-
----
-
-### 2.5. Hạ tầng Docker & Xử lý Git History (Lộ PII)
-
-1. **Docker Compose Hardening:**
-   - Chuyển cấu hình mở cổng của `postgres` từ `"5432:5432"` sang `"127.0.0.1:5432:5432"`.
-   - Chuyển cấu hình mở cổng của `redis` từ `"6379:6379"` sang `"127.0.0.1:6379:6379"`.
-   - Ngăn chặn việc lộ cổng cơ sở dữ liệu ra ngoài Internet khi chạy trên VPS có IP Public.
-2. **Quy trình Làm sạch Lịch sử Git (Scrubbing PII trước khi Public Repo):**
-   Do các commit cũ trong quá khứ đã chứa file `context/candidate-profile.yaml` (họ tên, SĐT, email thật), trước khi chuyển repository sang Public, cần thực hiện lệnh sau trên máy phát triển:
-   ```bash
-   # Cài đặt git-filter-repo (nếu chưa có: pip install git-filter-repo)
-   git filter-repo --path context/candidate-profile.yaml --path context/master-resume.md --path context/master-resume.tex --invert-paths --force
-   
-   # Force push lại lên GitHub để ghi đè lịch sử đã làm sạch
-   git push origin --force --all
-   ```
-   *Lưu ý: Sau khi chạy lệnh này, toàn bộ lịch sử commit sẽ được làm sạch hoàn toàn khỏi thông tin cá nhân.*
-
----
-
-## 3. Lộ trình Thực hiện & Tiêu chí Nghiệm thu
-
-- [x] **Bước 1:** Cập nhật tài liệu kiến trúc: `docs/SECURITY_REMEDIATION_PLAN.md`, `docs/SECURITY.MD`, `AGENTS.MD`, `docs/ROADMAP.MD`.
-- [x] **Bước 2:** Vá toàn bộ các dependency phân quyền trong API endpoints (`system.py`, `profile.py`, `resumes.py`, `applications.py`, `jobs.py`, `matches.py`).
-- [x] **Bước 3:** Tích hợp `slowapi` và áp dụng Rate Limiting bảo vệ Auth và AI Tailoring.
-- [x] **Bước 4:** Chuẩn hóa CORS và làm sạch phản hồi Exception Handler trong `main.py`.
-- [x] **Bước 5:** Tích hợp bộ lọc DNS/IP chống SSRF trong `url_fetcher.py` và bổ sung `-no-shell-escape` trong `latex_compiler.py`.
-- [x] **Bước 6:** Sửa `docker-compose.yml` bind localhost.
-- [x] **Bước 7:** Chạy toàn bộ automated test suite và bổ sung security tests kiểm chứng.
+This pass compared source/config and documentation only; it did not execute tests, call providers, rewrite history or deploy. Existing test files above are reproducible evidence targets, not newly verified pass claims. Run isolated checks with dummy credentials before release; frontend build command is `npm --prefix frontend run build`, deployment artifact is `frontend/dist`, runtime configuration is public `window.ENV` in `env.js` (see the [Pages guide](CLOUDFLARE_PAGES_GUIDE.md)).

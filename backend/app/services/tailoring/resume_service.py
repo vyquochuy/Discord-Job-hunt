@@ -318,8 +318,7 @@ class ResumeTailorService:
             file_prefix=f"resume_{resume.job_id}",
             candidate_id=str(resume.candidate_id),
         )
-        if pdf_path:
-            resume.pdf_path = pdf_path
+        resume.pdf_path = pdf_path if compile_ok else None
         resume.status = ResumeStatusEnum.COMPILED if compile_ok else ResumeStatusEnum.FAILED
         resume.compilation_error = comp_err
         await session.commit()

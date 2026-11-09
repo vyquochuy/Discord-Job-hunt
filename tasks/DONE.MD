@@ -1,5 +1,7 @@
 # Completed Work
 
+> Historical ledger; correction 2026-11-09: counts, deployment claims and paths below describe their original milestones, not current verification. React `frontend/src` replaces removed legacy JS/CSS; Saramin replaces TopDev. PDFs now require authentication and ownership (including query-token embeds), not public UUID capabilities. Full scans include seven VN sources with page caps; TopCV access and ITNavi full-detail completion remain unresolved. Current status: `IN_PROGRESS.MD` and `../docs/OPEN_ISSUES.md`.
+
 ## Phase 2.8 — Full Unexpired Scanning & Expiry Detection (Completed — 2026-11-04)
 
 **Phạm vi:** 5 nền tảng Việt Nam — ITViec, TopCV, TopDev, VietnamWorks, CareerLink. Nguồn remote nước ngoài giữ incremental.
@@ -371,7 +373,7 @@
   - Truyền đúng tham số `#1` hiển thị chuẩn xác `OBJECTIVE`, `EDUCATION`, `SKILLS`, `PROJECTS`.
 - [x] **Chuẩn hóa bố cục ATS 1 trang A4 duy nhất**:
   - Căn lề chuẩn `1.2cm / 1.1cm` và khoảng cách phân cách dự án `\vspace{4pt}`. Đảm bảo cấu hình từ 2 đến 3 dự án đầy đủ đều vừa khít tuyệt đối trên đúng 1 trang PDF.
-- [x] **Mở Public Endpoint xem trước PDF**:
+- [x] **Mở Public Endpoint xem trước PDF (lịch sử; đã thay bằng auth + ownership ở SEC-01)**:
   - Điều chỉnh `GET /api/v1/resumes/{id}/pdf` để iframe và trình nhúng PDF trên trình duyệt xem được ngay mà không bị chặn lỗi 401 Authorization.
 
 ---
@@ -410,7 +412,7 @@
 - [x] **JIT PDF Recompilation cho Ổ Đĩa Ephemeral của Cloud Container**:
   - Ổ đĩa Render là tạm thời (ephemeral), file PDF trên `/app/storage/resumes/` sẽ bị xóa sạch khi container restart hoặc redeploy.
   - Triển khai cơ chế JIT (Just-In-Time) tự động biên dịch lại PDF từ `latex_source` lưu trong PostgreSQL trong 1–2 giây khi người dùng tải/xem nếu file trên đĩa bị mất.
-- [x] **Capability UUID Cho Phép Xem và Nhúng PDF Public**:
+- [x] **Capability UUID Cho Phép Xem và Nhúng PDF Public (lịch sử, đã thu hồi ở SEC-01)**:
   - Mở quyền truy cập `GET /api/v1/resumes/{id}/pdf` sử dụng Capability UUID 128-bit unguessable, cho phép thẻ `<iframe src="...">` hoặc `<embed>` trên trình duyệt hiển thị PDF mượt mà mà không bị chặn lỗi thiếu Header Authorization Bearer.
 - [x] **Chống Ghi Đè Mật Khẩu Admin Khi Khởi Động Container**:
   - Điều chỉnh `ensure_admin_superuser()` trong `backend/app/main.py` để không bao giờ ghi đè lại mật khẩu đã đổi của Admin khi restart container.

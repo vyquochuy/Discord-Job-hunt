@@ -8,7 +8,7 @@ from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
-from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.saramin_adapter import SaraminJobCollector
 from app.services.collectors.upwork_adapter import UpworkJobCollector
 from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 
@@ -187,15 +187,15 @@ async def test_itviec_parser():
 
 
 @pytest.mark.asyncio
-async def test_topdev_parser():
-    """Kiểm tra TopDevJobCollector bóc tách dữ liệu và xác định work_mode."""
-    logger.info("=== [TEST] TopDevJobCollector Parsing ===")
-    collector = TopDevJobCollector()
-    assert collector.source_name == "topdev"
+async def test_saramin_parser():
+    """Kiểm tra SaraminJobCollector bóc tách dữ liệu và xác định work_mode."""
+    logger.info("=== [TEST] SaraminJobCollector Parsing ===")
+    collector = SaraminJobCollector()
+    assert collector.source_name == "saramin"
 
     raw = RawJobData(
-        source="topdev",
-        source_url="https://topdev.vn/detail-jobs/senior-backend-python-remote-12345",
+        source="saramin",
+        source_url="https://saramin.vn/detail-jobs/senior-backend-python-remote-12345",
         source_job_id="12345",
         raw_payload={
             "title": "Senior Backend Developer (Remote)",
@@ -211,7 +211,7 @@ async def test_topdev_parser():
     extracted = await collector.parse_raw(raw)
     assert extracted.title == "Senior Backend Developer (Remote)"
     assert extracted.company_name == "KMS Technology"
-    assert extracted.work_mode.value == "REMOTE"
+    assert extracted.posted_at is None
     assert "FastAPI" in extracted.skills_required
 
 

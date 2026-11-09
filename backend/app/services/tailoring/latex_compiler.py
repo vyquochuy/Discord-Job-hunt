@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
+from pypdf import PdfReader
+
 logger = logging.getLogger("latex_compiler")
 
 
@@ -82,7 +84,7 @@ class LaTeXCompiler:
             try:
                 pdf_path.unlink()
             except Exception as e:
-                logger.warning(f"Failed to unlink old PDF file before recompiling: {e}")
+                return False, None, f"Cannot remove stale PDF before recompiling: {e}"
 
         # 2. Ghi nội dung TeX ra đĩa
         tex_path.write_text(tex_content, encoding="utf-8")
@@ -92,16 +94,7 @@ class LaTeXCompiler:
         pdflatex_bin = shutil.which("pdflatex") or shutil.which("xelatex")
 
         if not pdflatex_bin:
-            logger.warning(
-                "pdflatex/xelatex binary not found on system. "
-                "Saving .tex artifact and generating PDF stub."
-            )
-            # Tạo file PDF nhẹ giả lập để đảm bảo luồng hoạt động khi chưa cài TeXLive
-            try:
-                cls._create_fallback_pdf(pdf_path, tex_content)
-                return True, str(pdf_path), None
-            except Exception as e:
-                return True, str(tex_path), f"LaTeX binary not installed; .tex saved. Fallback notice: {e}"
+            return False, None, "LaTeX binary not installed; .tex source saved, PDF unavailable."
 
         # 3. Chạy biên dịch pdflatex (chạy qua threadpool an toàn trên mọi hệ điều hành)
         try:
@@ -138,17 +131,16 @@ class LaTeXCompiler:
                     except Exception:
                         pass
 
-                has_fatal_error = any("Fatal error occurred" in line for line in (error_snippet or "").splitlines())
-                # Kiểm tra nếu file PDF MỚI thực sự được sinh thành công (pdflatex có thể trả mã non-zero do cảnh báo phụ trợ)
-                if pdf_path.exists() and pdf_path.stat().st_size > 1000 and not has_fatal_error:
-                    logger.info(
-                        f"pdflatex completed with non-zero exit code ({result.returncode}), "
-                        f"but valid new PDF generated ({pdf_path.stat().st_size} bytes)."
-                    )
-                else:
-                    err_msg = f"pdflatex biên dịch thất bại (mã {result.returncode}):\n{error_snippet}"
-                    logger.warning(f"LaTeX pdflatex error: {err_msg}")
-                    return False, None, err_msg
+                pdf_path.unlink(missing_ok=True)
+                err_msg = f"pdflatex biên dịch thất bại (mã {result.returncode}):\n{error_snippet}"
+                logger.warning("LaTeX pdflatex error: %s", err_msg)
+                return False, None, err_msg
+
+            with pdf_path.open("rb") as pdf_file:
+                page_count = len(PdfReader(pdf_file, strict=True).pages)
+            if page_count != 1:
+                pdf_path.unlink(missing_ok=True)
+                return False, None, f"Resume must contain exactly 1 page; compiled {page_count} pages."
 
             # Dọn dẹp tệp tin rác
             for ext in [".aux", ".log", ".out", ".synctex.gz"]:
@@ -162,40 +154,13 @@ class LaTeXCompiler:
             logger.info(f"Successfully compiled PDF: {pdf_path}")
             return True, str(pdf_path), None
 
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, subprocess.TimeoutExpired):
+            pdf_path.unlink(missing_ok=True)
             return False, None, "LaTeX compilation timed out after 30 seconds"
         except Exception as e:
+            pdf_path.unlink(missing_ok=True)
             logger.error(f"Unexpected error compiling LaTeX: {e}", exc_info=True)
             return False, None, str(e)
-
-    @staticmethod
-    def _create_fallback_pdf(pdf_path: Path, tex_content: str):
-        """
-        Sinh file PDF tiêu chuẩn khi môi trường local chưa có pdflatex binary.
-        """
-        # Minimal valid PDF header and stream
-        pdf_header = (
-            b"%PDF-1.4\n"
-            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-            b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
-            b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << >> >> endobj\n"
-            b"4 0 obj << /Length 50 >> stream\n"
-            b"BT /F1 12 Tf 50 800 Td (Candidate - Tailored Resume) Tj ET\n"
-            b"endstream\n"
-            b"endobj\n"
-            b"xref\n"
-            b"0 5\n"
-            b"0000000000 65535 f \n"
-            b"0000000010 00000 n \n"
-            b"0000000060 00000 n \n"
-            b"0000000117 00000 n \n"
-            b"0000000222 00000 n \n"
-            b"trailer << /Size 5 /Root 1 0 R >>\n"
-            b"startxref\n"
-            b"328\n"
-            b"%%EOF\n"
-        )
-        pdf_path.write_bytes(pdf_header)
 
 
 latex_compiler = LaTeXCompiler()

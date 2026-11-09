@@ -1,7 +1,7 @@
 # Hệ Thống Công Nghệ & Kiến Trúc Kỹ Thuật (Tech Stack Specification)
 
 > **Dự án:** Job Hunter Platform — Autonomous Agent & Resume Intelligence System  
-> **Cập nhật:** Tháng 09/2026 — Phiên bản 2.0 (Modernized Enterprise SaaS)
+> **Đối chiếu mã nguồn:** 2026-11-09. Mô tả cấu hình repository, không khẳng định deployment hay hiệu năng đã kiểm chứng. Simple Blue/Vanilla JS là thiết kế lịch sử; frontend hiện tại là Liquid Glass sáng/tối.
 
 ---
 
@@ -22,7 +22,7 @@ Hệ thống được thiết kế theo mô hình **Service-Oriented Decoupled A
 │   FastAPI (Python 3.11, async/await, SQLAlchemy 2.0 Async, Pydantic v2)   │
 │   - Ingestion Pipeline: Canonical Taxonomy, 3-Tier Deduplication          │
 │   - Matching Engine: Tri-State Hard Filter + 7 Deterministic Signals      │
-│   - Resume Intelligence: Evidence Graph, Gemini 2.0/3.6, LaTeX Compiler   │
+│   - Resume Intelligence: Evidence Graph, Gemini configurable, LaTeX Compiler   │
 │   - Application Tracking: Status lifecycle & Audit logging                │
 └──────────────────────┬─────────────────────────────┬──────────────────────┘
                        │                             │
@@ -46,20 +46,17 @@ Giao diện Web đã được hiện đại hóa toàn diện từ Vanilla JavaS
 | :--- | :--- | :--- |
 | **Core Framework** | **React 18** | UI Component-driven, Concurrent Rendering, Virtual DOM hiệu năng cao. |
 | **Language** | **TypeScript 5.7+** | Type-safety tuyệt đối, kiểm soát chặt chẽ schema DTO tương thích với backend. |
-| **Build Tool & Bundler** | **Vite 6** | Hot Module Replacement (HMR) tức thì (< 400ms), tối ưu Tree-shaking và chia nhỏ bundle khi build production. |
-| **Styling & Design System** | **Tailwind CSS 3.4** + **PostCSS** | Hệ thống utility classes, bảng màu curated (Primary `#2563EB`, Surface `#FFFFFF`, Background `#F8FAFC`, Border `#E2E8F0`), hỗ trợ responsive-first. |
+| **Build Tool & Bundler** | **Vite 6** | Dev server HMR; `npm run build` chạy `tsc -b && vite build`, xuất `frontend/dist`. |
+| **Styling & Design System** | **Tailwind CSS 3.4** + **PostCSS** | Utility classes dùng semantic tokens trong `src/styles/themes.css`, Liquid Glass sáng/tối. |
 | **Iconography** | **Lucide React** | Bộ vector icons nhất quán, chuẩn hóa ngữ cảnh và trạng thái trực quan. |
 | **Accessible Primitives** | **@radix-ui/react-dialog**, **@radix-ui/react-tabs**, **@radix-ui/react-dropdown-menu**, **@radix-ui/react-tooltip** | Primitives không phụ thuộc style, đảm bảo WCAG A11y, quản lý focus trap, bàn phím và đóng phím Escape. |
 | **Class Utilities** | **clsx**, **tailwind-merge** | Hợp nhất className động và giải quyết xung đột CSS classes linh hoạt. |
 | **State & Authentication** | **React Context API** (`AuthContext`, `ToastContext`) | Quản lý Dual-Token Rotation (Access 30m / Refresh 30d), Mutex Promise Queue chống xung đột 401 concurrent refresh, exponential backoff retries. |
-| **Routing** | **HTML5 History API Router** | Điều hướng SPA không tải lại trang (`/dashboard`, `/jobs`, `/recommendations`, `/resume`, `/applications`, `/profile`, `/system`), đồng bộ URL hai chiều. |
+| **Routing** | **HTML5 History API Router** | Điều hướng SPA không tải lại trang (`/`, `/jobs`, `/market`, `/recommendations`, `/resume`, `/applications`, `/profile`, `/system`), đồng bộ URL hai chiều. |
 
 #### Design System Tokens
-* **Màu chủ đạo (Brand Primary):** `#2563EB` (Blue 600), Hover `#1D4ED8`
-* **Nền & Bề mặt (Surface & Canvas):** Background `#F8FAFC` (Slate 50), Surface `#FFFFFF`, Border `#E2E8F0`
-* **Phân cấp Chữ (Typography):** Text Primary `#0F172A`, Secondary `#475569`, Muted `#94A3B8`.
-* **Phông chữ:** `Inter` (UI & Content) và `JetBrains Mono` (LaTeX & Monospace code).
-* **Phản hồi trạng thái (Feedback):** Success `#16A34A`, Warning `#D97706`, Danger `#DC2626`, Critical `#991B1B`.
+
+`frontend/src/styles/themes.css` là nguồn token hiện hành; `src/theme/` và script pre-paint chọn `glass`/`glass-dark`, lưu lựa chọn `light`/`dark`. Typography dùng DM Sans/Manrope. Bảng màu Simple Blue và font Inter/JetBrains trong đặc tả trước đây là lịch sử, không phải token runtime. Một component tree phục vụ cả hai appearance.
 
 ---
 
@@ -79,7 +76,7 @@ Backend đóng vai trò trung tâm điều phối dữ liệu, thuật toán t�
 | **Vector Storage** | **pgvector** | Extension lưu trữ và truy vấn tương đồng cosine/L2 trên vector embeddings trực tiếp trong PostgreSQL. |
 | **In-Memory Cache & Queue**| **Redis 7** (`redis-py`) | Bộ đệm lưu trữ phiên làm việc, rate-limiting, và hàng đợi tác vụ cho workers. |
 | **Fuzzy Matching** | **RapidFuzz** | Thuật toán so khớp chuỗi nhanh phục vụ tầng khử trùng lặp L2. |
-| **Web Scraping & Ingestion**| **httpx**, **BeautifulSoup4**, **lxml** | Thu thập dữ liệu việc làm từ đa nguồn (ITViec, TopCV, Remotive, CareerLink, ITNavi, GrowUpWork). |
+| **Web Scraping & Ingestion**| **httpx**, **BeautifulSoup4**, **lxml** | Thu thập dữ liệu việc làm từ đa nguồn (ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi, GrowUpWork, Remotive, Upwork, Mock; TopDev chỉ còn dữ liệu lịch sử/migration). |
 | **PDF Compilation** | **TeXLive Minimal (`pdflatex`)** | Trình biên dịch mã nguồn LaTeX thành file PDF 1 trang A4 chuẩn ATS trực tiếp trong container. |
 | **Bảo mật & Mã hóa** | **Argon2id**, **PBKDF2-HMAC-SHA256**, **python-jose** | Băm mật khẩu an toàn chuẩn NIST, ký và giải mã JWT Token (Access & Refresh). |
 
@@ -89,8 +86,8 @@ Backend đóng vai trò trung tâm điều phối dữ liệu, thuật toán t�
 
 | Khối chức năng | Thuật toán / Công nghệ | Vai trò & Đặc điểm |
 | :--- | :--- | :--- |
-| **Generative AI** | **Google Gemini REST API** (`gemini-2.0-flash`, `gemini-3.6-flash`) | Trích xuất thông tin JD và viết bản thảo CV với chế độ Structured JSON Mode. |
-| **Matching Algorithm** | **7-Signal Deterministic Engine** | Thuật toán chấm điểm mức độ tương thích tất định (tổng trọng số = 1.0) kết hợp Hard Filters tri-state (`ELIGIBLE`, `BORDERLINE`, `INELIGIBLE`). |
+| **Generative AI** | **Google Gemini REST API** (`GEMINI_MODEL`, mặc định `gemini-flash-latest`; cascade trong `gemini_resume_writer.py`, chi tiết `AI_SYSTEM.MD`) | Trích xuất thông tin JD và viết bản thảo CV với chế độ Structured JSON Mode. |
+| **Matching Algorithm** | **7-Signal Deterministic Engine** | Thuật toán chấm điểm mức độ tương thích tất định (tổng trọng số = 1.0) kết hợp Hard Filters tri-state (`ELIGIBLE`, `UNCERTAIN`, `BLOCKED`). |
 | **Anti-Hallucination** | **Claim-Level Validator (6 tầng)** | Kiểm định từng claim của CV với đồ thị dữ kiện (`FactGraph`), cấm hoàn toàn bịa đặt số liệu hay kỹ năng ngoài hồ sơ. |
 | **Unit Regeneration** | **UnitRegenerationOrchestrator** | Cơ chế tái tạo lại từng bullet point bị lỗi mà vẫn giữ nguyên các phần hợp lệ. |
 | **Deduplication Engine** | **3-Tier Deduplication Pipeline** | L1: SHA-256 Signature $\rightarrow$ L2: RapidFuzz $\rightarrow$ L3: pgvector Cosine similarity. |
@@ -112,11 +109,11 @@ Backend đóng vai trò trung tâm điều phối dữ liệu, thuật toán t�
 
 | Công cụ | Cấu hình | Mục đích sử dụng |
 | :--- | :--- | :--- |
-| **Container Engine** | **Docker Engine & Docker Compose v2** | Đóng gói và điều phối 5 dịch vụ đồng thời: `postgres`, `redis`, `backend`, `workers`, `discord-bot`. |
-| **Base Images** | `python:3.11-slim`, `node:20-alpine`, `redis:7-alpine`, `pgvector/pgvector:pg16` | Tối ưu hóa kích thước image, giảm thiểu attack surface bảo mật. |
-| **Bảo mật Container** | Non-root User (UID 1000) | Tuân thủ các tiêu chuẩn bảo mật chạy trên Hugging Face Spaces và PaaS. |
+| **Container Engine** | **Docker Engine & Docker Compose v2** | `postgres`, `redis`, `backend`, `workers`, `discord-bot` và one-shot `frontend-build` (Node 22, `npm ci && npm run build`) trước backend. |
+| **Base Images** | `python:3.11-slim`, `node:20-alpine` (bot), `node:22-alpine` (frontend build), `redis:7-alpine`, `pgvector/pgvector:pg16` | Tối ưu hóa kích thước image, giảm thiểu attack surface bảo mật. |
+| **Container user** | Kiểm tra Dockerfile và Compose riêng | Compose backend/workers hiện override `user: root`; không khẳng định non-root hay sandbox isolation trong cấu hình local. |
 | **Health Checks** | Docker Native Healthchecks | Đảm bảo Postgres và Redis hoàn toàn sẵn sàng trước khi Backend và Workers khởi động (`condition: service_healthy`). |
-| **Serving Static Assets** | FastAPI StaticFiles Integration | Backend tự động mount `/assets` và `/static`, ưu tiên phục vụ production bundle từ `frontend/dist/` khi chạy trong Docker container. |
+| **Serving Static Assets** | FastAPI StaticFiles Integration | Chỉ phục vụ bundle `frontend/dist/` đã build, không fallback về Vite source/legacy. Rebuild: `docker compose run --rm frontend-build`, sau đó `docker compose restart backend`. |
 
 ---
 

@@ -1,3 +1,4 @@
+from app.services.analytics.filters import market_source_predicate
 from app.services.analytics.stats import native_midpoint
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,12 +6,14 @@ from app.models.job import Job, JobSkill, JobStatusEnum, RawJob, Skill
 
 
 async def get_market_analytics(db: AsyncSession) -> dict:
-    active = await db.scalar(select(func.count(Job.id)).where(Job.status == JobStatusEnum.ACTIVE)) or 0
-    expired = await db.scalar(select(func.count(Job.id)).where(Job.status == JobStatusEnum.EXPIRED)) or 0
+    market_job_ids = select(Job.id).join(RawJob, RawJob.id == Job.raw_job_id).where(market_source_predicate())
+    market_only = Job.id.in_(market_job_ids)
+    active = await db.scalar(select(func.count(Job.id)).where(Job.status == JobStatusEnum.ACTIVE, market_only)) or 0
+    expired = await db.scalar(select(func.count(Job.id)).where(Job.status == JobStatusEnum.EXPIRED, market_only)) or 0
 
     source_rows = await db.execute(
         select(RawJob.source, func.count(Job.id)).join(Job, Job.raw_job_id == RawJob.id)
-        .where(Job.status == JobStatusEnum.ACTIVE).group_by(RawJob.source)
+        .where(Job.status == JobStatusEnum.ACTIVE, market_only).group_by(RawJob.source)
     )
     sources = [{"source": source, "jobs": count} for source, count in source_rows]
 
@@ -18,7 +21,7 @@ async def get_market_analytics(db: AsyncSession) -> dict:
         select(Skill.canonical_name, func.count(JobSkill.id))
         .join(JobSkill, JobSkill.skill_id == Skill.id)
         .join(Job, Job.id == JobSkill.job_id)
-        .where(Job.status == JobStatusEnum.ACTIVE)
+        .where(Job.status == JobStatusEnum.ACTIVE, market_only)
         .group_by(Skill.canonical_name).order_by(func.count(JobSkill.id).desc()).limit(20)
     )
     top_skills = [{"skill": skill, "jobs": count} for skill, count in skill_rows]
@@ -29,6 +32,7 @@ async def get_market_analytics(db: AsyncSession) -> dict:
         select(Job.min_salary, Job.max_salary)
         .where(
             Job.status == JobStatusEnum.ACTIVE,
+            market_only,
             func.upper(func.trim(Job.salary_currency)) == "VND",
             Job.max_salary.is_not(None),
         )

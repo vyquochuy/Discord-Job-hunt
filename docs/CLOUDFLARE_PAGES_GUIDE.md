@@ -1,117 +1,70 @@
-# Hướng dẫn Triển khai Web Frontend lên Cloudflare Pages (Chi phí 0đ)
+# Cloudflare Pages — React SPA deployment
 
-Tài liệu này hướng dẫn chi tiết quy trình đưa giao diện Web Frontend của hệ sinh thái **AI Job Hunter Platform** lên mạng phân phối toàn cầu **Cloudflare Pages** với chi phí hoàn toàn **0đ**, băng thông không giới hạn, hỗ trợ SSL tự động và tốc độ tải trang cao cấp (Edge CDN).
+Source-checked 2026-11-09; dashboard labels and provider quotas are not verified here.
 
----
+## Build and publish
 
-## 1. Tổng quan Kiến trúc Triển khai
+The live app is React 18 / TypeScript / Vite, not the removed Vanilla JS frontend. In Pages Git integration use repository root as the build root:
 
-```
-+-------------------------------------------------------------+
-|               Cloudflare Pages (Frontend 0đ)                |
-|  - Global CDN & Anycast Edge Caching                        |
-|  - SPA Routing Rule via `_redirects` (`/* /index.html 200`)  |
-|  - HTTPS / SSL Certificate tự động                          |
-|  - Dynamic API Resolver (`window.ENV` / `localStorage`)     |
-+------------------------------+------------------------------+
-                               |
-                   REST API (HTTPS / JSON)
-                               |
-                               v
-+-------------------------------------------------------------+
-|           Cloud Backend API (FastAPI / 0đ)                  |
-|  - Render.com / Koyeb / Hugging Face Spaces                 |
-|  - CORS Middleware: allow_origins=["*"]                     |
-|  - Database: Supabase PostgreSQL (pgvector)                 |
-|  - Cache & Queue: Upstash Redis Serverless                  |
-+-------------------------------------------------------------+
+- Framework preset: Vite (or None with the explicit command below).
+- Build command: `npm --prefix frontend ci && npm --prefix frontend run build`
+- Output directory: `frontend/dist`
+- Use Node 22 (matching the Compose frontend builder).
+
+`frontend/dist` is generated and ignored. Never publish `frontend/` source as the website. Vite does not currently copy root `frontend/env.js` or `frontend/_redirects` automatically (no `publicDir` override). Append this to the Linux Pages build command:
+
+```sh
+cp frontend/env.js frontend/_redirects frontend/dist/
 ```
 
----
+The deployed `_redirects` must contain `/* /index.html 200` so direct SPA routes work.
 
-## 2. Chuẩn bị Trước khi Triển khai
+For a local PowerShell build from the repository root:
 
-1. **Tài khoản Cloudflare**: Đăng ký miễn phí tại [dash.cloudflare.com](https://dash.cloudflare.com).
-2. **Kho lưu trữ GitHub / GitLab**: Đẩy mã nguồn dự án lên GitHub cá nhân (hoặc tổ chức).
-3. **Địa chỉ Cloud Backend API**: URL máy chủ FastAPI đã triển khai (ví dụ: `https://job-hunter-api.onrender.com/api/v1`).
+```powershell
+npm --prefix frontend ci
+npm --prefix frontend run build
+Copy-Item frontend/env.js,frontend/_redirects frontend/dist/
+```
 
----
+Deploy **that output directory**, not source, using an installed Wrangler CLI:
 
-## 3. Các bước Triển khai qua Giao diện Cloudflare Dashboard
+```powershell
+wrangler login
+wrangler pages deploy frontend/dist --project-name=job-hunter
+```
 
-### Bước 1: Tạo Dự án Cloudflare Pages
-1. Đăng nhập vào [Cloudflare Dashboard](https://dash.cloudflare.com).
-2. Tại menu bên trái, chọn **Workers & Pages** $\rightarrow$ bấm **Create application** $\rightarrow$ chọn tab **Pages**.
-3. Bấm **Connect to Git** và ủy quyền liên kết với tài khoản GitHub của bạn.
-4. Chọn repository `Job-Hunt` (hoặc tên repo của bạn) và bấm **Begin setup**.
+## Runtime API configuration
 
-### Bước 2: Cấu hình Build Settings
-Thiết lập các thông số chính xác như sau:
-- **Project name**: `job-hunter` (hoặc tên tùy thích, sẽ tạo domain `https://job-hunter.pages.dev`).
-- **Production branch**: `main` (hoặc nhánh chính của bạn).
-- **Framework preset**: `None` (Dự án sử dụng Pure HTML5, CSS3 và Vanilla JS).
-- **Build command**: _(Để trống)_.
-- **Build output directory**: `frontend` (Thư mục chứa `index.html`, `css/`, `js/`, `_redirects`, `env.js`).
+`frontend/index.html` loads `/env.js` before the app. Set the public backend address in `frontend/env.js` before copying it to dist:
 
-### Bước 3: Hoàn tất Triển khai (Deploy)
-1. Bấm nút **Save and Deploy**.
-2. Cloudflare Pages sẽ thu thập thư mục `frontend/`, kích hoạt SSL và xuất bản website toàn cầu trong khoảng 10–20 giây.
-3. Truy cập địa chỉ web được cấp: `https://<your-project-name>.pages.dev`.
-
----
-
-## 4. Cấu hình Kết nối Backend API
-
-Có 3 cách linh hoạt để kết nối Frontend trên Cloudflare Pages với Cloud Backend:
-
-### Cách 1: Cấu hình trực tiếp trên Giao diện Web (Khuyên dùng - Nhanh nhất)
-1. Mở trang Web `https://<your-project-name>.pages.dev`.
-2. Truy cập tab **Hệ thống & Cơ sở dữ liệu** (`/system`).
-3. Tại thẻ **"Cấu hình Máy chủ Backend & Cloud API Endpoint"**, nhập URL Backend:
-   ```
-   https://job-hunter-api.onrender.com/api/v1
-   ```
-4. Bấm **Lưu Endpoint** $\rightarrow$ Bấm **Kiểm tra kết nối (Ping Health)** để xác nhận kết nối thành công.
-
-### Cách 2: Cấu hình qua tệp `frontend/env.js` (Tĩnh trong Git)
-Chỉnh sửa tệp `frontend/env.js` trước khi commit git:
 ```javascript
 window.ENV = {
-  API_URL: 'https://job-hunter-api.onrender.com/api/v1',
+  API_URL: 'https://job-hunt-backend-0hrl.onrender.com/api/v1',
   ENVIRONMENT: 'production',
 };
 ```
 
-### Cách 3: Thẻ Meta trong `frontend/index.html`
-Thêm thẻ meta vào phần `<head>`:
-```html
-<meta name="api-base" content="https://job-hunter-api.onrender.com/api/v1" />
-```
+This file is public browser configuration: never put JWT signing keys, internal service secrets, database credentials or Discord tokens here. Pages environment variables alone do not become `window.ENV`; generate/copy the file explicitly if using build variables.
 
----
+Actual precedence in `frontend/src/config/env.ts`:
 
-## 5. Triển khai Nhanh bằng Wrangler CLI (Tùy chọn)
+1. Browser `localStorage['jh_api_base']` override (System page).
+2. Local-host detection (port 8000 uses `/api/v1`; other local ports target backend port 8000).
+3. `window.ENV.API_URL`, then compatibility runtime globals.
+4. `<meta name="api-base" content="https://your-backend.example/api/v1">`.
+5. Relative `/api/v1` fallback.
 
-Nếu bạn muốn deploy trực tiếp từ dòng lệnh cục bộ mà không cần thông qua Git:
+Clear a stale System-page override before diagnosing `env.js`. Only use a backend you trust: authenticated requests carry bearer credentials to the configured API.
 
-```powershell
-# 1. Cài đặt Cloudflare Wrangler
-npm install -g wrangler
+## Backend security and verification
 
-# 2. Đăng nhập tài khoản Cloudflare
-wrangler login
+Set backend `ALLOWED_CORS_ORIGINS` to exact trusted frontend origins, e.g. `https://job-hunter.pages.dev` plus your custom domain. The code uses an explicit allowlist, **not** `*`, `*.pages.dev` or a Vercel-wide regex. Add approved preview origins individually; do not trust every tenant of a hosting provider.
 
-# 3. Deploy thư mục frontend trực tiếp
-wrangler pages deploy frontend --project-name=job-hunter
-```
+Check deployed `/env.js`, `/_redirects` in the uploaded artifact, assets, and a direct `/jobs` navigation. A JSON/HTML mismatch usually means the API address points at the SPA rather than FastAPI.
 
----
+PDF URLs from `frontend/src/api/resumes.ts` carry an access JWT as `?token=` for iframe navigation. The backend validates authentication and candidate ownership (privileged admins/internal services retain their explicit bypass); a UUID alone is not access. Treat query-token URLs as credentials and avoid logging/sharing them. Missing ephemeral PDFs are recompiled from PostgreSQL only after authorization.
 
-## 6. Kiểm tra & Xử lý sự cố (Troubleshooting)
+Render liveness is `/health` (no database queries), readiness is `/health/ready` (database check). Cold starts are handled by bounded read retries and feedback; do not add keep-alive polling. Network failures/timeouts on mutations must not trigger automatic retries.
 
-| Vấn đề | Nguyên nhân | Cách khắc phục |
-| :--- | :--- | :--- |
-| **Lỗi 404 khi F5 / Reload trang** | Thiếu file `_redirects` trên Cloudflare Pages | Đảm bảo file `frontend/_redirects` tồn tại với nội dung `/* /index.html 200`. |
-| **Lỗi CORS (`Cross-Origin Request Blocked`)** | Backend chưa cho phép domain `*.pages.dev` | Kiểm tra middleware CORS trong `backend/app/main.py` (`allow_origins=["*"]`). |
-| **Mất kết nối Backend khi mở trên điện thoại/máy khác** | Endpoint đang trỏ về `localhost` | Mở tab **Hệ thống & Dữ liệu** (`/system`) và nhập đúng Public URL Cloud Backend (HTTPS). |
-| **Tệp tin PDF không mở được trong iframe** | Backend chặn frame hoặc CORS header PDF | Đảm bảo `API_URL` trả về đúng định dạng URL tuyệt đối từ `api.getResumePdfUrl()`. |
+Evidence: `frontend/package.json`, `frontend/vite.config.ts`, `frontend/index.html`, `frontend/src/config/env.ts`, `frontend/src/api/client.ts`, `backend/app/main.py`, `backend/app/api/v1/endpoints/resumes.py`.

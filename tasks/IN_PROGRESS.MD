@@ -1,5 +1,39 @@
 # In Progress
 
+## Source recovery, Vietnam market and discovery pagination (2026-11-09)
+
+- Approved scope: replace TopDev with Saramin public IT API + source migration; recover CareerLink markup and ITNavi/GrowUpWork full scans. No WAF/CAPTCHA bypass; TopCV blocked access must surface as a failure, not a successful empty scan.
+- Market scope includes ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi and GrowUpWork (legacy TopDev retained until migration); excludes international/manual/mock sources. Charts precede tables with independent CSS columns; filters collapsed by default.
+- Discovery uses an ACTIVE-only backend filter catalog, stable server pagination and 12 jobs per page. `scripts/check_collectors.py` is a read-only live probe (no database writes); fetched count is not the deduplicated ACTIVE count.
+- Market tests: 21 passed; Jobs filter/pagination/blocked-source API: 7 passed (RED→GREEN recorded during implementation). Docker frontend build passed (1700 modules); local backend migration head is `009_rename_topdev_saramin`. Fixed direct `/market` SPA route (serving check RED→GREEN).
+- Historical `growupwork-curated-*` synthetic fallback rows are excluded from Market without deleting history; collector no longer manufactures fallback jobs. Upwork's pre-existing synthetic fallback remains outside Market scope.
+- `npm audit --omit=dev`: zero findings; full audit still reports 3 dev-tool findings (1 moderate, 2 high), deferred rather than silently upgrading build dependencies.
+- Read-only live probe: CareerLink 415 unique records, GrowUpWork 800, Saramin 96 (coverage mismatch being investigated), ITNavi timed out at 240s, TopCV blocked. These are fetched records, not DB ingested/ACTIVE totals; no rescan written to the DB yet.
+- Browser: Jobs 12/page + next + source-filter reset verified desktop/mobile; all 8 Market tabs loaded, no console/network failures. Mobile donut legend clipping fixed and rechecked with cache-disabled navigation: 305px client/scroll width, no card/document overflow.
+- Verification snapshot (2026-11-09, previous execution): **306 passed, 4 warnings**; correctness-only Ruff passed. Saramin uses page_size=20: inspection of all 16 advertised pages yielded 96 unique IDs (later pages repeated); metadata total 319 is not a collection guarantee. ITNavi full-scan timeout remains unresolved despite page-level concurrency; listing-only counts do not prove successful detail collection. No commit or production deployment performed.
+- Documentation review (2026-11-09): current blockers and evidence limits are in `docs/OPEN_ISSUES.md`. TopCV 200/403 observations do not establish a specific blocking cause or cooldown; robots.txt is not authorization to bypass restrictions. Backend suite rerun during this documentation review: **306 passed, 4 warnings in 46.62s** (Python 3.12). Correctness-only Ruff and Markdown relative-link checks passed. No new deployment/build/browser verification; coverage not measured.
+
+## Compose frontend build (2026-11-09)
+
+- `frontend-build` uses Node 22 and `npm ci && npm run build` before backend starts (`service_completed_successfully`). Linux node_modules stays in a named volume, separate from host dependencies; generated dist remains ignored.
+- Verified regression RED→GREEN and real `docker compose up -d backend`: builder exit 0; localhost:8000 root serves React HTML, JS asset and /health all return 200.
+- After UI changes, rebuild and reload backend with `docker compose run --rm frontend-build` then `docker compose restart backend`; `restart` alone does not rebuild dependencies.
+
+## Audit remediation (2026-11-09)
+
+- Compiler fails closed for absent binary/nonzero exit, removes invalid output, and requires a readable exactly-one-page PDF via existing `pypdf`. Regression RED: 5 failures; final compiler checks: 8 pass. Real local `pdflatex` smoke passed.
+- CF IP precedes XFF; strong secrets required outside development; registration never elevates the first account and reserves the bootstrap admin email.
+- Application preparation defaults to simulation (`READY`); actual submission is unsupported (501) until a transport exists. Explicit manual status updates track external submissions.
+- Daily ingestion succeeds without a candidate, explicitly skipping matching/tailoring. Corrected stale authorization/test fixtures without weakening tenant checks.
+- PR CI: pytest, correctness-only Ruff (`E9,F63,F7,F82`), `tsc -b`, Vite build and dist-serving check. Full style lint remains debt (2,207 existing findings); no mass auto-fix.
+- Final local verification in test environment with strong CI-like secrets: **275 passed, 4 warnings**; frontend build/typecheck, correctness lint and `git diff --check` pass. GitHub-hosted CI and coverage percentage not yet verified.
+
+## Legacy frontend cleanup (2026-11-09)
+
+- Removed legacy `frontend/js`, `frontend/css`, `frontend/legacy`, generated dist/cache/tsbuildinfo outputs and the duplicate extracted-design ZIP; retained `frontendv2/Redesign` source and dependencies.
+- FastAPI serves only built React `frontend/dist`, never Vite source/legacy files; missing build leaves API-only behavior. PDF ownership/auth unchanged.
+- Checks: `python scripts/check_frontend_serving.py` and `npm run build` passed; regenerated outputs removed again after verification.
+
 ## Goal
 Tiếp tục hoàn thiện các chốt chặn bảo mật nâng cao còn lại (SSRF DNS transport pinning `SEC-05`, cô lập test LLM `SEC-07`, lộ trình di chuyển Token sang HttpOnly Cookie `SEC-06`) và tiếp tục triển khai Phase 8 (Cloud Production Hardening: Supabase PostgreSQL pgvector, Upstash Redis Serverless, & Render Zero-Cost Deployment).
 
@@ -95,7 +129,7 @@ Các giai đoạn trọng yếu của hệ thống đã hoàn thành xuất sắ
 - `backend/app/api/v1/endpoints/auth.py` & `backend/app/repositories/candidate.py` (Vá Candidate Stealing & Race Condition)
 - `backend/app/core/security.py` (Service Principal cách ly & Token Verification)
 - `backend/app/main.py` (CORS domain whitelist)
-- `frontend/legacy/js/` (`dashboard.page.js`, `recommendations.page.js`, `job-detail-modal.js` XSS escaping)
+- `frontend/src/` (React/TypeScript UI; legacy vanilla JS removed)
 - `security/REVIEW_BASELINE.md` & `security/FINDINGS.md` (Hồ sơ kiểm toán & trạng thái lỗ hổng)
 - `backend/tests/test_phase1_authorization_regression.py`
 - `backend/tests/test_phase2_auth_hardening.py`

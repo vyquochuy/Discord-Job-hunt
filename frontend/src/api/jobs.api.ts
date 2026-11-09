@@ -1,5 +1,9 @@
 import { client } from './client';
-import { Job, JobDetail, JobListResponse, JobFilterParams } from '../types/job';
+import { Job, JobDetail, JobListResponse, JobFilterParams, JobFiltersResponse } from '../types/job';
+
+export function getJobFilters(): Promise<JobFiltersResponse> {
+  return client.get('/jobs/filters');
+}
 
 export function getJobs(params: JobFilterParams = {}): Promise<JobListResponse> {
   const query = new URLSearchParams();

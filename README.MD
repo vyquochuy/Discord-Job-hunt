@@ -32,14 +32,14 @@ Nền tảng tự động hóa tìm kiếm việc làm IT, phân tích mức đ�
 
 1. **Dashboard Doanh Nghiệp (Enterprise SaaS Dashboard):**
    - Xây dựng bằng **React 18 + TypeScript + Tailwind CSS + Lucide + Radix Primitives**.
-   - Phong cách thiết kế tinh giản, chuyên nghiệp lấy cảm hứng từ Linear & Vercel.
-   - Responsive 100% trên mọi kích thước màn hình (Mobile Drawer Sheet, Desktop 240px Sidebar, Tablet Collapsible Rail).
+   - Liquid Glass sáng/tối với semantic tokens, một component tree React cho cả hai appearance.
+   - Responsive layout với mobile drawer. Vanilla JS/Simple Blue là thiết kế lịch sử; `frontend/js`, `frontend/css`, `frontend/legacy` đã được bỏ, `frontendv2/Redesign` chỉ là reference.
 2. **Cơ chế Thu thập & Khử trùng lặp 3 Tầng (Job Ingestion Pipeline):**
-   - Tự động cào tin định kỳ từ ITViec, TopCV, Remotive, CareerLink, ITNavi, GrowUpWork.
+   - Tự động cào tin định kỳ từ ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi, GrowUpWork, Remotive, Upwork và Mock (test). Saramin thay collector TopDev lịch sử qua migration `009_rename_topdev_saramin`; nguồn bị chặn phải báo lỗi, không bypass.
    - **Nạp JD thủ công tức thì:** Hỗ trợ dán văn bản thô (Facebook, Zalo, Email) hoặc dán link URL bất kỳ.
    - Khử trùng lặp 3 tầng: L1 (SHA-256 Exact Signature) $\rightarrow$ L2 (RapidFuzz Chuỗi) $\rightarrow$ L3 (pgvector Cosine Similarity).
 3. **Thuật toán So khớp 7 Chỉ số Tất định (7-Signal Deterministic Matching):**
-   - Phân loại cứng Tri-State: `ELIGIBLE`, `BORDERLINE`, `INELIGIBLE`.
+   - Phân loại cứng Tri-State: `ELIGIBLE`, `UNCERTAIN`, `BLOCKED`.
    - Chấm điểm 7 tín hiệu có trọng số chuẩn hóa: Yêu cầu cốt lõi, Kỹ năng kỹ thuật, Dự án liên quan, Kinh nghiệm, Học vấn, Cấp bậc, Hình thức làm việc.
    - Hoàn toàn giải thích được (Explainable AI) với chuỗi bằng chứng xác thực (`EvidenceFact`).
 4. **Tạo thiết kế CV Chuẩn ATS Khử Ảo giác (Anti-Hallucination Resume Engine):**
@@ -66,7 +66,7 @@ Nền tảng tự động hóa tìm kiếm việc làm IT, phân tích mức đ�
 │                      FASTAPI BACKEND & ORCHESTRATOR                       │
 │  - Ingestion Pipeline: Canonical Skill Taxonomy, 3-Tier Deduplication     │
 │  - Deterministic Matching Engine: Tri-State Filter + 7 Weighted Signals   │
-│  - Resume Intelligence: Evidence Graph, Gemini 2.0/3.6, LaTeX Compiler    │
+│  - Resume Intelligence: Evidence Graph, Gemini configurable, LaTeX Compiler    │
 │  - RESTful APIs: Auth (RTR), Profile, Jobs, Matches, Resumes, System      │
 └──────────────────────┬─────────────────────────────┬──────────────────────┘
                        │                             │
@@ -86,14 +86,18 @@ Xem phân tích kiến trúc chi tiết tại [`docs/ARCHITECTURE.md`](docs/ARCH
 
 | Phân vùng     | Công nghệ chính                                                             | Ghi chú & Vai trò                                                                                           |
 | :------------ | :-------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
-| **Frontend**  | React 18, TypeScript 5.7+, Tailwind CSS 3.4, Vite 6, Lucide React, Radix UI | Dashboard SaaS hiện đại, data-dense, 7 views chức năng, quản lý state qua React Context + HTML5 History API |
+| **Frontend**  | React 18, TypeScript 5.7+, Tailwind CSS 3.4, Vite 6, Lucide React, Radix UI | Dashboard SaaS hiện đại, data-dense, 8 views chức năng, quản lý state qua React Context + HTML5 History API |
 | **Backend**   | Python 3.11, FastAPI, SQLAlchemy 2.0 (Async), Alembic, Pydantic v2          | API bất đồng bộ, ORM kết nối asyncpg, validation DTO chặt chẽ                                               |
 | **Database**  | PostgreSQL 16 + pgvector                                                    | Lưu trữ quan hệ ACID kết hợp tìm kiếm tương đồng vector (Cosine similarity)                                 |
 | **In-Memory** | Redis 7 (`redis-py`)                                                        | Message broker cho workers và caching tạm thời                                                              |
-| **AI & NLP**  | Google Gemini Flash (`gemini-2.0-flash`, `gemini-3.6-flash`), OpenAI API    | Trích xuất JD thô, sinh bản thảo CV với Structured Outputs                                                  |
+| **AI & NLP**  | Google Gemini (`GEMINI_MODEL`, default `gemini-flash-latest`), OpenAI API    | Trích xuất JD thô, sinh bản thảo CV với Structured Outputs                                                  |
 | **Biên dịch** | TeXLive Minimal (`pdflatex`)                                                | Biên dịch file `.tex` ra `.pdf` chuẩn 1 trang A4 ATS trực tiếp trong container                              |
 | **Discord**   | Discord.js v14, TypeScript, Node.js 20 LTS                                  | Adapter giao tiếp ngoại vi, hỗ trợ 10 Slash Commands                                                        |
-| **DevOps**    | Docker, Docker Compose v2                                                   | Đóng gói toàn diện 5 services (`postgres`, `redis`, `backend`, `workers`, `discord-bot`)                    |
+| **DevOps**    | Docker, Docker Compose v2                                                   | 5 runtime services và one-shot `frontend-build` (Node 22) trước backend                    |
+
+Gemini dùng primary `GEMINI_MODEL` và cascade được định nghĩa trong `gemini_resume_writer.py` (chi tiết `docs/AI_SYSTEM.MD`); cấu hình tên model không đảm bảo provider hỗ trợ. Không có AI usable thì fallback deterministic. `AI_MODEL_EXTRACTION/STANDARD/GENERATION` là cấu hình OpenAI riêng.
+
+Market `/market` chỉ phân tích 7 nguồn khu vực + alias TopDev lịch sử; loại Remotive/Upwork/manual/mock và synthetic `growupwork-curated-*`. Jobs vẫn đa nguồn. Đây là mô tả code/config local, không xác nhận deployment production. `/health` không query DB; `/health/ready` kiểm tra DB.
 
 ---
 
@@ -103,7 +107,7 @@ Xem phân tích kiến trúc chi tiết tại [`docs/ARCHITECTURE.md`](docs/ARCH
 | :-------------------------- | :--------------------- | :---------------------------------------------------------------------------------------------- |
 | **Docker & Docker Compose** | Phiên bản mới nhất     | **Khuyến nghị nhất** để chạy trọn gói Database, Redis, Backend, Workers, Discord Bot và TeXLive |
 | **Python**                  | 3.11+                  | Chạy Backend và Background Worker nếu phát triển cục bộ ngoài Docker                            |
-| **Node.js & npm**           | Node.js 18.0+ & npm 9+ | Chạy Frontend Vite Dev Server hoặc Discord Bot cục bộ                                           |
+| **Node.js & npm**           | Node.js 22 & npm | Chạy Frontend Vite Dev Server hoặc Discord Bot cục bộ                                           |
 | **Google Gemini API Key**   | `AIzaSy...`            | Phục vụ trích xuất JD, phân tích khoảng cách năng lực và sinh bản thảo CV                       |
 | **OpenAI API Key**          | `sk-...`               | _(Tùy chọn)_ Tương thích với các tác vụ trích xuất hoặc provider fallback                       |
 | **Discord Bot Token**       | _(Tùy chọn)_           | Phục vụ tương tác và nhận thông báo việc làm qua Discord Server                                 |
@@ -129,16 +133,16 @@ Mở file `.env` và thiết lập các tham số:
 ```env
 # 1. API Keys cho AI Models
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-flash-latest
 OPENAI_API_KEY=your_openai_api_key_here
 
-# 2. Secret Key bảo mật & JWT (32 ký tự ngẫu nhiên)
-INTERNAL_API_SECRET=your_super_secret_internal_key_32chars_long
-JWT_SECRET_KEY=your_jwt_secret_key_32chars_long
+# 2. Secret bảo mật & JWT: thay bằng giá trị ngẫu nhiên riêng, không dùng placeholder
+INTERNAL_API_SECRET=replace_with_random_secret
+JWT_SECRET_KEY=replace_with_another_random_secret
 
 # 3. Tài khoản Quản trị viên khởi tạo lần đầu
 ADMIN_EMAIL=admin@jobhunter.local
-ADMIN_INITIAL_PASSWORD=JobHunterAdmin2026!
+ADMIN_INITIAL_PASSWORD=replace_with_unique_strong_password
 
 # 4. Cấu hình Database & Redis (Nếu dùng Docker Compose thì giữ nguyên mặc định)
 POSTGRES_USER=jobhunter
@@ -185,22 +189,28 @@ Docker Compose là phương thức triển khai trọn gói, chuẩn hóa môi t
 ### Bước 1: Khởi động tất cả dịch vụ
 
 ```bash
-docker compose up -d --build
+# Chỉ app + dependencies, không chạy worker/bot tự động:
+docker compose up -d --build backend
+
+# Tùy chọn: worker và Discord bot (cần cấu hình bot hợp lệ)
+docker compose up -d workers discord-bot
 ```
+
+Sau khi sửa UI: `docker compose run --rm frontend-build` rồi `docker compose restart backend`. `restart` một mình không build lại frontend.
 
 Lệnh này sẽ tự động:
 
 1. Khởi động **PostgreSQL 16 (pgvector)** và kiểm tra sức khỏe.
 2. Khởi động **Redis 7** cho hàng đợi tác vụ.
-3. Chạy **Alembic migrations** tạo toàn bộ cấu trúc bảng và tài khoản admin ban đầu.
-4. Khởi động **FastAPI Backend** tại cổng `8000` (tự động phục vụ Web App production bundle).
+3. Chạy one-shot **frontend-build** (`npm ci && npm run build`) tạo `frontend/dist`, rồi **Alembic migrations** và bootstrap admin nếu chưa có.
+4. Khởi động **FastAPI Backend** tại cổng `8000` phục vụ bundle đã build (không phục vụ Vite source hoặc frontend legacy).
 5. Khởi động **Background Workers** cào tin và tính toán ngầm.
 6. Khởi động **Discord Bot** (nếu token hợp lệ).
 
 ### Bước 2: Kiểm tra trạng thái containers
 
 ```bash
-# Xem trạng thái hoạt động của 5 containers
+# Xem trạng thái services (frontend-build là one-shot)
 docker compose ps
 
 # Xem log Backend
@@ -239,6 +249,8 @@ docker compose up -d postgres redis
    source .venv/bin/activate
    ```
 
+Settings đọc `.env` theo working directory. Khi chạy từ `backend/`, hãy export biến môi trường hoặc tạo `backend/.env` riêng (không commit), chỉnh host DB/Redis thành localhost; file `.env` ở root dành cho Compose không tự được nạp từ thư mục backend.
+
 2. **Cài đặt thư viện backend:**
    ```bash
    cd backend
@@ -261,7 +273,7 @@ Mở một cửa sổ Terminal mới:
 cd frontend
 
 # Cài đặt dependencies (React, TypeScript, Tailwind, Radix)
-npm install
+npm ci
 
 # Khởi chạy Vite dev server với Hot Module Replacement
 npm run dev
@@ -328,14 +340,14 @@ Sau khi hệ thống khởi chạy, trải nghiệm luồng làm việc khép k�
 ### Bước 3: Xem Đề xuất & Phân tích Tương thích (`/recommendations`)
 
 1. Chuyển sang mục **Đề xuất phù hợp**.
-2. Hệ thống xếp hạng công việc theo điểm **Match Score** tổng hợp và gắn nhãn: `ELIGIBLE`, `BORDERLINE`, `INELIGIBLE`.
+2. Hệ thống xếp hạng công việc theo điểm **Match Score** tổng hợp và gắn nhãn: `ELIGIBLE`, `UNCERTAIN`, `BLOCKED`.
 3. Bấm vào từng tin để mở modal phân tích radar **7 chỉ số**: Yêu cầu cốt lõi, Kỹ năng kỹ thuật, Dự án liên quan, Kinh nghiệm, Học vấn, Cấp bậc, Hình thức làm việc.
 
 ### Bước 4: Thiết kế CV Chuyên Biệt Theo Từng JD (`/resume`)
 
 1. Tại tin tuyển dụng mong muốn, bấm nút **"Tạo thiết kế CV"**.
 2. Hệ thống chuyển sang **Resume Workspace**:
-   - **Bản xem PDF:** Xem trực tiếp file PDF 1 trang A4 đã được biên dịch qua TeXLive.
+   - **Bản xem PDF:** Xem PDF 1 trang sau khi compile thành công; thiếu binary, PDF lỗi hoặc nhiều trang đều fail, không tạo stub. `/api/v1/resumes/{id}/pdf` yêu cầu xác thực và kiểm tra ownership (có superuser override); Bearer hoặc query token cho iframe, UUID không cấp quyền public. Artifact bị mất trên disk có thể được compile JIT từ `latex_source` trong PostgreSQL sau authorization.
    - **Mã LaTeX:** Tinh chỉnh trực tiếp mã nguồn LaTeX và bấm **"Lưu & Biên dịch lại"**.
    - **Evidence Map:** Kiểm tra bảng đối soát độ tin cậy của các luận điểm.
    - **Cover Letter:** Sao chép nội dung thư ứng tuyển đã được tối ưu hóa.
@@ -343,13 +355,14 @@ Sau khi hệ thống khởi chạy, trải nghiệm luồng làm việc khép k�
 ### Bước 5: Quản lý Quá trình Ứng tuyển (`/applications`)
 
 1. Chuyển sang mục **Quản lý đơn nộp**.
-2. Theo dõi trạng thái đơn qua bảng dữ liệu hoặc thẻ di động: `DRAFT` $\rightarrow$ `READY` $\rightarrow$ `SENT` $\rightarrow$ `INTERVIEW` $\rightarrow$ `OFFER` $\rightarrow$ `REJECTED`.
+2. Theo dõi trạng thái: `DRAFT`, `READY`, `SENT`, `FAILED`, `REJECTED`, `INTERVIEW` (không phải chuỗi chuyển bắt buộc).
+3. Chuẩn bị mặc định `simulate_only=true` chỉ tạo READY, không gửi email/nộp portal. `simulate_only=false` trả HTTP 501 vì chưa có submission transport. Cập nhật SENT thủ công ghi nhận đơn đã gửi bên ngoài, không phải bằng chứng giao nhận tự động.
 
 ---
 
 ## Danh sách lệnh Discord Bot
 
-Nếu kích hoạt Discord Bot, bạn có thể điều khiển toàn bộ nền tảng qua Slash Commands:
+Discord là adapter tùy chọn. Bảng dưới giữ danh mục slash commands lịch sử, không cam kết mọi flow còn hoạt động với auth/API hiện tại; Web là giao diện chính và business logic không phụ thuộc bot:
 
 | Lệnh Slash                   | Mô tả tác vụ                                                        |
 | :--------------------------- | :------------------------------------------------------------------ |
@@ -368,7 +381,7 @@ Nếu kích hoạt Discord Bot, bạn có thể điều khiển toàn bộ nền
 
 ## Kiểm thử tự động (Automated Tests)
 
-Repository tích hợp bộ test tự động toàn diện gồm **118 test cases** bao phủ toàn bộ pipeline từ Parser, Ingestion, Canonical Skill Normalizer, 7-Signal Deterministic Matcher đến Anti-Hallucination Resume Engine:
+Chạy suite hiện tại để kiểm tra; các tổng test ở milestone cũ (ví dụ 118) là lịch sử, không phải kết quả xác minh hiện tại:
 
 ```bash
 # Kích hoạt virtual environment
@@ -426,7 +439,7 @@ npm run build
 | Tài liệu                                                           | Nội dung chi tiết                                                       |
 | :----------------------------------------------------------------- | :---------------------------------------------------------------------- |
 | [`docs/TECH_STACK.md`](docs/TECH_STACK.md)                         | **Ngăn xếp công nghệ toàn diện & đặc tả kiến trúc kỹ thuật mới**        |
-| [`docs/ROADMAP.md`](docs/ROADMAP.MD)                               | **Lộ trình phát triển qua các giai đoạn (Phase 0 ➔ Phase 9 Completed)** |
+| [`docs/ROADMAP.md`](docs/ROADMAP.MD)                               | **Lộ trình và milestones lịch sử; trạng thái hiện tại xem tasks/IN_PROGRESS.md** |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.MD)                     | Thiết kế kiến trúc tổng thể, mô hình dữ liệu và luồng tương tác         |
 | [`docs/AUTHENTICATION_AND_JWT.md`](docs/AUTHENTICATION_AND_JWT.md) | Đặc tả bảo mật Dual-Token Rotation (RTR) và Mutex Refresh Queue         |
 | [`docs/AI_SYSTEM.md`](docs/AI_SYSTEM.MD)                           | Đặc tả AI Pipeline, 7-Signal Matching Engine và Prompt Templates        |

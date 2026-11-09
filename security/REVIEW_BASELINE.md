@@ -2,16 +2,20 @@
 
 **Date:** 2026-10-06  
 **Auditor:** Senior Application Security Engineer & Backend Security Reviewer  
-**Status:** Remediated & Verified (Phases 1–3 Complete)  
+**Status:** Historical baseline and run observations; source reconciliation 2026-11-09 (no new test execution)
 **Target Codebase:** `c:\Game\Job-Hunt` (Branch: `main`)
 
 ---
 
+## Reading this baseline
+
+The original test totals/failures in section 5 are historical, not current failures or a current passing-suite claim. PDF authorization and the candidate-less daily-runner path have since been remediated in source. See `FINDINGS.md` for open SEC-05 DNS transport pinning, SEC-06 localStorage migration and SEC-07 suite-wide network isolation. No production configuration, live exploitation or current suite result was verified in this documentation pass.
+
 ## 1. Project Overview & System Identity
 
 Job-Hunt is an AI-assisted job hunting intelligence and resume tailoring platform.
-- **Frontend:** Modular Vanilla ES6 Single Page Application (`frontend/`) using Simple Blue design system, hash routing (`core/router.js`), reactive state management (`core/store.js`), and centralized HTTP client (`api/client.js`).
-- **Backend:** FastAPI REST API (`backend/app/`) running on Python 3.12 with async route handlers.
+- **Frontend (current):** React 18 / TypeScript / Vite SPA in `frontend/src`, Liquid Glass light/dark, typed REST client `src/api/client.ts`; old Vanilla/legacy directories are removed. Publish generated `frontend/dist`, with public `window.ENV` runtime API configuration.
+- **Backend:** FastAPI REST API (`backend/app/`) using the Python 3.11 Docker runtime with async route handlers.
 - **Persistence:** PostgreSQL 16 with `pgvector` extension for vector embeddings, managed via SQLAlchemy 2.0 (asyncpg) and Alembic migrations.
 - **Cache & Queue:** Redis 7 for workers and rate-limiting counters.
 - **Document & AI Processing:** Gemini REST API (`gemini-3.7-flash` / `gemini-3.6-flash`), local `pdflatex` compilation with sandbox flags, ATS 1-page pure LaTeX templates, claim-level anti-hallucination verification.
@@ -57,7 +61,7 @@ Job-Hunt is an AI-assisted job hunting intelligence and resume tailoring platfor
 
 ### 4.2 Document Generation & File Handling
 - `POST /api/v1/resumes/tailor/{job_id}`: AI extraction, prompt generation, JSON schema validation, unit regeneration, LaTeX rendering, `pdflatex` compilation.
-- `GET /api/v1/resumes/{id}/pdf`: Publicly accessible PDF delivery with capability UUID, JIT PDF recompilation.
+- `GET /api/v1/resumes/{id}/pdf`: Authenticated PDF delivery using Bearer or supported query access JWT; candidate ownership checked before delivery/JIT, with explicit superuser/internal-service exceptions. UUID alone grants no access.
 - `POST /api/v1/profile/upload-resume`: Multipart upload (.pdf, .tex, .yaml, .md, .json), streaming chunked memory bounds (10MB limit).
 - `app/services/tailoring/latex_compiler.py`: Invocation of `pdflatex` binary with `-no-shell-escape` sandbox parameter and 30s timeout.
 
@@ -67,7 +71,7 @@ Job-Hunt is an AI-assisted job hunting intelligence and resume tailoring platfor
 - 10 Collector adapters: Scraping TopCV, ITViec, VietnamWorks, Upwork RSS, etc.
 
 ### 4.4 Browser Security & Headers
-- CORS middleware in `app/main.py`: Whitelisted domains from `ALLOWED_CORS_ORIGINS` + regex `r"^https://[a-zA-Z0-9_-]+\.vercel\.app$"`.
+- CORS middleware in `backend/app/main.py`: Exact allowlist from `ALLOWED_CORS_ORIGINS`; historical Vercel-wide regex removed. CORS does not prevent same-origin XSS.
 - Cache-Control middleware: `no-cache, no-store, must-revalidate` on static assets and HTML.
 - Client token storage: Tokens stored in browser `localStorage`.
 

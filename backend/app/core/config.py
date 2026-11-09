@@ -1,4 +1,3 @@
-import os
 import logging
 from typing import Optional
 from pydantic import Field, field_validator, ValidationInfo
@@ -48,13 +47,13 @@ class Settings(BaseSettings):
             "job_hunter_platform_secret_key_web_2026_flexible_auth",
         }
 
-        env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+        env = info.data.get("ENVIRONMENT", "").lower().strip()
         is_insecure = (cleaned in insecure_defaults) or (len(cleaned) < 32)
 
-        if env == "production":
+        if env != "development":
             if is_insecure:
                 raise ValueError(
-                    f"Production security violation: {field_name} must be a secure secret of at least 32 characters and cannot use default/insecure values."
+                    f"Non-development security violation: {field_name} must be a secure secret of at least 32 characters and cannot use default/insecure values."
                 )
         else:
             if is_insecure:

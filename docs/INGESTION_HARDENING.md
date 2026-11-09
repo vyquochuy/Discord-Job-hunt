@@ -6,6 +6,8 @@
 
 ---
 
+> **Đối chiếu source hiện tại (2026-11-09, không live request):** Các mốc hoàn thành, file lists và test totals dưới đây là lịch sử Phase 2.7/2.8, không phải kết quả chạy lại hay bảo đảm coverage hiện tại. Saramin thay TopDev; ITNavi/GrowUpWork thuộc full-scan scope hiện tại. Xem các giới hạn vận hành đã cập nhật bên dưới và `testing/source-recovery.tdd.md` cho probe lịch sử.
+
 ## 1. Vấn đề tồn tại trước đây
 
 Pipeline ingest cũ của Job-Hunt chỉ thu thập **listing-level data** (thẻ card trang danh sách) rồi dùng chính HTML card đó làm description:
@@ -62,19 +64,19 @@ Collector.fetch_jobs()             (listing: URL, title, company, location, sala
 ```text
 itviec ↦ JSON-LD JobPosting + .job-detail__content
 topcv ↦ JSON-LD + .job-description + boilerplate filter (largest-block)
-topdev ↦ JSON-LD + JD card (div.rounded-xl.border.p-4, marker "Mô tả/Yêu cầu")
+saramin ↦ JSON-LD + JD card selectors/markers (tên helper TopDev còn là legacy nội bộ)
 vietnamworks ↦ JSON-LD + generic (API fetch jobId đã có sẵn trong URLFetcher)
 careerlink ↦ generic selectors (article/main/[class*='job-description'])
 ```
 
-Nguồn **không** được enrich (đã có JD đầy đủ hoặc không hữu ích): `remotive` (API trả full description), `upwork`, `itnavi`, `growupwork`, `mock`.
+Nguồn **không** nằm trong `SUPPORTED_SOURCES` (không phải cam kết mỗi record đều có JD đầy đủ): `remotive` (API trả full description), `upwork`, `itnavi`, `growupwork`, `mock`.
 
 ### 2.4 Cấu hình Settings mới (`backend/app/core/config.py`)
 
 ```python
 DETAIL_FETCH_ENABLED: bool = True     # Tắt hoàn toàn enrichment nếu cần
 DETAIL_FETCH_TIMEOUT: float = 10.0    # Per-detail fetch timeout
-DETAIL_FETCH_MAX_ATTEMPTS: int = 2    # Retry lần, backoff 1.5s/3s
+DETAIL_FETCH_MAX_ATTEMPTS: int = 2    # Tổng số attempts (không phải 2 retries); backoff 1.5s/3s
 DETAIL_FETCH_MAX_PER_RUN: int = 20    # Trần (budget) mỗi nguồn / mỗi lần chạy
 ```
 
@@ -88,15 +90,16 @@ Tiêu chí skip 0-cost: listing description `>= 800` ký tự (VD: VietnamWorks 
   - Detail **thành công** → `raw_data.raw_payload` được merge, đồng bộ lại vào ORM record.
   - Detail **thất bại** → note failure vào `detail_meta`, pipeline tiếp tục với listing data (graceful degradation, không gián đoạn).
 - `content_hash` listing-level giữ nguyên ý nghĩa (cache-hit chi phí 0 như cũ), hash chi tiết JD lưu tại `payload["detail_meta"]["description_hash"]`.
-- Retry detail bị BLOCKED/FAIL được lên kế hoạch ở **chu kỳ cào tiếp theo** khi listing hash thay đổi — tránh spam retry cùng nguồn (Invariant 22: không auto-retry mutation).
+- Không có hàng đợi/scheduler retry detail riêng. Hash cache hit bỏ qua enrichment; chỉ khi listing hash không cache-hit và còn budget mới có thể fetch lại. BLOCKED terminal/challenge/login trả ngay, không retry trong call. Invariant 22 áp dụng HTTP mutations của frontend, không phải chính sách retry GET chi tiết.
+- Phân biệt **listing bị chặn**: TopCV/CareerLink raise BLOCKED cho các HTTP terminal/marker nhận diện; API collect chỉ map riêng TopCV BLOCKED sang 502 (CareerLink RuntimeError không có mapping riêng), daily runner ghi thất bại nguồn. **Detail bị chặn**: ghi failure `detail_meta`, tăng `details_failed`, giữ listing để parse. Không phải mọi collector đều raise BLOCKED: ITNavi/GrowUpWork/ITViec có thể dừng/log rồi trả phần đã fetch hoặc rỗng; không được gọi số 0 là bằng chứng nguồn khỏe.
 
 ### 2.6 Adapters cập nhật `parse_raw()`
 
 | Adapter | Hành vi mới |
 | --- | --- |
-| `itviec_adapter` | Ưu tiên `payload["description"]`; capture `posted_at_text` từ card (`time`, `.small-text`) + có `posted_iso`;hapus content_hash cập nhật theo text này |
+| `itviec_adapter` | Ưu tiên `payload["description"]`; capture `posted_at_text` từ card (`time`, `.small-text`) + có `posted_iso`; content_hash nối posted text khi có |
 | `topcv_adapter` | Ưu tiên `payload["description"]` (via `clean_html_to_text`); fallback card; `posted_iso` |
-| `topdev_adapter` | Như TopCV + giữ logic WorkModeEnum từ title |
+| `saramin_adapter` (thay TopDev) | Description làm sạch từ payload; published date UTC+7; lương masked là unknown. Không kế thừa heuristic WorkModeEnum từ title của TopDev cũ |
 | `vietnamworks_adapter` | Richer-record merge giữa payload description / detail / raw_html (`max(candidates, key=len)`) |
 
 ### 2.7 An ninh & tuân thủ Invariants
@@ -161,7 +164,7 @@ Không có migration DB nào cần thiết (chỉ mở rộng `raw_jobs.raw_payl
 # Phase 2.8 — Full Unexpired Scanning & Expiry Detection
 
 > **Ngày hoàn thành:** 2026-11-04
-> **Phạm vi:** 5 nền tảng Việt Nam (ITViec, TopCV, TopDev, VietnamWorks, CareerLink). Các nguồn remote nước ngoài (Remotive, Upwork, ITNavi, GrowUpWork) **chưa** nâng cấp — vẫn chạy incremental như cũ.
+> **Phạm vi lịch sử Phase 2.8:** ITViec, TopCV, TopDev, VietnamWorks, CareerLink. **Hiện tại:** 7 nguồn full scan là ITViec, TopCV, Saramin (thay TopDev), VietnamWorks, CareerLink, ITNavi, GrowUpWork; Remotive/Upwork giữ incremental trong daily runner. ITNavi/GrowUpWork không được xếp là nguồn remote nước ngoài.
 
 ## 6. Vấn đề tồn tại trước đây
 
@@ -185,19 +188,21 @@ full_scan=True → limit = 0            (collector hiểu 0 = KHÔNG GIỚI HẠ
 full_scan=False → giữ nguyên hành vi incremental (limit thật, streak = 30)
 ```
 
-Mỗi adapter VN:
+Giới hạn **hiện tại** khác nhau theo adapter; full scan không có nghĩa quét vô hạn hay bảo đảm toàn bộ tin:
 
-```python
-unlimited = limit <= 0
-max_pages = 80 if unlimited else max(1, (limit + 19) // 20)
-```
+| Adapter | `limit <= 0` | Positive limit |
+| --- | --- | --- |
+| ITViec, TopCV, CareerLink | 80 trang | `max(1, ceil(limit/20))` |
+| VietnamWorks API | 80 trang, 50 records/trang | `max(1, ceil(limit/50))` |
+| GrowUpWork | 80 trang | `min(25, max(1, ceil(limit/20)))` |
+| ITNavi | **50 trang** | `min(25, max(1, ceil(limit/10)))` |
+| Saramin API | 200 trang, page_size20 | Cùng cap, dừng khi đủ limit |
 
-- Bỏ hoàn toàn trần cứng `min(25, ...)`.
-- Trần an toàn `80` trang chỉ để chống vòng lặp vô hạn khi site phân trang tuần hoàn.
+Saramin còn dừng khi không có ID hợp lệ mới hoặc đạt metadata last_page; GrowUpWork dùng embedded JSON last_page và dedup; ITNavi dừng khi không có URL mới. ITNavi listing tuần tự nhưng AJAX detail chạy `asyncio.gather` tất cả card mỗi trang, **không có semaphore/cap concurrency riêng**; timeout listing 10s/connect5s, retry timeout một lần, AJAX5s. Không có collector-wide deadline bảo đảm full scan kết thúc trong 240s.
 
 ### 7.2 Smart Stop Condition (dừng khi gặp chuỗi tin hết hạn)
 
-Vì các nguồn sắp xếp tin mới nhất trước (`sort=new`, `sort=date`, `ordering=latest_jobs`), khi gặp liên tiếp nhiều tin hết hạn thì các trang sau chắc chắn cũ hơn:
+Đây là heuristic, không phải bằng chứng các trang sau chắc chắn cũ/hết hạn. Áp dụng streak 15 ở ITViec/TopCV/CareerLink nhánh DOM, 20 ở VietnamWorks API; không phải mọi adapter/nhánh (CareerLink JSON-LD không áp dụng) đều có smart stop:
 
 ```text
 MAX_CONSECUTIVE_EXPIRED = 15 (20 với VietnamWorks)
@@ -225,7 +230,7 @@ job_status = EXPIRED if is_job_expired else ACTIVE
 ```
 
 - **Insert mới**: lưu với `status=EXPIRED`, `expires_at` set, tăng `stats.expired_marked`.
-- **Update**: chỉ nâng cấp ACTIVE → EXPIRED; không hồi sinh tin đã hết hạn trừ khi nguồn trả về hạn mới còn hiệu lực.
+- **Update (nếu record tới được nhánh persistence, không bị cache/dedup skip)**: có evidence expired thì chuyển EXPIRED. Nếu job đang EXPIRED nhưng payload không flag expired và ngày parse được không quá hạn, code chuyển ACTIVE; **không bắt buộc có hạn mới tương lai** (thiếu expiry cũng có thể vào nhánh này). Không mô tả đây là bảo đảm chống hồi sinh tuyệt đối.
 - **Không xóa**: giữ lịch sử + tránh cào lại vô ích ở chu kỳ sau.
 
 ### 7.5 Bảo trì định kỳ `expire_outdated_jobs(db)`
@@ -251,11 +256,13 @@ POST /api/v1/jobs/collect?source=itviec&full_scan=true
 `daily_runner`:
 
 ```python
-FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
+FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "saramin", "vietnamworks", "careerlink", "itnavi", "growupwork"})
 full_scan = col.source_name in FULL_SCAN_SOURCES
 ```
 
-Chỉ 5 nguồn VN được quét toàn bộ; nguồn nước ngoài giữ incremental.
+Daily runner chọn full scan cho 7 nguồn trên; Remotive/Upwork incremental. Worker collection cycle thông thường không tự chọn full_scan như daily runner.
+
+GrowUpWork hiện lấy embedded public JSON rồi DOM fallback, **không tạo curated synthetic jobs** khi lỗi/rỗng. Rows lịch sử `growupwork-curated-*` giữ lại nhưng bị loại khỏi Market analytics; Upwork vẫn có synthetic fallback cũ và nằm ngoài Vietnam Market scope. Probe lịch sử 2026-11-09 (CareerLink415, GrowUpWork800, Saramin96, ITNavi timeout240s, TopCV blocked) chỉ là fetched observations, không phải DB ACTIVE totals hay guarantees; không chạy lại live khi audit tài liệu này.
 
 ## 9. Files thay đổi
 

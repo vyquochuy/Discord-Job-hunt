@@ -52,6 +52,8 @@ class CareerLinkJobCollector(BaseJobCollector):
                     logger.info(f"CareerLink: Fetching page {page}/{max_pages} from {target_url}...")
 
                     response = await client.get(target_url, headers=headers)
+                    if response.status_code in {401, 403, 407, 429} or "xác nhận bạn không phải robot" in response.text.lower():
+                        raise RuntimeError("CareerLink BLOCKED: access restriction; use manual JD import")
                     if response.status_code != 200:
                         logger.warning(f"CareerLink page {page} returned status {response.status_code}")
                         break
@@ -114,7 +116,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                         continue
 
                     # 3. Fallback: Bóc tách bằng CSS selectors cập nhật
-                    job_cards = soup.select(".job-item, .list-group-item.job-item, li.tlp-job, div.media")
+                    job_cards = soup.select("[data-testid='job-result-row'], .job-item, .list-group-item.job-item, li.tlp-job, div.media")
                     if not job_cards:
                         job_cards = soup.find_all("li", class_=re.compile(r"job.*item|tlp.*job", re.I))
 
@@ -127,7 +129,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                             break
 
                         # Title & URL
-                        title_elem = card.select_one("a.job-link, a.clickable-outside, h5.job-name, h2 a, h3 a")
+                        title_elem = card.select_one("a[class*='__jobLink'], a.job-link, a.clickable-outside, h5.job-name, h2 a, h3 a")
                         if not title_elem:
                             continue
 
@@ -147,16 +149,17 @@ class CareerLinkJobCollector(BaseJobCollector):
                         url = rel_url if rel_url.startswith("http") else f"{self.BASE_URL}{rel_url}"
 
                         # Company Name
-                        company_elem = card.select_one("a.job-company, .job-company, a[href*='/viec-lam-cua/'], a[href*='/nha-tuyen-dung/']")
+                        company_elem = card.select_one("[class*='__company'], a.job-company, .job-company, a[href*='/viec-lam-cua/'], a[href*='/nha-tuyen-dung/']")
                         company = company_elem.get_text(strip=True) if company_elem else "CareerLink Employer"
 
                         # Location
-                        location_elem = card.select_one(".job-location, div.list-with-comma, .mobile-disabled-link")
+                        location_elem = card.select_one("[class*='__location'], .job-location, div.list-with-comma, .mobile-disabled-link")
                         location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
 
                         # Salary
-                        salary_elem = card.select_one(".job-salary, span.text-primary")
+                        salary_elem = card.select_one("[class*='__salary'], .job-salary, span.text-primary")
                         salary_text = salary_elem.get_text(strip=True) if salary_elem else ""
+                        timestamp = card.select_one("[class*='__timestamp'], .job-date, time")
 
                         # Position/Skills
                         position_elem = card.select_one(".job-position")
@@ -182,6 +185,7 @@ class CareerLinkJobCollector(BaseJobCollector):
                             "salary_text": salary_text,
                             "skills": skills,
                             "is_expired": is_card_expired,
+                            "posted_at_text": timestamp.get_text(strip=True) if timestamp else None,
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
@@ -207,6 +211,8 @@ class CareerLinkJobCollector(BaseJobCollector):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from CareerLink.vn")
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"Error scraping CareerLink: {e}", exc_info=True)
 

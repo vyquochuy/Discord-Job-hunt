@@ -82,10 +82,13 @@ The process of assembling all materials needed to apply:
 - **Recommendations View**: Ranked list of highest-affinity roles.
 - **Candidate Profile**: Direct profile management, skills, projects, and baseline context sync.
 - **Resume Workspace**: Tailored resume inspection, PDF viewer, LaTeX code, Cover Letter, and Provenance fact-checker.
-- **Application Tracking**: Lifecycle management (`SAVED` $\rightarrow$ `PREPARING` $\rightarrow$ `APPLIED` $\rightarrow$ `INTERVIEW` $\rightarrow$ `OFFER`/`REJECTED`).
+- **Market Intelligence**: Eight read-only analytics tabs scoped to supported regional sources; observed listing counts are not total market demand.
+- **Application Tracking**: Persisted application statuses include `DRAFT`, `READY`, `SENT`, `FAILED`, `REJECTED`, `INTERVIEW` (see `backend/app/models/resume.py`). Saved jobs are separate bookmarks. Preparation defaults to `simulate_only=true`, creates READY and sends nothing; `simulate_only=false` returns HTTP 501 because no submission transport exists. Users can manually record externally sent applications.
+- **Resume Access**: PDFs require authenticated ownership checks (with the existing superuser override), including supported query tokens for embeds. UUID URLs are not public. Missing disk artifacts may recompile from stored LaTeX after authorization.
 
 ### Background Automation & Pipeline
-- Multi-source job collectors (ITViec, Remotive, CareerLink, TopCV, Mock).
+- Current collectors: ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi, GrowUpWork, Remotive, Upwork and Mock. Saramin replaces historical TopDev through migration `009_rename_topdev_saramin`; collection coverage depends on source availability and access restrictions, which must not be bypassed.
+- Market analytics uses the seven regional sources plus legacy TopDev aliases; Remotive, Upwork, manual, mock and historical synthetic `growupwork-curated-*` rows are excluded.
 - Ingestion pipeline with SHA-256 caching for 0 LLM cost hit.
 - 3-tier deduplication (Exact Hash, RapidFuzz, pgvector Cosine).
 - Daily autonomous batch runner.
@@ -107,7 +110,9 @@ The process of assembling all materials needed to apply:
 
 ---
 
-## Application Lifecycle
+## Historical conceptual lifecycle (not persisted status names)
+
+The diagram below preserves the original product journey. It is not the implemented application enum or an automatic submission flow: APPLIED means a user-recorded external action; OA/OFFER/WITHDRAWN are conceptual stages, not currently persisted application statuses. Current behavior is described above.
 
 ```
 DISCOVERED          → Job found by collector

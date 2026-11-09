@@ -128,7 +128,7 @@ class ApplicationSubmitRequest(BaseModel):
     recipient_email: Optional[str] = Field(None, description="Email người nhận (nếu bỏ trống sẽ lấy từ Job contact_email)")
     subject: Optional[str] = None
     body: Optional[str] = None
-    simulate_only: bool = Field(False, description="True nếu chỉ tạo draft / ghi log mà không gửi email thật")
+    simulate_only: bool = Field(True, description="True nếu chỉ tạo draft / ghi log mà không gửi email thật")
 
 
 class ApplicationStatusUpdateRequest(BaseModel):

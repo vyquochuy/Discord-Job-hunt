@@ -20,7 +20,7 @@ from app.services.collectors.itnavi_adapter import ITNaviJobCollector
 from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
-from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.saramin_adapter import SaraminJobCollector
 from app.services.collectors.upwork_adapter import UpworkJobCollector
 from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline, IngestionStats
@@ -34,7 +34,7 @@ logger = logging.getLogger("daily_runner")
 
 # Phase 2.8: Các nền tảng Việt Nam được quét TOÀN BỘ job còn hiệu lực
 # (không giới hạn limit) vì đây là nguồn chính cho thị trường mục tiêu.
-FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
+FULL_SCAN_SOURCES = frozenset({"itviec", "topcv", "saramin", "vietnamworks", "careerlink", "itnavi", "growupwork"})
 
 # Nguồn nước ngoài (remote quốc tế) chưa hỗ trợ quét toàn bộ -> giới hạn an toàn
 FOREIGN_SOURCE_FULL_SCAN_CAP = 50
@@ -88,8 +88,10 @@ class DailyBatchSummary(BaseModel):
     started_at: datetime
     finished_at: datetime
     duration_seconds: float
-    candidate_name: str
-    candidate_id: str
+    candidate_name: Optional[str] = None
+    candidate_id: Optional[str] = None
+    matching_status: str = "COMPLETED"
+    matching_skip_reason: Optional[str] = None
 
     # Scan configuration
     scan_mode: str = "standard"
@@ -237,9 +239,10 @@ class DailyBatchRunnerService:
                     logger.info(f"Context directory '{resolved_context}' not found (cloud deployment) — skipping sync, using existing DB profile.")
                 candidate = await CandidateRepository.get_profile(session)
 
-            if not candidate:
-                raise ValueError("Candidate profile not found in database. Please upload a resume or sync profile first.")
-            logger.info(f"✅ Candidate profile resolved: {candidate.full_name} ({candidate.headline})")
+            if candidate:
+                logger.info(f"✅ Candidate profile resolved: {candidate.full_name} ({candidate.headline})")
+            else:
+                logger.info("Candidate profile not found; continuing ingestion, skipping matching and tailoring.")
         except RuntimeError:
             raise
         except Exception as e:
@@ -293,7 +296,7 @@ class DailyBatchRunnerService:
             GrowUpWorkJobCollector(),
             VietnamWorksJobCollector(),
             UpworkJobCollector(),
-            TopDevJobCollector(),
+            SaraminJobCollector(),
         ]
 
         for col in collectors:
@@ -341,7 +344,10 @@ class DailyBatchRunnerService:
 
         # 4. Phân tích & Chấm điểm phù hợp hàng loạt (Phase 3 Match Engine)
         logger.info("Step 4/5: Running Job Intelligence & Deterministic Scoring on all active jobs...")
-        matches_evaluated = await job_match_service.batch_calculate_all(session, candidate_id=candidate.id)
+        matches_evaluated = (
+            await job_match_service.batch_calculate_all(session, candidate_id=candidate.id)
+            if candidate else 0
+        )
         logger.info(f"✅ Evaluated {matches_evaluated} active jobs against candidate profile.")
 
         # 5. Thống kê & Trích xuất Top Recommendations
@@ -353,9 +359,11 @@ class DailyBatchRunnerService:
         total_active = res_active.scalar() or 0
 
         # Đếm phân loại khuyến nghị
-        stmt_matches = select(JobMatch).where(JobMatch.candidate_id == candidate.id)
-        res_matches = await session.execute(stmt_matches)
-        all_matches = res_matches.scalars().all()
+        all_matches = []
+        if candidate:
+            stmt_matches = select(JobMatch).where(JobMatch.candidate_id == candidate.id)
+            res_matches = await session.execute(stmt_matches)
+            all_matches = res_matches.scalars().all()
 
         strong_count = sum(1 for m in all_matches if m.recommendation == RecommendationCategory.STRONG_MATCH)
         good_count = sum(1 for m in all_matches if m.recommendation == RecommendationCategory.GOOD_MATCH)
@@ -363,8 +371,11 @@ class DailyBatchRunnerService:
         blocked_count = sum(1 for m in all_matches if m.eligibility == Eligibility.BLOCKED)
 
         # Lấy Top 10 recommendations điểm cao nhất (score >= 60.0 và không bị BLOCKED)
-        top_recs_db = await job_match_service.get_top_recommendations(
-            session, candidate_id=candidate.id, limit=10, min_score=60.0
+        top_recs_db = (
+            await job_match_service.get_top_recommendations(
+                session, candidate_id=candidate.id, limit=10, min_score=60.0
+            )
+            if candidate else []
         )
 
         top_recs_summary: List[TopRecommendedJobSummary] = []
@@ -392,8 +403,13 @@ class DailyBatchRunnerService:
             started_at=start_time,
             finished_at=end_time,
             duration_seconds=duration,
-            candidate_name=candidate.full_name,
-            candidate_id=str(candidate.id),
+            candidate_name=candidate.full_name if candidate else None,
+            candidate_id=str(candidate.id) if candidate else None,
+            matching_status="COMPLETED" if candidate else "SKIPPED",
+            matching_skip_reason=None if candidate else (
+                "Candidate profile not found. Ingestion completed; matching and tailoring skipped. "
+                "Upload a resume or sync a profile to enable matching."
+            ),
             scan_mode=effective_scan_mode,
             full_scan_sources=full_scan_sources,
             sources_scanned=sources_scanned,

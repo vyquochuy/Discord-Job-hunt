@@ -51,7 +51,10 @@ export function MarketPage() {
   };
   return <div className="space-y-5 sm:space-y-6">
     <PageHeader title="Thị trường IT Việt Nam" description="8 góc nhìn từ dữ liệu tuyển dụng đã thu thập; không đại diện toàn bộ thị trường Việt Nam." actions={<Button variant="outline" size="sm" onClick={() => setRevision(r => r + 1)}><RefreshCw className="h-3.5 w-3.5" />Cập nhật</Button>} />
-    <Card className="space-y-4 p-4">
+    <Card className="p-4">
+      <details className="group/filters">
+        <summary className="cursor-pointer text-sm font-medium text-primary">Bộ lọc thị trường</summary>
+        <div className="mt-4 space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Input type="date" label="Từ ngày đăng" value={filters.date_from ?? ''} max={filters.date_to || undefined} onChange={e => update('date_from', e.target.value)} />
         <Input type="date" label="Đến ngày đăng" value={filters.date_to ?? ''} min={filters.date_from || undefined} onChange={e => update('date_to', e.target.value)} />
@@ -68,7 +71,9 @@ export function MarketPage() {
       <div className="flex flex-wrap items-center gap-2 text-xs"><Button variant="ghost" size="sm" onClick={() => { setFilters({ include_expired: false }); setSkills({ limit: 25 }); }}>Xóa bộ lọc</Button><span className="text-text-secondary">Mặc định chỉ tin đang hoạt động · bộ lọc áp dụng cho mọi tab</span></div>
       <div className="flex flex-wrap gap-2">{filterFields.filter(([field]) => !!filters[field]).map(([field, label, catalogField]) => <Button key={field} variant="outline" size="sm" onClick={() => update(field, '')} aria-label={`Xóa bộ lọc ${label}: ${filters[field]}`}>{label.replace(' (derived)', '')}: {catalog.data?.[catalogField]?.find(item => item.value === filters[field])?.label ?? filters[field]} ×</Button>)}{filters.company && <Button variant="outline" size="sm" onClick={() => update('company', '')}>Công ty: {filters.company} ×</Button>}{filters.include_expired && <Button variant="outline" size="sm" onClick={() => setFilters(f => ({ ...f, include_expired: false }))}>Bao gồm tin hết hạn ×</Button>}</div>
       {catalog.error && <p role="alert" className="text-xs text-danger-700">Danh mục bộ lọc: {catalog.error} <button className="underline" onClick={() => setRevision(r => r + 1)}>Thử lại</button></p>}
-      {invalidDates && <p role="alert" className="text-sm text-danger-700">Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.</p>}
+        </div>
+      </details>
+      {invalidDates && <p role="alert" className="mt-3 text-sm text-danger-700">Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.</p>}
     </Card>
     <Tabs value={tab} onValueChange={value => setTab(value as MarketTab)}>
       <div className="overflow-x-auto pb-1"><TabsList aria-label="Market intelligence views">{tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}</TabsList></div>

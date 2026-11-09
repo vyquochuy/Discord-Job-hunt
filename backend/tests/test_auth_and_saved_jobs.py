@@ -121,6 +121,7 @@ async def test_auth_register_and_login_flow(test_client: AsyncClient):
     assert "access_token" in data
     assert data["user"]["email"] == "user@example.com"
     assert data["user"]["candidate_id"] is not None
+    assert data["user"]["is_superuser"] is False
     token = data["access_token"]
 
     # 2. Đăng nhập
@@ -218,19 +219,23 @@ async def test_notification_service_dispatch():
 
 @pytest.mark.asyncio
 async def test_admin_superuser_bootstrap_and_permissions(test_client: AsyncClient):
-    """Kiểm tra tài khoản cấu hình ADMIN_EMAIL tự động nhận quyền Superuser."""
-    # 1. Đăng ký tài khoản với admin email
+    """Public signup cannot claim the reserved admin identity or become superuser."""
     admin_payload = {
-        "email": settings.ADMIN_EMAIL,
-        "password": settings.ADMIN_INITIAL_PASSWORD,
-        "full_name": "Vy Quoc Huy Admin"
+        "email": settings.ADMIN_EMAIL.upper(),
+        "password": "attacker_password123",
+        "full_name": "Unverified Admin"
     }
     reg_resp = await test_client.post("/api/v1/auth/register", json=admin_payload)
-    assert reg_resp.status_code == 201
-    data = reg_resp.json()
-    assert data["user"]["email"] == settings.ADMIN_EMAIL
-    assert data["user"]["is_superuser"] is True
-    admin_token = data["access_token"]
+    assert reg_resp.status_code == 400, reg_resp.text
+    assert "access_token" not in reg_resp.json()
+
+    # No account may remain for startup bootstrap to promote.
+    from sqlalchemy import select
+    async for session in app.dependency_overrides[get_db]():
+        user = (await session.execute(
+            select(User).where(User.email == settings.ADMIN_EMAIL.lower().strip())
+        )).scalar_one_or_none()
+        assert user is None
 
     # 2. Đăng ký một tài khoản thứ hai (user thường)
     user2_payload = {

@@ -1,6 +1,21 @@
 # AI System
 
-> **Implementation Status:** FULLY IMPLEMENTED & TESTED (Phase 3 Job Matching, Phase 4/4.5 JD-Agnostic Strategic Resume Intelligence Engine, Provenance Verifier).
+> **Current implementation reference (2026-11-09):** This describes repository code, not a deployment or full-suite verification claim.
+
+## Current runtime behavior
+
+- Candidate facts come from the authenticated user's Candidate Profile in PostgreSQL. `context/` files are import/seed inputs; conversation text is not runtime evidence until explicitly saved to the profile. `EvidenceFact`s in `EvidenceRegistry` are the allowed generated claims.
+- `services/matching/scoring_engine.py` computes seven deterministic signals: `requirement_fit` 0.30, `technical_skill_match` 0.15, `project_relevance` 0.20, `experience_relevance` 0.10, `education_match` 0.05, `seniority_match` 0.05, `work_fit` 0.15. These are code constants, not environment-configurable proposed weights.
+- Hard filters return PASS/FAIL/UNKNOWN. Eligibility is BLOCKED on any FAIL, UNCERTAIN on at least two UNKNOWNs, otherwise ELIGIBLE. BLOCKED produces DO_NOT_APPLY; UNCERTAIN with score ≥60 produces REVIEW_REQUIRED. Remaining score thresholds are 80/60/40 for STRONG/GOOD/WEAK, otherwise POOR.
+- `core/config.py` defaults `GEMINI_MODEL=gemini-flash-latest`. `ResumeSemanticWriter` tries the configured model first (deprecated 1.5/2.0 names are remapped), then unique fallbacks: `gemini-flash-latest`, `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-2.5-flash`, `gemini-pro-latest`. This is an attempted cascade, not proof those provider models are available. It supports optional `GROQ_API_KEY` fallback; exhausted/unconfigured generation uses the deterministic composer.
+- Separate OpenAI settings are `AI_MODEL_EXTRACTION=gpt-4o-mini`, `AI_MODEL_STANDARD=gpt-4o`, `AI_MODEL_GENERATION=gpt-4o`; they do not select the Gemini resume writer. Set credentials/models through environment variables, never source code.
+- Generated claim fragments cite evidence IDs; validation protects technology, metrics, experience and architectural modifiers. Invalid units are selectively regenerated. Offline composition avoids semantic invention, but still requires validation and human review.
+- PDF compilation fails closed for absent LaTeX, compilation failure, unreadable PDF or page count other than one (`pypdf`). PDF access requires authentication and ownership checks (including the existing superuser override); iframe query tokens do not make UUID URLs public. Missing disk artifacts can recompile from stored `latex_source` after authorization.
+- Application preparation defaults to `simulate_only=true`, creates READY with no `sent_at`, and sends nothing. `simulate_only=false` returns HTTP 501: no submission transport exists. Manual status updates record submissions made externally; future automated submission still requires explicit approval.
+
+## Historical design specification (superseded where different)
+
+The following sections through “Evidence and Provenance” preserve the original design vocabulary, conceptual schemas and planned AI operations. They are **not current API contracts or implementation guarantees**: file/conversation evidence, AI-assessed scoring, proposed weights, generic retry behavior and application-question assistance below must not be read as shipped runtime behavior. Current contracts live in `backend/app/schemas/` and matching DTOs in `services/matching/models.py`.
 
 ---
 
@@ -444,7 +459,7 @@ Source (origin of the evidence)
 ### Architecture Pipeline
 
 ```
-Candidate Profile (PostgreSQL / candidate-profile.yaml / master-resume.tex)
+Candidate Profile (PostgreSQL; context files are import/seed inputs only)
         ↓
 Evidence & Fact Extraction (fact_graph.py & TechnologyAliasRegistry)
         ↓
@@ -477,14 +492,14 @@ LaTeX Compiler (latex_compiler.py — pdflatex) → Final Tailored PDF
    - Identifies candidate capability gaps against JD requirements while filtering out generic domain stop words (`server`, `cloud`, `infrastructure`, etc.).
 
 4. **Gemini Semantic Resume Writer (`gemini_resume_writer.py`)**:
-   - Uses configurable model (`GEMINI_MODEL=gemini-3.6-flash`, no hardcoding).
+   - Uses configurable primary model (`GEMINI_MODEL`, default `gemini-flash-latest`) plus a code-defined fallback cascade described above.
    - Generates structured JSON adhering strictly to `StructuredResumeDraft`.
    - Produces granular atomic claim fragments (`GeneratedClaimFragment`) for every bullet with exact `evidence_ids`.
 
 5. **Deterministic Resume Composer (`deterministic_composer.py`)**:
    - 100% offline, zero-token cost fallback.
    - Selects, reorders, and composes verified facts without semantic rewriting.
-   - Guaranteed 100% validity on first pass.
+   - Composes only verified facts; validation and review remain necessary (not a guarantee that every layout or output succeeds).
 
 6. **Claim-Level Validator & Unit Regeneration (`evidence_validator.py`)**:
    - **6 Verification Stages**:

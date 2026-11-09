@@ -3,7 +3,17 @@
 
 ---
 
-## 1. Hiện Trạng Hệ Thống (Current Architecture)
+## Document status — historical migration proposal
+
+The sections below preserve the **pre-Web-first** architecture assessment, not the current runtime or an outstanding implementation checklist. Source review: 2026-11-09.
+
+Current implementation: React 18 / TypeScript / Vite in `frontend/src` (Liquid Glass light/dark), FastAPI REST API, PostgreSQL runtime source of truth, JWT access/refresh authentication, and optional Discord notification/legacy-command adapter. `backend/app/models/user.py`, auth endpoints, saved jobs and notification services now exist. The old Simple Blue/Vanilla frontend is removed. See `AGENTS.MD` and `docs/ARCHITECTURE.MD` for the maintained architecture.
+
+Security corrections to the historical proposal: PDF UUIDs are identifiers, not capabilities; Bearer or supported query access JWTs require ownership checks before delivery/JIT (explicit privileged exceptions remain). Internal secrets map to a distinct privileged service principal, not an arbitrary first user. Tokens still use localStorage; HttpOnly migration and outbound DNS transport pinning remain open. Discord deprecation is partial: legacy handlers still exist and do not provide tenant-aware user authentication. Application preparation is simulated; actual transport submission is unsupported (501). No deployment or complete security certification is implied by this document.
+
+Evidence: `frontend/src/App.tsx`, `frontend/src/api/client.ts`, `backend/app/core/security.py`, `backend/app/api/v1/endpoints/resumes.py`, `backend/app/services/notifications/`, `discord-bot/src/commands/`.
+
+## 1. Historical starting architecture (pre-migration)
 
 ### 1.1 Tổng quan
 Hệ thống AI Job Hunter hiện tại đã hoàn thành các giai đoạn nền tảng (Phase 0 đến Phase 4.5), bao gồm:

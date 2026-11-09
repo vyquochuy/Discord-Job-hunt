@@ -45,7 +45,7 @@ logger = logging.getLogger("detail_fetcher")
 # Nguồn được thiết kế trang chi tiết server-rendered / có JSON-LD, sẽ được
 # làm giàu tự động. Các nguồn API đầy đủ sẵn (remotive) cần không enrich để
 # tiết kiệm băng thông và chi phí runtime.
-SUPPORTED_SOURCES = frozenset({"itviec", "topcv", "topdev", "vietnamworks", "careerlink"})
+SUPPORTED_SOURCES = frozenset({"itviec", "topcv", "saramin", "vietnamworks", "careerlink"})
 
 # Nếu listing description đã đủ dài (ví dụ VietnamWorks Search API trả về JD
 # đầy đủ), bỏ qua bước detail fetch để tiết kiệm chi phí.
@@ -493,7 +493,7 @@ def _site_selectors(source: str) -> List[str]:
             "article",
             "main",
         ]
-    if source == "topdev":
+    if source == "saramin":
         # Card JD dedicated của TopDev/Saramin (avoid side panels toàn trang).
         return ["div.rounded-xl.border.p-4", "[class*='job-description']", "article", "main"]
     if source == "topcv":
@@ -535,7 +535,7 @@ def extract_site_description(source: str, soup: BeautifulSoup) -> Tuple[str, str
                 continue
             if len(txt) < MIN_DETAIL_LENGTH:
                 continue
-            if source == "topdev" and not any(m in txt for m in _TOPDEV_JD_MARKERS):
+            if source == "saramin" and not any(m in txt for m in _TOPDEV_JD_MARKERS):
                 continue
             if any(b in txt[:200] for b in PLATFORM_BOILERPLATE_MARKERS):
                 continue

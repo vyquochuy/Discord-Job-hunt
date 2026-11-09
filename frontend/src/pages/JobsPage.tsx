@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useToast } from '../context/ToastContext';
 import * as jobsApi from '../api/jobs.api';
-import { Job, JobFilterParams } from '../types/job';
+import { Job, JobFilterParams, JobFiltersResponse } from '../types/job';
 import { PageHeader } from '../components/layout/PageHeader';
 import { JobCard } from '../components/jobs/JobCard';
 import { JobCardSkeleton } from '../components/ui/skeleton';
@@ -17,7 +17,6 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Briefcase,
-  MapPin,
 } from 'lucide-react';
 
 export interface JobsPageProps {
@@ -26,34 +25,7 @@ export interface JobsPageProps {
   onOpenScanner: () => void;
 }
 
-const WORK_MODE_OPTIONS = [
-  { value: '', label: 'Tất cả hình thức' },
-  { value: 'REMOTE', label: 'Remote' },
-  { value: 'HYBRID', label: 'Hybrid' },
-  { value: 'ONSITE', label: 'Onsite' },
-];
-
-const LEVEL_OPTIONS = [
-  { value: '', label: 'Tất cả cấp bậc' },
-  { value: 'INTERN', label: 'Intern' },
-  { value: 'FRESHER', label: 'Fresher' },
-  { value: 'JUNIOR', label: 'Junior' },
-  { value: 'MID', label: 'Mid-level' },
-  { value: 'SENIOR', label: 'Senior' },
-];
-
-const SOURCE_OPTIONS = [
-  { value: '', label: 'Tất cả nguồn tin' },
-  { value: 'itviec', label: 'ITViec' },
-  { value: 'remotive', label: 'Remotive (Quốc tế)' },
-  { value: 'careerlink', label: 'CareerLink' },
-  { value: 'topcv', label: 'TopCV' },
-  { value: 'topdev', label: 'TopDev' },
-  { value: 'vietnamworks', label: 'VietnamWorks' },
-  { value: 'upwork', label: 'Upwork (Freelance)' },
-  { value: 'manual', label: 'Nhập thủ công' },
-  { value: 'mock', label: 'Dữ liệu mẫu' },
-];
+const PAGE_SIZE = 12;
 
 export const JobsPage: React.FC<JobsPageProps> = ({
   onOpenJobDetail,
@@ -65,6 +37,27 @@ export const JobsPage: React.FC<JobsPageProps> = ({
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [catalog, setCatalog] = useState<JobFiltersResponse>({ sources: [], levels: [], work_modes: [], locations: [] });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filterOptions = (key: keyof JobFiltersResponse, label: string) => [
+    { value: '', label },
+    ...catalog[key].map(option => ({ value: option.value, label: `${option.label} (${option.count})` })),
+  ];
+  const workModeOptions = filterOptions('work_modes', 'Tất cả hình thức');
+  const levelOptions = filterOptions('levels', 'Tất cả cấp bậc');
+  const sourceOptions = filterOptions('sources', 'Tất cả nguồn tin');
+  const locationOptions = filterOptions('locations', 'Tất cả địa điểm');
+
+  useEffect(() => {
+    let active = true;
+    jobsApi.getJobFilters().then(data => {
+      if (active) setCatalog(data);
+    }).catch((err: Error) => {
+      if (active) showToast(`Không thể tải bộ lọc: ${err.message}`, 'error');
+    });
+    return () => { active = false; };
+  }, [showToast]);
 
   // Filters state
   const [keyword, setKeyword] = useState('');
@@ -81,38 +74,42 @@ export const JobsPage: React.FC<JobsPageProps> = ({
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedKeyword(keyword);
+      setPage(1);
     }, 350);
     return () => clearTimeout(handler);
   }, [keyword]);
 
   const activeFiltersCount = [workMode, level, source, location].filter(Boolean).length;
 
-  const fetchJobs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: JobFilterParams = {
-        keyword: debouncedKeyword.trim() || undefined,
-        work_mode: workMode || undefined,
-        level: level || undefined,
-        source: source || undefined,
-        location: location.trim() || undefined,
-        page_size: 60,
-      };
-
-      const res = await jobsApi.getJobs(params);
-      setJobs(res.items || []);
-      setTotal(res.total || 0);
-    } catch (err: unknown) {
-      const e = err as Error;
-      showToast(`Không thể tải danh sách việc làm: ${e.message}`, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedKeyword, workMode, level, source, location, showToast]);
-
   useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+    let active = true;
+    setLoading(true);
+    const params: JobFilterParams = {
+      keyword: debouncedKeyword.trim() || undefined,
+      work_mode: workMode || undefined,
+      level: level || undefined,
+      source: source || undefined,
+      location: location || undefined,
+      page,
+      page_size: PAGE_SIZE,
+    };
+    jobsApi.getJobs(params).then(res => {
+      if (!active) return;
+      setJobs(res.items);
+      setTotal(res.total);
+      const lastPage = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
+    }).catch((err: Error) => {
+      if (active) {
+        setJobs([]);
+        setTotal(0);
+        showToast(`Không thể tải danh sách việc làm: ${err.message}`, 'error');
+      }
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [debouncedKeyword, workMode, level, source, location, page, showToast]);
 
   const handleResetFilters = () => {
     setKeyword('');
@@ -121,6 +118,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({
     setLevel('');
     setSource('');
     setLocation('');
+    setPage(1);
   };
 
   return (
@@ -187,25 +185,28 @@ export const JobsPage: React.FC<JobsPageProps> = ({
         {/* Desktop Filter Row (Hidden on mobile) */}
         <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5 pt-1">
           <Select
+            aria-label="Hình thức làm việc"
             value={workMode}
-            onChange={(e) => setWorkMode(e.target.value)}
-            options={WORK_MODE_OPTIONS}
+            onChange={(e) => { setWorkMode(e.target.value); setPage(1); }}
+            options={workModeOptions}
           />
           <Select
+            aria-label="Cấp bậc"
             value={level}
-            onChange={(e) => setLevel(e.target.value)}
-            options={LEVEL_OPTIONS}
+            onChange={(e) => { setLevel(e.target.value); setPage(1); }}
+            options={levelOptions}
           />
           <Select
+            aria-label="Nguồn tin"
             value={source}
-            onChange={(e) => setSource(e.target.value)}
-            options={SOURCE_OPTIONS}
+            onChange={(e) => { setSource(e.target.value); setPage(1); }}
+            options={sourceOptions}
           />
-          <Input
-            placeholder="Địa điểm (HCM, HN, ĐN...)"
+          <Select
+            aria-label="Địa điểm làm việc"
             value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            icon={<MapPin className="w-3.5 h-3.5 text-text-muted" />}
+            onChange={(e) => { setLocation(e.target.value); setPage(1); }}
+            options={locationOptions}
           />
 
           <div className="flex items-center gap-2">
@@ -246,26 +247,26 @@ export const JobsPage: React.FC<JobsPageProps> = ({
             <Select
               label="Hình thức làm việc"
               value={workMode}
-              onChange={(e) => setWorkMode(e.target.value)}
-              options={WORK_MODE_OPTIONS}
+              onChange={(e) => { setWorkMode(e.target.value); setPage(1); }}
+              options={workModeOptions}
             />
             <Select
               label="Cấp bậc"
               value={level}
-              onChange={(e) => setLevel(e.target.value)}
-              options={LEVEL_OPTIONS}
+              onChange={(e) => { setLevel(e.target.value); setPage(1); }}
+              options={levelOptions}
             />
             <Select
               label="Nguồn cào dữ liệu"
               value={source}
-              onChange={(e) => setSource(e.target.value)}
-              options={SOURCE_OPTIONS}
+              onChange={(e) => { setSource(e.target.value); setPage(1); }}
+              options={sourceOptions}
             />
-            <Input
+            <Select
               label="Địa điểm làm việc"
-              placeholder="HCM, Hà Nội, Đà Nẵng..."
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(e) => { setLocation(e.target.value); setPage(1); }}
+              options={locationOptions}
             />
           </div>
 
@@ -316,6 +317,22 @@ export const JobsPage: React.FC<JobsPageProps> = ({
           ))}
         </div>
       )}
+      <nav aria-label="Phân trang việc làm" className="flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className="text-sm text-text-muted">
+          {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} / {total.toLocaleString('vi-VN')} tin
+        </p>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} aria-label="Trang trước">Trước</Button>
+          {Array.from({ length: Math.min(5, totalPages) }, (_, index) =>
+            Math.max(1, Math.min(page - 2, totalPages - 4)) + index
+          ).map(number => (
+            <Button key={number} variant={number === page ? 'primary' : 'outline'} size="sm"
+              aria-label={`Trang ${number}`} aria-current={number === page ? 'page' : undefined}
+              disabled={loading} onClick={() => setPage(number)}>{number}</Button>
+          ))}
+          <Button variant="outline" size="sm" disabled={loading || page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Trang sau">Sau</Button>
+        </div>
+      </nav>
     </div>
   );
 };

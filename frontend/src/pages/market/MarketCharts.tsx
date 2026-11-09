@@ -6,7 +6,7 @@ export const number = (value: number | null | undefined) => value == null ? '—
 export const percent = (value: number) => `${number(value * 100)}%`;
 export const money = (value: number | null | undefined) => value == null ? '—' : `${number(value)} VND`;
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return <Card className="min-w-0"><CardHeader><CardTitle>{title}</CardTitle></CardHeader><div className="space-y-3 px-5 pb-5">{children}</div></Card>;
+  return <Card className="mb-4 min-w-0 break-inside-avoid"><CardHeader><CardTitle>{title}</CardTitle></CardHeader><div className="space-y-3 px-5 pb-5">{children}</div></Card>;
 }
 export function Empty() { return <p className="rounded-md border border-dashed border-border p-4 text-sm text-text-secondary">Chưa đủ dữ liệu cho phân tích này.</p>; }
 export function Notice({ meta }: { meta: MarketMeta }) {
@@ -41,7 +41,7 @@ export function Donut({ title, items, onSelect }: { title: string; items: Array<
     const start = offset;
     offset += share;
     return <circle key={item.key ?? item.label} cx="80" cy="80" r="58" pathLength="100" fill="none" stroke={colors[index % colors.length]} strokeWidth="20" strokeDasharray={`${share} ${100 - share}`} strokeDashoffset={-start} transform="rotate(-90 80 80)"><title>{`${item.label}: ${number(item.value)} · ${percent(item.value / total)}`}</title></circle>;
-  })}<text x="80" y="80" textAnchor="middle" dominantBaseline="middle" fill="currentColor" fontSize="20" fontWeight="700">{number(total)}</text></svg><ul className="min-w-0 flex-1 space-y-3">{items.map((item, index) => <li key={item.key ?? item.label} className="flex items-center gap-2 text-sm"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} aria-hidden="true" />{onSelect ? <Drill onClick={() => onSelect(item.key ?? item.label)}>{item.label}</Drill> : item.label}<span className="ml-auto whitespace-nowrap tabular-nums">{number(item.value)} · {percent(item.value / total)}</span></li>)}</ul></div> : <Empty />}</Panel>;
+  })}<text x="80" y="80" textAnchor="middle" dominantBaseline="middle" fill="currentColor" fontSize="20" fontWeight="700">{number(total)}</text></svg><ul className="min-w-0 flex-[1_1_16rem] space-y-3">{items.map((item, index) => <li key={item.key ?? item.label} className="flex items-center gap-2 text-sm"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} aria-hidden="true" />{onSelect ? <Drill onClick={() => onSelect(item.key ?? item.label)}>{item.label}</Drill> : item.label}<span className="ml-auto whitespace-nowrap tabular-nums">{number(item.value)} · {percent(item.value / total)}</span></li>)}</ul></div> : <Empty />}</Panel>;
 }
 export function Table<T>({ rows, columns }: { rows: T[]; columns: Array<[string, (row: T) => ReactNode]> }) {
   if (!rows.length) return <Empty />;

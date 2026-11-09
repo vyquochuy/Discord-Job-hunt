@@ -2,13 +2,15 @@
 
 ---
 
+**Source review: 2026-11-09.** Active frontend: `frontend/src/api/client.ts` and `frontend/src/context/AuthContext.tsx`. Tokens remain in localStorage; cookie migration is proposed, not shipped. Resume PDF access accepts Bearer or supported query access JWTs and verifies candidate ownership before delivery/JIT; superusers/internal service principal retain explicit privileged exceptions. Query URLs contain credentials, not public capability links.
+
 ## 1. Tổng Quan & Triết Lý Bảo Mật (Overview & Security Philosophy)
 
 Hệ thống **JobHunter Platform** áp dụng mô hình xác thực hiện đại chuẩn **Enterprise SaaS Dual-Token Architecture** (Access Token ngắn hạn + Refresh Token dài hạn kèm Rotation & Token Family Revocation), kết hợp thuật toán băm mật khẩu **Argon2id** chuẩn OWASP 2024.
 
 Mục tiêu cốt lõi của kiến trúc:
 1. **Zero-Trust Multi-User Isolation**: Mỗi người dùng (`User`) sở hữu một không gian dữ liệu độc lập gắn liền với `CandidateProfile`, bảo vệ chống truy cập chéo (Anti-IDOR).
-2. **Stateless Scalability**: Access Token phi trạng thái (Stateless) cho phép các API microservices/endpoints kiểm tra tính hợp lệ tức thì mà không cần truy vấn cơ sở dữ liệu.
+2. **Access JWT verification** is stateless cryptographically, but `get_current_user` and its optional counterpart query PostgreSQL for the active user on authenticated requests. There is no access-token denylist; refresh-family revocation does not immediately revoke an already-issued access JWT.
 3. **Session Revocability & Token Theft Neutralization**: Refresh Token có trạng thái (Stateful), được băm SHA-256 lưu trong PostgreSQL, áp dụng cơ chế **Refresh Token Rotation (RTR)** và **Token Family Revocation (TFR)** để phát hiện và vô hiệu hóa ngay lập tức các cuộc tấn công đánh cắp token (Token Theft / Replay Attack).
 4. **Defense-in-Depth Concurrency Safety**: Đảm bảo an toàn tuyệt đối khi xảy ra tranh chấp phiên đăng nhập (Race Conditions) trên Single Page Application (SPA) qua 3 chốt chặn đồng bộ (Frontend Mutex, Backend Row-Locking, Grace-Period Idempotency).
 
@@ -58,12 +60,12 @@ Tất cả JWT sinh ra từ JobHunter đều bắt buộc phải chứa các cla
 ### 2.3. Phòng Chống Các Lỗ Hổng Mật Mã Học (Cryptographic Hardening)
 
 1. **Chống tấn công Algorithm Confusion / Alg None Attack**:
-   - Hàm decode cấu hình tường minh: `algorithms=["HS256"]`.
+   - Decode uses `algorithms=[settings.JWT_ALGORITHM]` (default `HS256`), never an algorithm selected from the incoming token.
    - Từ chối mọi token sử dụng thuật toán khác (`RS256`, `none`, đối xứng/bất đối xứng bị tráo đổi).
-2. **Kiểm soát độ mạnh của khóa bí mật (`SECRET_KEY`)**:
+2. **Kiểm soát độ mạnh của khóa bí mật (`JWT_SECRET_KEY`)**:
    - Module `backend/app/core/config.py` tích hợp sẵn Pydantic Validator kiểm tra:
-     - Nếu `ENVIRONMENT=production` và `SECRET_KEY` ngắn hơn 32 ký tự hoặc dùng secret mặc định -> **Hệ thống dừng khởi động ngay lập tức (Fail-Fast)**.
-     - Nếu môi trường Development/Testing -> Ghi log cảnh báo bảo mật.
+     - Every environment other than `development` (including tests) requires both `JWT_SECRET_KEY` and `INTERNAL_API_SECRET` to be non-default and at least 32 characters, otherwise startup fails.
+     - Development warns on insecure/default values; tests must supply explicit strong dummy secrets.
 3. **Loại bỏ phụ thuộc không cần thiết**:
    - Sử dụng `PyJWT>=2.10.0,<3.0.0` độc lập.
    - Không cài đặt gói `cryptography` dư thừa vì toàn bộ logic mã hóa dùng chuẩn đối xứng HMAC SHA-256 tiêu chuẩn sẵn có trong Python standard library.
@@ -196,7 +198,7 @@ Khi kẻ tấn công (Attacker) đánh cắp được một `Refresh Token` cũ 
          .values(revoked_at=now)
      )
      ```
-   - Tất cả các token kế nhiệm hợp pháp của người dùng cũng bị vô hiệu hóa ngay lập tức.
+   - Active refresh tokens in that family are revoked. Already-issued access JWTs remain usable until expiry while the user remains active.
    - Kẻ tấn công bị từ chối với mã lỗi `401 Unauthorized`.
    - Người dùng chính chủ sẽ bị buộc đăng nhập lại để tạo phiên an toàn mới.
 
@@ -262,11 +264,13 @@ Khi ứng dụng web Single Page Application (SPA) tải trang (ví dụ Dashboa
 
 ---
 
-### 5.1. Chốt Chặn 1: Frontend Mutex Promise Queue (`client.js`)
+### 5.1. Frontend Mutex Promise Queue (`client.ts`)
+
+The following JavaScript is illustrative pseudocode, not the current method implementation. The typed client uses `refreshAuthToken()` and a shared `Promise<string>`. Network/timeouts only retry read methods; a server-rejected 401 may trigger a coordinated refresh and one authenticated replay, which is distinct from retrying an ambiguously completed mutation.
 
 Đây là tầng bảo vệ chủ lực ở phía máy khách. 
 
-Trong class `ApiClient` (`frontend/js/api/client.js`), thuộc tính `this.refreshPromise` hoạt động như một Mutex Lock:
+Trong class `ApiClient` (`frontend/src/api/client.ts`), thuộc tính `this.refreshPromise` hoạt động như một Mutex Lock:
 
 ```javascript
 // Khi gặp lỗi 401 trong request:
@@ -331,7 +335,7 @@ if record.revoked_at is not None:
 
 | Phương thức | Endpoint | Mô tả | Yêu cầu Header / Body | Phản hồi chính |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | Đăng ký tài khoản mới + Tự động tạo `CandidateProfile` | Body: `{email, password, full_name}` | `201 Created`: User info, `access_token`, `refresh_token` |
+| `POST` | `/api/v1/auth/register` | Đăng ký tài khoản mới + Tự động tạo `CandidateProfile` | Body: `{email, password, full_name}` | `201 Created`: `access_token`, `refresh_token`, `token_type` (fetch user via `/auth/me`) |
 | `POST` | `/api/v1/auth/login` | Đăng nhập tài khoản, tự động rehash Argon2id nếu mật khẩu cũ | Body: `{username, password}` (OAuth2 Password Request Form) | `200 OK`: `access_token`, `refresh_token`, `token_type: "bearer"` |
 | `POST` | `/api/v1/auth/refresh` | Xoay vòng Refresh Token (RTR), cấp mới cặp token | Body: `{refresh_token: "..."}` | `200 OK`: `access_token`, `refresh_token`, `token_type: "bearer"` |
 | `POST` | `/api/v1/auth/logout` | Đăng xuất an toàn, thu hồi Refresh Token và Family | Body: `{refresh_token: "..."}` | `200 OK`: `{"message": "Logged out successfully"}` |
@@ -345,11 +349,11 @@ if record.revoked_at is not None:
 | :--- | :--- | :--- |
 | **Token Theft (Đánh cắp Refresh Token)** | Kẻ gian có được refresh token từ log hoặc cache | **Token Family Revocation (TFR)**: Ngay khi token cũ được dùng lại, toàn bộ chuỗi token bị hủy lập tức, chặn đứng phiên truy cập. |
 | **Algorithm Confusion (Tráo đổi thuật toán)** | Sửa header token thành `alg: none` hoặc `RS256` để bypass chữ ký | Whitelist cố định `algorithms=["HS256"]` trong hàm giải mã PyJWT. |
-| **Weak Secret Key** | Dò khóa `SECRET_KEY` bằng brute-force qua Hashcat/John | Bộ kiểm tra khởi động: Khóa tối thiểu 32 ký tự, cấm khóa mặc định trên môi trường Production. |
+| **Weak Secret Key** | Dò khóa `JWT_SECRET_KEY` bằng brute-force qua Hashcat/John | Bộ kiểm tra khởi động: Khóa tối thiểu 32 ký tự, cấm khóa mặc định trên môi trường Production. |
 | **Credential Stuffing / Dò Mật Khẩu** | Tấn công từ điển vào endpoint `/auth/login` | Băm mật khẩu **Argon2id** (tốn 64MB RAM/hash) + Rate Limiting **5 requests/phút** theo IP. |
 | **Spam Tạo Tài Khoản Rác** | Tự động tạo hàng loạt tài khoản làm tràn database | Rate Limiting **3 requests/phút** theo IP tại `/auth/register`. |
 | **Cross-User Data Access (IDOR)** | User A can thiệp và sửa đổi CV/hồ sơ của User B | Strict Identity Mapping: Mọi truy vấn DB lấy `candidate_id` từ `current_user.id`, kiểm tra quyền sở hữu ở mọi đường dẫn. |
 | **Database Compromise (Lộ DB)** | Kẻ tấn công đọc trộm bảng cơ sở dữ liệu | Bảng `refresh_tokens` chỉ lưu mã băm **SHA-256**, không thể dịch ngược thành token hợp lệ để gọi API. |
 | **Race Condition Refreshing** | Nhiều tab trình duyệt gửi refresh cùng lúc làm rớt phiên | Kết hợp **Frontend Mutex**, **PostgreSQL Row-Locking (`FOR UPDATE`)**, và **15s Grace Period Idempotency**. |
 | **Token Type Substitution** | Dùng Refresh Token thay thế Access Token tại endpoint nghiệp vụ | Kiểm tra trường `type == "access"` bắt buộc tại `get_current_user`. |
-| **XSS Token Extraction** | Đánh cắp token lưu trong client | Access Token có thời hạn cực ngắn (30 phút); CORS khắt khe chỉ cho phép domain tin cậy; mã nguồn không dùng `eval()` hay chèn HTML không kiểm soát. |
+| **XSS Token Extraction** | Same-origin script can read localStorage access and refresh tokens | Remains an architectural exposure (SEC-06). CORS does not prevent same-origin XSS. React text escaping reduces some sinks, not all XSS; HttpOnly migration is still proposed in `TOKEN_STORAGE_MIGRATION_PLAN.md`. |

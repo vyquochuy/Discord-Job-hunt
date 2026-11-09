@@ -59,14 +59,12 @@ class TopCVJobCollector(BaseJobCollector):
                     logger.info(f"TopCV: Fetching page {page}/{max_pages} from {target_url}...")
                     
                     response = await client.get(target_url, headers=headers)
-                    if response.status_code == 403:
-                        logger.warning(
-                            "TopCV.vn trả về HTTP 403 (Cloudflare Bot Management / WAF). "
-                            "Tự động bỏ qua cào tự động cho nguồn này. Khuyến nghị người dùng sử dụng tính năng "
-                            "'Nhập JD thủ công' (POST /api/v1/jobs/ingest-manual) để nhập tin TopCV."
-                        )
-                        break
-                    elif response.status_code != 200:
+                    if response.status_code in {401, 403, 407, 429} or any(
+                        marker in response.text.lower()
+                        for marker in ("just a moment", "checking your browser", "cf-chl-", "verify you are human")
+                    ):
+                        raise RuntimeError("TopCV BLOCKED: access restriction; use manual JD import")
+                    if response.status_code != 200:
                         logger.warning(
                             f"TopCV.vn page {page} returned status {response.status_code}"
                         )
@@ -174,6 +172,8 @@ class TopCVJobCollector(BaseJobCollector):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from TopCV.vn")
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"Error scraping TopCV: {e}", exc_info=True)
 

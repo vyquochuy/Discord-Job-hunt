@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -61,10 +61,12 @@ async def register_user(
             detail="Email đã được đăng ký trong hệ thống",
         )
 
-    # 2. Xác định quyền Superuser (tài khoản đầu tiên hoặc email quản trị cấu hình)
-    count_stmt = select(func.count(User.id))
-    user_count = (await db.execute(count_stmt)).scalar() or 0
-    is_admin = (email_clean == settings.ADMIN_EMAIL.lower().strip()) or (user_count == 0)
+    # Reserve this identity: startup bootstrap promotes ADMIN_EMAIL accounts.
+    if email_clean == settings.ADMIN_EMAIL.lower().strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email không khả dụng để đăng ký",
+        )
 
     try:
         # 3. Tạo User
@@ -75,7 +77,7 @@ async def register_user(
             hashed_password=get_password_hash(payload.password),
             full_name=payload.full_name.strip(),
             is_active=True,
-            is_superuser=is_admin,
+            is_superuser=False,
             created_at=now,
             updated_at=now,
         )

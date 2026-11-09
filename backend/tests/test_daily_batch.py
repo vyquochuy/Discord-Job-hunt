@@ -1,6 +1,7 @@
 import logging
 import pytest
 import pytest_asyncio
+from unittest.mock import AsyncMock
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,7 +12,8 @@ from app.main import app
 from app.models.job import Job
 from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.daily_runner import daily_batch_runner
-from app.services.ingestion_pipeline import ingestion_pipeline
+from app.services.ingestion_pipeline import ingestion_pipeline, IngestionStats
+from app.services.matching.match_service import job_match_service
 
 logger = logging.getLogger("test.daily_batch")
 
@@ -73,8 +75,20 @@ async def test_zero_cost_ingestion_and_contact_fields(test_client):
             assert j.dedup_signature is not None
 
 
+@pytest.fixture
+def batch_dependencies(monkeypatch):
+    ingest = AsyncMock(return_value=IngestionStats(source="mock", total_fetched=2, created=1))
+    matching = AsyncMock(return_value=0)
+    recommendations = AsyncMock(return_value=[])
+    monkeypatch.setattr(ingestion_pipeline, "run", ingest)
+    monkeypatch.setattr(job_match_service, "batch_calculate_all", matching)
+    monkeypatch.setattr(job_match_service, "get_top_recommendations", recommendations)
+    monkeypatch.setattr("os.path.isdir", lambda _: False)
+    return ingest, matching, recommendations
+
+
 @pytest.mark.asyncio
-async def test_daily_batch_runner_execution(test_client):
+async def test_daily_batch_runner_execution(test_client, batch_dependencies):
     """
     Kiểm tra toàn bộ chu trình Daily Batch Runner.
     """
@@ -84,15 +98,22 @@ async def test_daily_batch_runner_execution(test_client):
         summary = await daily_batch_runner.run_daily_batch(session=session, limit_per_source=2)
 
         assert summary.status == "COMPLETED"
-        assert summary.candidate_name == "Vy Quoc Huy"
-        assert summary.total_matches_evaluated >= 0
-        assert summary.duration_seconds > 0
+        assert summary.candidate_id is None
+        assert summary.matching_status == "SKIPPED"
+        assert "Candidate profile not found" in summary.matching_skip_reason
+        assert summary.total_fetched == 18
+        assert summary.new_jobs_created == 9
+        assert summary.total_matches_evaluated == 0
+        assert summary.top_recommendations == []
+        assert summary.duration_seconds >= 0
+        batch_dependencies[1].assert_not_awaited()
+        batch_dependencies[2].assert_not_awaited()
         logger.info(f"Daily Batch finished successfully in {summary.duration_seconds}s!")
         logger.info(f"Summary: Fetched={summary.total_fetched}, Created={summary.new_jobs_created}, Matches={summary.total_matches_evaluated}")
 
 
 @pytest.mark.asyncio
-async def test_daily_batch_api_endpoint(test_client):
+async def test_daily_batch_api_endpoint(test_client, batch_dependencies):
     """
     Kiểm tra REST API endpoint POST /api/v1/jobs/daily-batch.
     """
@@ -104,6 +125,10 @@ async def test_daily_batch_api_endpoint(test_client):
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "COMPLETED"
-    assert "candidate_name" in data
-    assert "top_recommendations" in data
+    assert data["candidate_name"] is None
+    assert data["matching_status"] == "SKIPPED"
+    assert "Candidate profile not found" in data["matching_skip_reason"]
+    assert data["new_jobs_created"] == 9
+    assert data["top_recommendations"] == []
+    batch_dependencies[1].assert_not_awaited()
     logger.info(f"API Triggered Daily Batch: Status={data['status']}, Candidate={data['candidate_name']}")

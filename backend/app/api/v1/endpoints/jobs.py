@@ -21,6 +21,7 @@ from app.models.job import (
 from app.schemas.job import (
     JobDetailResponse,
     JobListResponse,
+    JobFiltersResponse,
     JobResponse,
     ManualJobIngestRequest,
     ManualJobIngestResponse,
@@ -34,11 +35,12 @@ from app.services.collectors.itviec_adapter import ITViecJobCollector
 from app.services.collectors.mock_adapter import MockJobCollector
 from app.services.collectors.remotive_adapter import RemotiveJobCollector
 from app.services.collectors.topcv_adapter import TopCVJobCollector
-from app.services.collectors.topdev_adapter import TopDevJobCollector
+from app.services.collectors.saramin_adapter import SaraminJobCollector
 from app.services.collectors.upwork_adapter import UpworkJobCollector
 from app.services.collectors.vietnamworks_adapter import VietnamWorksJobCollector
 from app.services.ingestion_pipeline import ingestion_pipeline
 from app.services.manual_ingestion_service import manual_ingestion_service
+from app.services.job_filters import get_job_filters
 from app.services.saved_job_service import saved_job_service
 
 router = APIRouter()
@@ -66,7 +68,7 @@ async def list_jobs(
             query = query.join(Job.raw_job).where(
                 ~RawJob.source.in_([
                     "topcv", "itviec", "careerlink", "remotive",
-                    "topdev", "itnavi", "growupwork", "vietnamworks", "upwork",
+                    "saramin", "topdev", "itnavi", "growupwork", "vietnamworks", "upwork",
                     "mock", "manual"
                 ])
             )
@@ -88,11 +90,11 @@ async def list_jobs(
     if work_mode:
         query = query.where(Job.work_mode == work_mode)
 
-    if level and level != JobLevelEnum.UNKNOWN:
+    if level:
         query = query.where(Job.level == level)
 
     if location:
-        query = query.where(Job.normalized_location.ilike(f"%{location.strip()}%"))
+        query = query.where(Job.normalized_location == location.strip())
 
     # Đếm tổng số bản ghi
     count_query = select(func.count()).select_from(query.subquery())
@@ -101,7 +103,7 @@ async def list_jobs(
 
     # Phân trang và sắp xếp mới nhất
     offset = (page - 1) * page_size
-    query = query.order_by(Job.created_at.desc()).offset(offset).limit(page_size)
+    query = query.order_by(Job.created_at.desc(), Job.id.desc()).offset(offset).limit(page_size)
 
     result = await db.execute(query)
     jobs = result.scalars().all()
@@ -112,6 +114,11 @@ async def list_jobs(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/filters", response_model=JobFiltersResponse)
+async def list_job_filters(db: AsyncSession = Depends(get_db)):
+    return await get_job_filters(db)
 
 
 @router.get("/saved", response_model=List[dict])
@@ -222,7 +229,7 @@ async def trigger_collection(
         "itviec": ITViecJobCollector(),
         "careerlink": CareerLinkJobCollector(),
         "topcv": TopCVJobCollector(),
-        "topdev": TopDevJobCollector(),
+        "saramin": SaraminJobCollector(),
         "itnavi": ITNaviJobCollector(),
         "growupwork": GrowUpWorkJobCollector(),
         "vietnamworks": VietnamWorksJobCollector(),
@@ -236,7 +243,15 @@ async def trigger_collection(
         )
 
     collector = collectors_map[source]
-    stats = await ingestion_pipeline.run(collector, db, limit=limit, full_scan=full_scan)
+    try:
+        stats = await ingestion_pipeline.run(collector, db, limit=limit, full_scan=full_scan)
+    except RuntimeError as exc:
+        if source == "topcv" and str(exc).startswith("TopCV BLOCKED:"):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="TopCV blocked automated access; import JD text manually",
+            ) from exc
+        raise
     # Bảo trì: chuyển các job đã quá hạn trong DB sang EXPIRED
     expired_total = await ingestion_pipeline.expire_outdated_jobs(db)
 

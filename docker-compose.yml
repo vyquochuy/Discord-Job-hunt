@@ -44,6 +44,15 @@ services:
   # ----------------------------------------------------------------------------
   # 3. Core API: FastAPI Backend điều phối logic, database và AI
   # ----------------------------------------------------------------------------
+  frontend-build:
+    image: node:22-alpine
+    working_dir: /frontend
+    command: sh -c "npm ci && npm run build"
+    volumes:
+      - ./frontend:/frontend
+      - frontend_node_modules:/frontend/node_modules
+    restart: "no"
+
   backend:
     build:
       context: ./backend
@@ -64,6 +73,8 @@ services:
       - ./frontend:/frontend:ro
       - ./context:/context:ro
     depends_on:
+      frontend-build:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -129,6 +140,7 @@ services:
 # Volumes & Networks
 # ------------------------------------------------------------------------------
 volumes:
+  frontend_node_modules:
   postgres_data:
     driver: local
   redis_data:

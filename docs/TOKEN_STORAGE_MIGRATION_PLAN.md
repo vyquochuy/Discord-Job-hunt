@@ -1,52 +1,29 @@
-# JWT Token Storage Migration Plan (SEC-06)
+# JWT token storage migration plan (SEC-06)
 
-## Objective
-Migrate the storage of Access and Refresh tokens from `localStorage` to `HttpOnly`, `Secure`, `SameSite=Strict` (or `Lax`) cookies. This migration addresses the vulnerability **SEC-06: Browser localStorage Token Storage Exposing Refresh Tokens**, neutralizing the risk of token theft via Cross-Site Scripting (XSS).
+**Status (2026-11-09): proposed, not implemented.** Tokens still live in browser `localStorage`; documenting this plan does not mitigate script-readable token storage.
 
-## Current State Analysis
-1. **Frontend**: Tokens are saved using `localStorage.setItem('jh_access_token', token)` in `frontend/js/api/client.js` and `frontend/legacy/js/api/client.js`.
-2. **Backend**: Tokens are extracted from the `Authorization: Bearer <token>` header in `backend/app/core/security.py` via `get_current_user` / `get_current_user_optional`.
-3. **API Integration**: Currently, JavaScript manually reads `localStorage` and attaches the token to the header for every outgoing HTTP request.
+## Current implementation
 
-## Migration Steps
+- `frontend/src/api/client.ts` persists `jh_access_token` and `jh_refresh_token`, attaches Bearer headers and coordinates refresh with one shared Promise. Removed `frontend/js` and `frontend/legacy` paths are not active code.
+- `backend/app/api/v1/endpoints/auth.py` returns tokens in JSON and accepts refresh/logout tokens in request bodies; no auth-cookie issuance is implemented.
+- `backend/app/core/security.py` authenticates Bearer access JWTs; the optional/internal dependency also accepts `?token=` for iframe/download navigation. Resume ownership is checked in `backend/app/api/v1/endpoints/resumes.py` before serving or recompiling PDFs, with explicit privileged exceptions.
+- Access TTL defaults to 30 minutes, refresh TTL to 30 days. XSS executing in this origin can read both. CORS does not prevent same-origin XSS theft.
 
-### Phase 1: Dual-Mode Backend Support & Cookie Issuance
-Modify authentication endpoints to issue tokens as cookies in addition to the JSON response body to maintain backward compatibility during rollout.
-- **Login/Refresh Endpoints (`backend/app/api/v1/endpoints/auth.py`)**: Add `set_cookie` directives to the `Response` object.
-  ```python
-  response.set_cookie(
-      key="access_token",
-      value=f"Bearer {access_token}",
-      httponly=True,
-      secure=True,  # Set based on environment (HTTPS)
-      samesite="lax",
-      max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-  )
-  response.set_cookie(
-      key="refresh_token",
-      value=refresh_token,
-      httponly=True,
-      secure=True,
-      samesite="lax",
-      max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-  )
-  ```
-- **Logout Endpoint**: Ensure `response.delete_cookie(key="access_token")` and `response.delete_cookie(key="refresh_token")` are called.
+## Proposed rollout gates
 
-### Phase 2: Frontend Client Update
-Modify the `ApiClient` class in `frontend/js/api/client.js` to stop using `localStorage`.
-- Ensure all `fetch` requests include `credentials: "include"` (or `"same-origin"` depending on deployment).
-- Remove `setTokens`, `getToken`, and `localStorage.setItem` logic.
-- Clear `localStorage` tokens upon logout or initial migration detection.
+1. **Choose deployment topology first.** Pages (`pages.dev`) and Render (`onrender.com`) are cross-site. `SameSite=Lax`/`Strict` cookies are not sent on cross-site fetches. Prefer a same-site custom-domain topology or a same-origin proxy; cross-site cookies require `SameSite=None; Secure` and may still be blocked by third-party-cookie restrictions. Do not promise cookie compatibility before browser verification.
+2. **Backend cookie contract.** Issue `HttpOnly; Secure` tokens with narrowly scoped paths and matching deletion attributes. Define expiration, rotation, logout, and header/cookie precedence explicitly. Avoid returning refresh tokens to JavaScript after migration; indefinite dual-mode JSON issuance defeats the confidentiality objective.
+3. **CSRF before activation.** Validate allowed origins and use a server-validated CSRF token for cookie-authenticated state changes (`POST`, `PUT`, `PATCH`, `DELETE`, including refresh/logout). Use a session-bound signed double-submit or synchronizer-token design, not an unbound cookie/header equality check alone. Keep exact credentialed CORS origins; never wildcard origins.
+4. **Frontend migration.** Update `frontend/src/api/client.ts` and AuthContext to use `credentials: 'include'`, remove persistent token reads/writes, and clear old localStorage values on rollout/logout. Preserve coordinated refresh and bounded read retries; never retry mutations on timeout/network failure.
+5. **PDF embeds.** Replace or explicitly retire access JWT query URLs. Test owner-only iframe/download access in the chosen cookie topology; never make resume UUIDs public capabilities. HttpOnly auth does not stop malicious same-origin script making authenticated requests.
+6. **Compatibility window.** If Bearer clients remain, define a bounded transition, tests and rollback; only remove header support after non-browser adapters are accounted for. Internal service secrets remain server-side and separate from user identity.
 
-### Phase 3: Mitigating CSRF (Crucial Requirement)
-Since tokens will now be automatically sent by the browser via cookies, the application becomes susceptible to Cross-Site Request Forgery (CSRF).
-1. Implement a **Double Submit Cookie** pattern or a synchronized CSRF token.
-2. The backend issues a non-HttpOnly `csrf_token` cookie.
-3. The frontend reads the `csrf_token` and attaches it as an `X-CSRF-Token` header.
-4. The backend verifies that the header matches the `csrf_token` cookie for all state-changing operations (`POST`, `PUT`, `DELETE`).
+## Acceptance checks (not yet executed)
 
-## Rollout Strategy
-1. **Backward Compatibility**: During the transition, backend accepts tokens from *both* `Authorization` headers and `access_token` cookies.
-2. **Frontend Deployment**: Deploy the updated frontend configured with `credentials: 'include'`.
-3. **Deprecation**: After all active clients are updated, strictly enforce cookie-based auth and deprecate manual localStorage token passing.
+- Browser reload/login/refresh/logout with concurrent requests and multiple tabs; old storage cleared.
+- Cross-origin and cross-site behavior on actual frontend/backend domains, including blocked third-party cookies.
+- CSRF rejection for all cookie-authenticated mutations; allowed requests succeed.
+- PDF without auth rejected; wrong tenant rejected; owner succeeds, including JIT after artifact loss.
+- No refresh credential returned to JavaScript or exposed through query URLs/logs; cookie deletion works with original scope.
+
+This migration reduces direct token extraction, not all XSS impact. Keep output escaping and dependency review independently.

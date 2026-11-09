@@ -83,7 +83,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
             <div>
               <DialogTitle>Quét tin tuyển dụng đa nguồn</DialogTitle>
               <DialogDescription>
-                Thu thập tự động từ ITViec, TopCV, CareerLink, Remotive; xử lý trùng lặp và tính điểm phù hợp.
+                Thu thập từ 7 nguồn Việt Nam và các nguồn quốc tế; xử lý trùng lặp và tính điểm phù hợp.
               </DialogDescription>
             </div>
           </div>
@@ -170,7 +170,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
                   <Badge variant="purple">~40 - 60s</Badge>
                 </div>
                 <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                  5 nền tảng Việt Nam (ITViec, TopCV, TopDev, VietnamWorks, CareerLink) quét toàn bộ tin còn hạn; nguồn quốc tế giữ incremental tối đa 50 tin.
+                  7 nguồn Việt Nam (ITViec, TopCV, Saramin, VietnamWorks, CareerLink, ITNavi, GrowUpWork) quét toàn bộ trong giới hạn an toàn; nguồn quốc tế tối đa 50 tin. TopCV có thể bị WAF chặn — hãy nhập JD thủ công khi cần.
                 </p>
               </div>
             </label>
@@ -221,7 +221,7 @@ export const JobScannerModal: React.FC<JobScannerModalProps> = ({
                   Hệ thống đang thu thập và tính điểm 7 chỉ số...
                 </p>
                 <p className="text-[11px] text-text-secondary mt-0.5">
-                  Đang cào dữ liệu qua ITViec, TopCV, CareerLink, Remotive. Vui lòng giữ tab này mở.
+                  Đang thu thập dữ liệu đa nguồn. Nguồn bị WAF chặn sẽ được báo lỗi, không vượt chặn. Vui lòng giữ tab này mở.
                 </p>
               </div>
             </div>

@@ -36,16 +36,28 @@ class ITNaviJobCollector(BaseJobCollector):
         }
 
         page = 1
-        max_pages = min(25, max(1, (limit + 19) // 20))
+        unlimited = limit <= 0
+        # Mỗi trang ITNavi có 10 tin; limit=50 cần 5 trang. Khi full scan, cap tối đa 50 trang (~490 tin).
+        max_pages = 50 if unlimited else min(25, max(1, (limit + 9) // 10))
+        seen = set()
+        seen_ids = set()
 
         try:
             timeout_cfg = httpx.Timeout(10.0, connect=5.0)
             async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
-                while page <= max_pages and len(results) < limit:
+                while page <= max_pages and (unlimited or len(results) < limit):
                     target_url = f"{self.SEARCH_URL}?page={page}" if page > 1 else self.SEARCH_URL
                     logger.info(f"ITNavi: Fetching page {page}/{max_pages} from {target_url}...")
 
-                    response = await client.get(target_url, headers=headers)
+                    try:
+                        response = await client.get(target_url, headers=headers)
+                    except httpx.TimeoutException:
+                        logger.warning(f"ITNavi page {page} timed out, retrying once...")
+                        try:
+                            response = await client.get(target_url, headers=headers)
+                        except httpx.TimeoutException:
+                            logger.warning(f"ITNavi page {page} timed out twice, stopping pagination.")
+                            break
                     if response.status_code != 200:
                         logger.warning(f"ITNavi page {page} returned status {response.status_code}")
                         break
@@ -62,48 +74,43 @@ class ITNaviJobCollector(BaseJobCollector):
                         logger.info(f"ITNavi: No job cards found on page {page}.")
                         break
 
-                    for card in job_cards:
-                        if len(results) >= limit:
-                            break
-
-                        # 1. Title
+                    async def _parse_card(card):
                         title_elem = card.select_one(
                             ".jsl-item__name, h2, h3, a[class*='title'], a[href*='/viec-lam-'], a[href*='/job/']"
                         )
                         if not title_elem:
-                            continue
+                            return None
 
                         title = title_elem.get_text(strip=True)
                         if not title:
-                            continue
+                            return None
 
                         job_id = card.get("data-id") or card.get("id") or ""
+                        if job_id:
+                            if job_id in seen_ids:
+                                return None
+                            seen_ids.add(job_id)
 
-                        # 2. Company Name
                         company_elem = card.select_one(
                             ".jsl-item__cpn, .company-name, a[class*='company'], .company, p[class*='company'], .employer-name"
                         )
                         company = company_elem.get_text(strip=True) if company_elem else "ITNavi Employer"
 
-                        # 3. Location
                         location_elem = card.select_one(
                             ".jsl-item__location, .location, .address, span[class*='location'], span[class*='city'], .city"
                         )
                         location = location_elem.get_text(strip=True) if location_elem else "Vietnam"
 
-                        # 4. Salary
                         salary_elem = card.select_one(
                             ".jsl-item__sm, .salary, span[class*='salary'], .text-salary, .salary-text, .price"
                         )
                         salary_text = salary_elem.get_text(" ", strip=True) if salary_elem else ""
 
-                        # 5. Skills
                         skill_elems = card.select(
                             ".tag, .skill-tag, .skill-item, span[class*='tag'], span[class*='skill'], a.tag, .jsl-item__tag"
                         )
                         skills = [s.get_text(strip=True) for s in skill_elems if s.get_text(strip=True)]
 
-                        # 6. Canonical URL và chi tiết qua AJAX get-job-by-id
                         url = None
                         description = ""
                         min_salary = None
@@ -122,7 +129,6 @@ class ITNaviJobCollector(BaseJobCollector):
                                         description = BeautifulSoup(ajax_data["job_content"], "html.parser").get_text(separator="\n").strip()
                                     min_salary = ajax_data.get("job_salary_min")
                                     max_salary = ajax_data.get("job_salary_max")
-                                    # Bổ sung kỹ năng từ AJAX nếu có
                                     for sk in ajax_data.get("skill", []):
                                         sk_name = sk.get("name") if isinstance(sk, dict) else str(sk)
                                         if sk_name and sk_name not in skills:
@@ -130,7 +136,6 @@ class ITNaviJobCollector(BaseJobCollector):
                             except Exception as e:
                                 logger.debug(f"ITNavi AJAX detail fetch error for job_id={job_id}: {e}")
 
-                        # Fallback URL nếu AJAX không trả về slug
                         if not url:
                             copy_elem = card.select_one("[data-copy]")
                             if copy_elem and copy_elem.get("data-copy"):
@@ -158,19 +163,33 @@ class ITNaviJobCollector(BaseJobCollector):
                         }
 
                         content_hash = self.compute_content_hash(f"{title}|{company}|{location}|{url}")
-                        results.append(
-                            RawJobData(
-                                source=self.source_name,
-                                source_url=url,
-                                source_job_id=job_id or None,
-                                raw_payload=card_payload,
-                                raw_html=str(card),
-                                content_hash=content_hash,
-                            )
+                        return RawJobData(
+                            source=self.source_name,
+                            source_url=url,
+                            source_job_id=job_id or None,
+                            raw_payload=card_payload,
+                            raw_html=str(card),
+                            content_hash=content_hash,
                         )
 
+                    before = len(results)
+                    card_tasks = [_parse_card(card) for card in job_cards]
+                    parsed_cards = await asyncio.gather(*card_tasks)
+
+                    for raw_item in parsed_cards:
+                        if not raw_item:
+                            continue
+                        if not unlimited and len(results) >= limit:
+                            break
+                        if raw_item.source_url in seen:
+                            continue
+                        seen.add(raw_item.source_url)
+                        results.append(raw_item)
+
+                    if len(results) == before:
+                        break
                     page += 1
-                    if page <= max_pages and len(results) < limit:
+                    if page <= max_pages and (unlimited or len(results) < limit):
                         await asyncio.sleep(0.35)
 
                 logger.info(f"Successfully scraped {len(results)} IT jobs across {page-1} pages from ITnavi.com.vn")
